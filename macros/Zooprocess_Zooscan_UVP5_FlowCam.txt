@@ -2,8 +2,8 @@
 run("Misc...", "divide=Infinity antialiased_tool");
 run("free memory");
 setBatchMode(false);
-version =	 "7.27";
-date =	 "2018/09/23";
+version =	 "7.28";
+date =	 "2018/10/14";
 
 // Gestion presence advanced et user
 // uvp5 SN
