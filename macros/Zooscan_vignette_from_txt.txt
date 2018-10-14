@@ -1,0 +1,406 @@
+//---------------------------Zooscan_vignette_from_txt.txt---------------------------------
+date = "2008/04/20";
+version = "5.03";
+// Cette routine ne fonctionne que dans le respect de l'arborescence Zooscan_scan\_work\ pour les fichiers image
+// Le nom du fichier image est lu dans une colonne du fichier (Label)
+// Une colonne identification peut etre utilisee, dans ce cas, l'identification est affichee
+// Fonctionne avec des fichiers dont le separateur est tabs, espace ou ;
+// Les colonnes !Item,Label,Area,Feret,Mean,Bx,By,Width et Height doivent absolument etre presentes quelque soit leur ordre
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+
+resolution = "2400";	longline = "1";	contrast = 1.1;	deb = 0;		fic = 0;	x1 = 10;
+vignettetext = longline;
+longline = parseFloat(longline);
+paramlist = newArray("IMAGE NAME","IDENTIFICATION","PREDICTION","N° of organism/Image","BX","BY","Width","Height");
+
+//--------------------Ouverture controlee du TXT -----------------------
+	Dialog.create("VIGNETTES from TXT file                            ");
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project  :  "+proj);
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "VIS image is to be found in its project Zooscan_scan\work subfolder   \nMacro will abort if an image is not found                        ");
+	Dialog.addMessage( "''Label'',''Ident'', ''!Item'', ''Tag'', ''BX'', ''BY'', ''Width'', ''Height''                 \nfields must exist in the datafile\n(Label <=> Image name)\n(!Item <=> Organism N°)\n \nAs many additional identification columns can be included     \nFile header must include the column names                    ");
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	aff = newArray(2400,1200,600,300);
+	Dialog.addChoice("                         Image resolution", aff);
+	Dialog.addMessage("- If gamma > 1=> contrast enhanced              ");
+	Dialog.addMessage("- If gamma < 1=> image smoothed              ");
+	Dialog.addMessage("- If gamma = 1=> No gamma correction              ");
+	Dialog.addNumber("                      SET gamma (0.5 - 5) ",contrast);
+	Dialog.addCheckbox("SAVE thumbnail images of organisms ?", false);
+	Dialog.addCheckbox("KEEP vignette opened  ?", false);
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Sort identlist on (if exists):   ");
+	Dialog.addChoice( "                      ", paramlist);
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Open   TEXT file \nImagename must be inside the text file            \nonly tabs, '';'' or ''space'' separators are allowed");
+	Dialog.addMessage( "-------------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	resolution = 	Dialog.getChoice();
+	gamma =		Dialog.getNumber();
+	gamma = 	maxOf(gamma,0.5);
+	gamma = 	minOf(gamma,5);
+	if (gamma != 1) { maskcont = 2;	} // if
+	else { maskcont = 0;		} // else
+	masksave = Dialog.getCheckbox();
+	fic = Dialog.getCheckbox();
+	sortparam = Dialog.getChoice();
+	print("OPEN a TEX file with either tabs, '';'' or ''  '' separators");
+	print("OPEN a TEX file with either tabs, '';'' or ''  '' separators");
+	print("OPEN a TEX file with either tabs, '';'' or ''  '' separators");
+coltest = 0;			
+while (coltest ==0) { //---------------Ouverture de fichiers jusqu a ce que le contenu soit OK
+	open();
+	if (maskcont==true) { print("Contrast enhanced "+contrast);	} // if
+	config = getInfo();
+	dataline = split(config,"\n");
+	run("Close");
+	print("Resolution= ",resolution);
+
+	//-----------------Recherche Type de separateur ( tabs, ; ou space)--------------------------
+	sep = "tabs";
+	ctrl1 = indexOf(dataline[deb],";");
+	if (ctrl1>=0) { print("'';'' separator");		sep = "dotcoma";	} // if
+	ctrl1 = indexOf(dataline[deb]," ");
+	if (ctrl1>=0) { print("''space'' separator");		sep = "space";	} // if
+
+	//------------------Creation des vecteurs---------------------------------
+	long = dataline.length;
+	print(long);
+	nbval = long-deb-1;
+	identligne = 	newArray(nbval);		// source
+	sortedligne = 	newArray(nbval);		// triee
+	
+	//------------------Detection des N° de colonnes pour les champs-------------
+	if (sep == "dotcoma") {	a= replace(dataline[deb],";"," ");	ligne = split(a,"\ ");		} // if
+	if (sep == "tabs") {		a = dataline[deb];			ligne = split(a,"\t");		} // if
+	colident =0;	collabel = 0;	colbx = 0;		colby = 0;		
+	colarea = 0;	colwidth = 0;	colheight = 0;	colno = 0;
+	colpred = 0;
+	for (i=0; i<ligne.length ; i++) {	
+		v = ligne[i];	
+		if (v=="Label") { collabel = i;	coltest = coltest+1;	} //if	Nom de l image source
+		if (v=="BX") { colbx = i;	coltest = coltest+1;	} //if
+		if (v=="BY") { colby = i;	coltest = coltest+1;	} //if
+		if (v=="Area") { colarea = i;	coltest = coltest+1;	} //if
+		if (v=="Width") { colwidth = i;	coltest = coltest+1;	} //if
+		if (v=="Height") { colheight = i;	coltest = coltest+1;	} //if
+		if (v=="!Item") { colno = i;	coltest = coltest+1;	} //if
+		ctrlpred = startsWith(v,"pred_");
+		if (ctrlpred==1) { 	colpred = i;	coltest = coltest+1;	} // if
+		if (v=="Ident") { colident = i;	} //if
+	} // for
+	if (collabel ==0 || colbx ==0 || colby==0 || colwidth==0 || colheight==0  ) { showMessage("The file did not contain all the required fields                  ") ;	} // if
+ } // while
+
+//---------------- Si Ident pas trouve automatiquement-------------------------
+if (colident == 0 && sortparam=="IDENTIFICATION") { //----Selection manuelle de la colonne
+	Dialog.create("Vignette control                            ");
+	Dialog.addMessage( "Ident column not found, select it manually           ");
+	Dialog.addChoice("         ", ligne);
+	Dialog.show();
+	identtxt = Dialog.getChoice();
+	// showMessage(identtxt);
+	//------------- Detection automatique avec le nouveau nom
+	for (i=0; i<ligne.length ; i++) {	v = ligne[i];
+		if (v==identtxt) { colident = i;	print("Identification col = ",colident);		} //if
+	} // for
+} // if
+if (colpred== 0 && sortparam=="PREDICTION") { print("NO PREDICTION DATA, SORTING CANCELED);		sortparam = "N° of organism/Image" ;		} // if
+
+//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+pixels = 25.4/resolution;
+for (i=deb+1; i<long ; i++) {
+	if (sep != "tabs") {	a= replace(dataline[i],";"," ");	ligne = split(a,"\ ");		} // if
+	if (sep == "tabs") {	a= dataline[i];		ligne = split(a,"\t");		} // if
+	ind = i-deb-1;
+	No = 	ligne[colno];
+	Label = 	ligne[collabel];
+	Area = 	ligne[colarea];
+	Bx = 	ligne[colbx];
+	By = 	ligne[colby];
+	Width = 	ligne[colwidth];
+	Height = 	ligne[colheight];
+	Smm = 	parseInt(Area);
+	Smm = 	Smm * pixels * pixels;
+	Smm = 	Smm /3.1416 ;
+	Esd = 	2* pow(Smm,0.5);
+	if (colident != 0 && colpred != 0) {//----------existence d'une identification et d'une prediction---------------------
+		messagelist = " No      Image                   Ident.          Pred.          Area     ESD       Bx     By     Width     Height" ;
+		Ident =	ligne[colident];	
+		Pred = 	ligne[colpred];
+		b = No+"     "+Label+" "+Ident+"     "+Pred+"     "+Area+"     "+Esd+"     "+Bx+"     "+By+"     "+Width+"     "+Height;
+		case ="A";
+	} // if
+	else if (colident != 0 && colpred == 0) {//----------existence d'une identification---------------------
+		messagelist = " No      Image                   Ident.          Area     ESD       Bx     By     Width     Height" ;
+		Ident =	ligne[colident];	
+		b = No+"     "+Label+" "+Ident+"     "+Area+"     "+Esd+"     "+Bx+"     "+By+"     "+Width+"     "+Height;
+		case ="B";
+	} // if
+	else if (colident == 0 && colpred != 0) {//----------existence d'une prediction---------------------
+		messagelist = " No      Image                   Pred.          Area     ESD       Bx     By     Width     Height" ;
+		Pred = 	ligne[colpred];
+		b = No+"     "+Label+" "+Pred+"     "+Area+"     "+Esd+"     "+Bx+"     "+By+"     "+Width+"     "+Height;	
+		case = "C";
+	} // if
+	else {//-------------Pas d identification---------------------------------------
+		messagelist = " No      Image               Area     ESD       Bx     By     Width     Height" ;
+		b = No+"     "+Label+"     "+Area+"     "+Esd+"     "+Bx+"     "+By+"     "+Width+"     "+Height;	
+		case = "D";
+	} // if
+	identligne[ind] = b;
+} // for
+print(messagelist);
+print("case= ",case);
+
+//-----------Nouveau N° de col dans la nouvelle matrice------------------------------------------
+	if (case =="A") {//----------existence d'une identification et d'une prediction---------------------
+		colbx = 6;	colby = 7;	colident = 2;	colpred = 3;	colwidth = 8;	colheight = 9;		} // if
+	else if (case =="B") {//----------existence d'une identification---------------------
+		colbx = 5;	colident = 2;	colby = 6;	colwidth = 7;	colheight = 8;				} // if
+	else if (case== "C") {//----------existence d'une prediction---------------------
+		colpred = 2;	colbx = 5;	colby = 6;	colwidth = 7;	colheight = 8;				} // if
+	else {//-------------Pas d identification---------------------------------------
+		colbx = 4;	colby = 5;	colwidth = 6;	colheight = 7;						} // if
+
+print("colident= ",colident,"   colpred= ",colpred," sortparam= ",sortparam);
+//--------------Tri si necessaire-----------------------------------------------------------------------
+if (sortparam != "N° of organism/Image" ) { 
+	//----------------Alors on trie----------------------------
+	if (sortparam != "IDENTIFICATION" && sortparam != "IMAGE NAME" && sortparam != "PREDICTION")  { 
+		//------------- Classement sur les nombres, a ordonner-------------
+		index = 0;
+		if (sortparam=="BX") { 	col = colbx;	} //if
+		if (sortparam=="BY") { 	col = colby;	} //if
+		if (sortparam=="Width") { 	col = colwidth;	} //if
+		if (sortparam=="Height") { 	col = colheight;	} //if
+		print("sortparam= ",sortparam," col= ",col);
+		while (index < identligne.length-1) {
+			showStatus("SORTING FILE, index = "+index+",  WAIT !");
+			minval = 100000000000;
+			for (k=deb; k<identligne.length ; k++) {
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				data = parseFloat(data);
+				minval = minOf(data,minval);
+				//	print("minval= ",minval," data= ",data);
+			} // for
+			for (k=deb; k<identligne.length ; k++) {
+				//---------------Trouvons tous les champs de cette valeur----------------
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");	
+				data = val[col];
+				data = parseFloat(data);
+				if (data == minval ) {
+					sorted = identligne[k];
+					sortedligne[index] = sorted;
+					print(sorted);
+					index++;
+					if (case =="A") {
+						identligne[k] = "10000000000 10000000000 10000000000 10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 z";
+					} // if
+					if (case =="B") {
+						identligne[k] = "10000000000 10000000000 10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 z";
+					} // if
+					if (case =="C") {
+						identligne[k] = "10000000000 10000000000 10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 z";
+					} // if
+					if (case =="D") {
+						identligne[k] = "10000000000  10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 z";
+					} // if
+				} // if
+			
+			} // for
+		} // while
+	} // if
+	else {	//----------------------------------------Classement sur les identites
+		//print("------------- Classement sur les identifications -------------");
+		index = 0;
+		if (sortparam== "IMAGE NAME") { 	col = collabel;				} //if
+		if (sortparam== "PREDICTION") { 	col = colpred;				} //if
+		if (sortparam== "IDENTIFICATION") { 	col = colident;				} //if
+		while (index < identligne.length) {
+			showStatus("SORTING FILE, index = "+index+",  WAIT !");
+			maxval = 0;
+			for (k=deb; k<identligne.length ; k++) {
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				maxval = maxOf(a1,maxval);
+			} // for
+			for (k=deb; k<identligne.length ; k++) {
+				//---------------Trouvons tous les champs de cette valeur----------------
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				if (a1 == maxval ) {
+					sorted = identligne[k];
+					sortedligne[index] = sorted;
+					index++;
+					if (case =="A" && sortparam ==  "IMAGE NAME") {
+						identligne[k] = "10000000000 0 10000000000 10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+					if (case =="A" && sortparam ==  "PREDICTION") {
+						identligne[k] = "10000000000 10000000000 10000000000 0 10000000000 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+					if (case =="A" && sortparam ==  "IDENTIFICATION") {
+						identligne[k] = "10000000000 10000000000 0 10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+					if ((case =="B" || case=="C" ) && sortparam ==  "IDENTIFICATION") {
+						identligne[k] = "10000000000 10000000000 0 10000000000 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+					if ((case =="B" || case=="C" ) && sortparam ==  "PREDICTION") {
+						identligne[k] = "10000000000 10000000000 10000000000 0 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+					if (case =="D") {
+						identligne[k] = "10000000000  10000000000 10000000000 10000000000 10000000000  10000000000 10000000000 0";
+					} // if
+				} // if
+			
+			} // for
+		} // while
+	} // else
+	showStatus("FILE  SORTED !");
+}  // if
+else { sortedligne = identligne; 		} // else
+
+
+//--------------------------Selection et affichage de la vignette a afficher---------------------
+f = 10;	visdata =0;	openimg = 0;	data = "          ";	message2 = "               ";
+while (f==10) {
+	//--------------------------Selection de la vignette a afficher---------------------
+	Dialog.create("VIGNETTE SELECTION ");
+	Dialog.addMessage	("-----------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage	("Project :  "+proj);
+	Dialog.addMessage	("File sorted by :  "+sortparam);
+	Dialog.addMessage	("-----------------------------------------------------------------------------------------------------------------------------------------");
+	message = "Select line and press OK to visualise           " ;
+	Dialog.addMessage(message);
+	message = "ESD is converted in mm  using image resolution         " ;
+	Dialog.addMessage(message);
+	message = "Press CANCEL to END              " ;
+	Dialog.addMessage(message);
+	Dialog.addMessage(message2);
+	if (visdata == 1) {
+		Dialog.addMessage("--------------------------LAST Displayed vignette data-----------------------------------------------------------------------          ");	
+		Dialog.addMessage(messagelist);
+		Dialog.addMessage(data);
+		Dialog.addMessage	("-----------------------------------------------------------------------------------------------------------------------------------------");
+	} // if	
+	Dialog.addMessage(messagelist);
+	Dialog.addChoice(" ", sortedligne);
+	Dialog.show();
+	data = Dialog.getChoice();
+	val = split(data,"\ ");	
+	No = val[0];
+	titrered = val[1];
+
+	//----------------Fermeture vignette precedente----------------------------------------------
+	if ( visdata == 1 && masksave !=1) { 
+		selectImage(nomvignette);
+		run("Close");
+	} // if
+	if (visdata == 1 && masksave ==1) { 
+		selectImage(nomvignette+".jpg");
+		run("Close");
+	} // if
+
+	//-------------------Gestion de l'image source-----------------------------------------------------------
+	chemscan = projfolder  + "\\Zooscan_scan\\";
+	chemwork1 = chemscan + "_work\\";
+	chemwork = chemwork1+titrered+"\\";
+	chemtemp = chem + "Zooscan_temp\\";
+
+	ctrl = isOpen(titrered+"_vis1.jpg");
+	if (ctrl==1) { selectImage(titrered+"_vis1.jpg");	
+		flagi = 1;
+		titre = 	titrered+"_vis1.jpg";
+		text = chemwork+titrered+"_vis1.jpg";
+		message2 = text +" OPEN";
+		function getPath() {
+      			if (nImages==0) return "Error: no images open";
+      				selectImage(getImageID);
+      				run("Select None");  // bug workaround
+      				info = getInfo();
+      				index1 = indexOf(info, "Path: ");
+      			if (index1==-1) 
+          				return "Error: path not available for \"" + getTitle() + "\"";
+      				index2 = indexOf(info, "\n", index1);
+      				path = substring(info, index1+6, index2);
+      				return path;
+  		} // function
+		dir= getPath();
+		chemin = File.getParent(dir);
+	} // if 
+	else {//--------------------------------Ouverture de l'image si elle n'est pas ouverte---------------------------
+		//------Fermeture de l'image precedente puisque ce n'est pas la meme---------------
+		showMessage("PRESS OK to open "+titrered+"_vis1.jpg now");	
+		if (openimg == 1) { 	selectImage(titre);		run("Close");		} // if
+		text = chemwork+titrered+"_vis1.jpg";
+		exist = File.exists(text);
+		if (exist == 1) {	open(text);	
+			titre = 	titrered+"_vis1.jpg";
+			openimg = 1;
+			message2 = text +" OPEN";
+			flagi = 1;
+			function getPath() {
+      				if (nImages==0) return "Error: no images open";
+      					selectImage(getImageID);
+      					run("Select None");  // bug workaround
+      					info = getInfo();
+      					index1 = indexOf(info, "Path: ");
+      				if (index1==-1) 
+          					return "Error: path not available for \"" + getTitle() + "\"";
+      					index2 = indexOf(info, "\n", index1);
+      					path = substring(info, index1+6, index2);
+      					return path;
+  			} // function
+			dir= getPath();
+			chemin = File.getParent(dir);
+
+		} // if
+		else { message2 = text+ " NOT FOUND";
+			flagi = 0;
+		} // else
+	} // else
+	 if (flagi==1) { //---------------------l image est alors ouverte---------------------------------
+		run("Colors...", "foreground=red background=white selection=black");
+		setColor(0);
+		selectImage(titre);
+		setVoxelSize(1,1,1,"pixel");
+		nomvignette =titrered+"_"+No;
+		//----------------Verifions si la vignette n'est pas deja ouverte---------------
+		if (isOpen(nomvignette+".jpg")) { selectImage(nomvignette+".jpg");			print("Vignette "+nomvignette+" exists);		} // if 
+		else {	//-----------------------------Creation de la vignette--------------------------------
+			Bx   = val[colbx];
+			By   = val[colby];
+			Width	= val[colwidth];
+			Height	= val[colheight];
+			argum = chem+" "+resolution+" "+longline+" "+x1+" "+x1 +" "+titre+" "+titrered+" "+No+" "+Bx+" "+By+" "+Width+" "+Height+" "+maskcont+" "+gamma+" "+vignettetext+" "+masksave+" "+chemwork+" "+chemin;
+				ret = runMacro("Zooscan_vignette_extract",argum);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message : "+No+" vignette extraction failed                       "); 		} // if
+			else {	visdata = 1;	} // else
+		} // else
+	} // if
+} // while
+
+ret = titre;
+return ret;
+
+

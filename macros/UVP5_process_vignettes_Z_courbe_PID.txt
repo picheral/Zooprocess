@@ -1,0 +1,248 @@
+// ------------- UVP5_process_vignettes_Z_courbe_PID.txt ------------------------------------------------------
+version = "1.03";
+date = "2009/07/21";
+
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+run("Input/Output...", "jpeg=100 file=.xls");
+
+dircruise = 	getArgument();
+
+// ------------- Selection du fichier ENTETE a utiliser --------------
+filelist  = 	getFileList(dircruise);
+
+	//--------------- Selection des fichiers  -------------------
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],".txt");
+		ctrl1 = startsWith(filelist[i],"entetepvm5_");
+		if (ctrl == 1 && ctrl1 == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { configpres = 0;
+		getBoolean("No metadata file in the cruise project. \nPress YES to create a file and add a profile !          ");
+		// ------------------ Creation d'un fichier -------------------------------------
+		runMacro("UVP5_process_meta",dircruise +" 1 create");
+	} //
+	else { print(j+" metadata files in the "+dircruise);
+		configpres = 1;
+		// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		Dialog.create("METADATA FILE          version : "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		Dialog.addMessage("Project :  "+dircruise);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		message = "SELECT Metadata FILE to COMPLETE             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		metafile = Dialog.getChoice();
+	} // else
+listprop = newArray("Add profile metadata into list","Profile process (single or batch)");
+
+//------------- Main MENU -----------------------------------
+Dialog.create("UVP5 MAIN MENU    "+date+"      version : "+version);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.addMessage("Selected project : "+dircruise);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.addChoice("       ", listprop);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.show;
+process = Dialog.getChoice();
+
+// ------------------- Process Metadata ------------------------------------------------------
+if (process == "Add profile metadata into list") {
+	profile = runMacro("UVP5_process_meta",dircruise +" "+ metafile+" add");
+} // processprofile
+else {	// ------------------------ Tools ----------------------------------------------------------
+	listoption = newArray("Batch process","Single process");
+	Dialog.create("UVP5 tools MENU         version : "+version);
+	Dialog.addMessage("---------------------------------------------------------------------------------------");
+	Dialog.addMessage("Selected project : "+dircruise);
+	Dialog.addMessage("---------------------------------------------------------------------------------------");
+	Dialog.addChoice("       ", listoption);
+	Dialog.addCheckbox("SKIP processed profiles in bach (BRU, PID, Datfile )?",true);
+	Dialog.addMessage("---------------------------------------------------------------------------------------");	
+	Dialog.addCheckbox("Compute BRU file ?",false);
+	Dialog.addCheckbox("Plot Particle vertical profiles ?",false);
+	Dialog.addCheckbox("Plot Particle OVERLAY vertical profile ?",false);
+	Dialog.addCheckbox("Plot Particle and CTD vertical profiles ?",false);
+	Dialog.addCheckbox("Process enhanced vignettes ?",false);
+	Dialog.addCheckbox("Process PID files ?",false);
+	Dialog.addMessage("---------------------------------------------------------------------------------------");
+	Dialog.show;
+	processbatch = Dialog.getChoice();
+	processskip = 		Dialog.getCheckbox();
+	processbru = 		Dialog.getCheckbox();
+	processprofile = 		Dialog.getCheckbox();
+	processoverlay = 		Dialog.getCheckbox();
+	processctd = 		Dialog.getCheckbox();
+	processvignettes = 	Dialog.getCheckbox();
+	processpid = 		Dialog.getCheckbox();
+
+
+
+// ------------------ BATCH --------------------------------------
+if (processbatch == "Batch process") {
+	// ---------------- Liste des profils a traiter d'apres metadata -------------------------
+	open(dircruise+"\\"+metafile);
+	wait(100);
+	metadata = getInfo();
+	run('Close');
+	array = split(metadata,"\n");
+	deb = getNumber("First profile to process ? ", 1);
+	for (k=deb; k<array.length ; k++) { 
+		ligne = replace(array[k],";"," ");
+		ligne = split(ligne,"\ ");
+		Cruise = 		ligne[0];
+		Ship = 		ligne[1];
+		Filename = 	ligne[2];
+		Stationname =	ligne[3];
+		Firstimage =	ligne[8];
+		Ctdfile = 		ligne[5];
+		dirprocessed = dircruise+"\\"+Stationname+"\\";
+		profile = Stationname;
+		dirprofile = dircruise+"\\HDR"+Filename;
+		// --------------- Verification de l'existence des fichiers BRU, HDR et DAT ------------------
+		filelist = getFileList(dirprofile);
+		testsource = 0;
+		dat = 0;
+		bru = 0;
+		hdr = 0;
+		list = newArray(filelist.length);
+		for (i = 0;i<filelist.length;i++) {
+			nomvig =filelist[i];
+			posdat = endsWith(nomvig,".dat");
+			posbru = endsWith(nomvig,".bru");
+			poshdr = endsWith(nomvig,".hdr");
+			if (posdat == true  )  {	dat++;			} // if
+			if (posbru == true  )  {	bru++;			} // if
+			if (poshdr == true  )  {	hdr++;			} // if
+		} // for
+		if (dat > 0 && bru > 0 && hdr > 0) { 	testsource = 1;			} // if
+
+		// --------------- Process ----------------------------------
+		 
+
+		// ------------- Creation du repertoire des vignettes modifiées si necessaire -----------
+		File.makeDirectory(dirprocessed);
+		datfilename = profile+ "_datfile.txt";
+
+
+		// ----------- Ouverture fichiers DAT successifs -------------------
+		testfile = File.exists(dircruise+Stationname +"\\"+Stationname +"_datfile.txt");	
+		testfiledat = File.exists(dircruise+Stationname +"\\HDR"+Filename +".dat");	
+		flag = 0;
+		if (testfile == 0 || testfiledat == 0) flag = 1;
+		if (processskip == 0 || flag == 1) { 
+			runMacro("UVP5_read_DAT",dirprocessed +" " +datfilename+" "+profile+" "+Firstimage+" "+dirprofile+" "+dircruise);
+		} // if
+
+		// ------------------- Process BRU ------------------------------------------------------
+		testbru = File.exists(dircruise+Stationname +"\\HDR"+Filename+".bru");
+		if (processbru == true && (   processskip == 0 || testbru == 0)) {
+			ret = runMacro("UVP5_process_bru",dirprocessed +" " +datfilename+" "+profile+" "+Firstimage+" "+dirprofile+" "+dircruise);
+		} // processprofile
+
+		// ------------------- Process Profile ------------------------------------------------------
+		if (processprofile == true) {
+			ret = runMacro("UVP5_process_profile",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage);
+		} // processprofile
+
+		// ------------------- Process CTD ------------------------------------------------------
+		if (processctd == true ) {
+			dircnv = dircruise+"\\D_CTD_files\\";
+			profileup = toUpperCase(Ctdfile);
+			cnvfile = dircnv+"\\d"+profileup+".cnv";
+			if (File.exists(cnvfile) == 1) { 		
+				ret = runMacro("UVP5_process_ctd",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+dircruise+" batch "+Ctdfile);	
+			} // if
+			else { 
+				showMessage(cnvfile+" does not exist in "+dircnv);		
+			} // if
+		} // processctd
+
+		// ------------------- Process overlay ------------------------------------------------------
+		if (processoverlay == true) {
+			ret = runMacro("UVP5_process_overlay",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+dircruise);	
+		} // processprofile
+
+		// ------------------ Process Vignettes ou PID ------------------------------------------
+		testpid = File.exists(dircruise+Stationname +"\\"+Stationname +"_dat1.pid");	
+		flag = 0;
+		if (processvignettes == true ||  processpid == true) {	flag = 1;	} // if
+		flag1 = 0;
+		if (processskip == 0 || testpid == 0) 		{	flag1 = 1;	} // if
+		if (flag == 1 && flag1 == 1) {
+			while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+			ret = runMacro("UVP5_process_vignette_PID",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+processvignettes+" "+processpid+" "+dirprofile+" "+dircruise);
+		} // if
+
+	} // for
+} // if
+
+// ----------------- Single -----------------------------------------------
+else {
+	// ------------- Choix du repertoire ------------------------------------
+	profile = runMacro("UVP5_process_meta",dircruise +" "+metafile+" select");
+	profile = split(profile,"\ ");
+	Filename = 	profile[0];
+	Stationname = 	profile[1];
+	Firstimage = 	profile[2];	
+	Ctdfile = 		profile[3];
+	dirprocessed = dircruise+"\\"+Stationname+"\\";
+	profile = Stationname;
+	dirprofile = dircruise+"\\hdr"+Filename;
+
+	// ------------- Creation du repertoire des vignettes modifiées -----------
+	File.makeDirectory(dirprocessed);
+	datfilename = profile+ "_datfile.txt";
+
+	// ----------- Ouverture fichiers DAT successifs -------------------
+	runMacro("UVP5_read_DAT",dirprocessed +" " +datfilename+" "+profile+" "+Firstimage+" "+dirprofile+" "+dircruise);
+
+	// ------------------- Process BRU ------------------------------------------------------
+	if (processbru == true) {
+		runMacro("UVP5_process_bru",dirprocessed +" " +datfilename+" "+profile+" "+Firstimage+" "+dirprofile+" "+dircruise);
+	} // processprofile
+
+	// ------------------- Process Profile ------------------------------------------------------
+	if (processprofile == true) {
+		runMacro("UVP5_process_profile",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage);
+	} // processprofile
+
+		// ------------------- Process CTD ------------------------------------------------------
+		if (processctd == true ) {
+			dircnv = dircruise+"\\D_CTD_files\\";
+			profileup = toUpperCase(Ctdfile);
+			cnvfile = dircnv+"\\d"+profileup+".cnv";
+			if (File.exists(cnvfile) == 1) { 		
+				ret = runMacro("UVP5_process_ctd",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+dircruise+" single "+Ctdfile);	
+			} // if
+			else { 
+				showMessage(cnvfile+" does not exist in "+dircnv);		
+			} // if
+		} // processctd
+
+	// ------------------- Process overlay ------------------------------------------------------
+	if (processoverlay == true) {
+		runMacro("UVP5_process_overlay",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+dircruise);	
+	} // processprofile
+
+	// ------------------ Process Vignettes ou PID ------------------------------------------
+	if (processvignettes == true ||  processpid == true) {
+		while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+		runMacro("UVP5_process_vignette_PID",dirprocessed +" "+datfilename+" "+profile+" "+Firstimage+" "+processvignettes+" "+processpid+" "+dirprofile+" "+dircruise);
+	} // if
+
+} // else single
+
+}// else
+
+// ----------------------- FIN ----------------------------------------
+showMessage("End of UVP5 Process !");
+ret = "OK";
+return ret;
+
+

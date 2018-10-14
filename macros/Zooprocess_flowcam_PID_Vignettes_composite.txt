@@ -1,0 +1,321 @@
+// -------------------------- Zooprocess_flowcam_PID_Vignettes_composite --------------------------
+version = "7.27";
+date = "2018/04/11";
+
+// Traitement des images composites du FlowCam
+
+args = 	getArgument();
+
+//args = "C:\\flowcam_composite_essai03 364-193137_2 no flowcam 364-193137_2";
+arg = 	split(args," ");
+path = 			arg[0];
+profileprocessed = 	arg[1];
+configfile = 		arg[2];
+instrum = 		arg[3];
+Stationname = 		arg[4];
+profileraw =		"flowcam_"+profileprocessed;
+//	profileraw =		profileprocessed;
+pathraw = 		path+"\\raw\\";
+pathprocessed = 	path+"\\work\\"+profileprocessed+"\\";
+pathconfig = 		path+"\\config\\";
+profile = 		profileprocessed;						// a remplacer dans le soft si OK
+pathpidresults = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathback =		path+"\\back\\FlowCam_"+profileprocessed+"_auto\\";
+for (b=0;b<4;b++)	{	run("free memory");		wait(1000);	progress = (b+1)/4;	showProgress(progress);   } // for
+except = 0;
+badsubtrac = 0;
+pixel4x= 1.29;
+pixel10x= 5;
+
+// --------------------------------------------------------- Mode TEST ----------------------------------------------------------------
+batch =		true;
+test = 		"0";
+printlog = 	0;
+debuge = 1;
+if (test == "1")  { batch =		"false";	getBoolean("MODE TEST ! Continue ?");	} // if
+if (isOpen("Log")) {	selectWindow("Log");		run("Close");	}			
+setBatchMode(batch);
+
+// ------------------------ Starting time -----------------------------------------------
+dateheurestart =	runMacro("Zooscan_get_time_5");
+
+// ------------------------- Lecture RUN SUMMARY --------------------------------
+filelist  = 	getFileList(pathraw+profileraw);
+list = newArray(filelist.length);
+summaryfile ="not_file";
+for (i=0; i<filelist.length ; i++) {
+	ctrlsum = endsWith(filelist[i],"_run_summary.txt");
+	ctrlctx = endsWith(filelist[i],".ctx");
+	ctrllst = endsWith(filelist[i],".lst");
+	if (ctrlsum == true )		{ summaryfile = filelist[i];		} // if
+	if (ctrlctx == true )		{ ctxfile = filelist[i];		} // if
+	if (ctrllst == true )		{ lstfile = filelist[i];		} // if
+} // for	
+if (summaryfile =="not_file") { getBoolean("Summary file not found in "+pathraw+profileraw+"\n      \nPress Cancel to abort !");	} // if
+//aa = getBoolean(pathraw+profileraw+"\\"+summaryfile);
+open (pathraw+profileraw+"\\"+summaryfile);
+wait(100);
+summary = getInfo();
+run("Close");
+conf  = split(summary,"\n");
+size = conf.length;
+lenstype = "12X";
+i = 0;
+while (i<size) {
+	a = toString(conf[i]);
+	b = replace(a,":"," ");
+	c = split(b,"\ ");
+	if (c.length>1) {
+		if (startsWith(c[0],"	Magnification")) {	lenstype = c[1];	i = 10000;	} // if
+	} // if
+	i++;
+} // for
+if (endsWith(lenstype,"4X") )	{		pixel = parseFloat(pixel4x);	}
+else if (endsWith(lenstype, "10X") )	{	pixel = parseFloat(pixel10x);	}
+else { pixel = 1; 								} // else
+//	getBoolean(lenstype+"--"+pixel);
+
+// ------------------------------- Settings ---------------------------------------------------------------
+processvignettes = 	1;
+processpid = 		1;
+echelle_micro = 	"50";	// default
+echelletext = 	echelle_micro+ " µm ";
+voxelwidth= 	1;
+voxelheigth= 	1;
+voxeldepth= 	1;
+voxelunit = 	"pixel";
+param = 	"1";
+TAG = 		0;
+flagimg = 	0;
+gamma = 	1;
+gammatext = gamma;
+gamma = "value="+gamma;
+x1 = 10;
+
+scale = 1;
+nbvigar = 100;
+//	removeduplicates = yes;
+duplicatestot = 0;
+duplicaterange = 0.05;
+notxt = 1000000;
+stop_after_n_images = 1000000;
+//	grey_auto_adjust = "yes";
+
+// ----------------------- Conversions  ----------------------------------------------------
+echelle_micro = 	parseInt(echelle_micro);
+scale = 		parseInt(scale);
+longline = 		scale*echelle_micro/pixel;
+x2 = x1+longline;
+
+// ----------------------- Pixel size ---------------------------------------------------------
+esdmin = parseInt(esdmin);
+esdmax = parseInt(esdmax);
+esdminp = esdmin/pixel;
+esdmaxp = esdmax/pixel;
+Spmin = 3.1416 * pow (esdminp/2,2);
+Spmax = 3.1416 * pow (esdmaxp/2,2);
+
+// ------------------ Critere de fin -------------------------------------------------------------------
+//	imagenb = minOf(j,stop_after_n_images);
+imagenb = stop_after_n_images;
+
+// --------------------------- Lecture du fichier "lst" -------------------------------------------------
+// LE FICHIER DOIT ETRE OUVERT PAR Notepad+ et enregistré en TXT en AINSI
+//open(pathraw+profileraw+"\\"+profileprocessed+".txt");
+//aa = getBoolean(pathraw+profileraw+"\\"+profileprocessed+".lst");
+lst = File.openAsString(pathraw+profileraw+"\\"+profileprocessed+".lst");
+wait(1000);
+lst = replace(lst,"|"," ");
+data  = split(lst,"\n");
+
+// --------------------------- Selection metadata ---------------------------------------------------
+list = newArray(150);
+index = 0;
+end_meta = 0;
+while (end_meta == 0) {
+	ligne = data[index];
+	if(indexOf(ligne,"image_x") == 0 ) colx = index -2;
+	if(indexOf(ligne,"image_y") == 0 ) coly = index -2;
+	if(indexOf(ligne,"image_w") == 0 ) colw = index -2;
+	if(indexOf(ligne,"image_h") == 0 ) colh = index -2;
+	if (lengthOf(ligne) > 200) {
+		end_meta = index;
+	}
+	index++;
+}
+// -------------------------- Entete --------------------
+entete = "!Item;Label";
+for (i= 3 ; i < end_meta - 2 ;i++) {
+	ligne = data[i];
+	val = split(ligne,"\ ");
+	entete = entete+";"+val[0];	
+}
+//	aa = getBoolean(data[data.length - 1]);
+
+// --------------------------- Boucle sur les lignes DATA ----------------------------------------------------
+image_prev = "no";
+data_vect = newArray( data.length - end_meta);
+for (i = end_meta ; i < data.length ;i++) {
+	ligne = data[i];
+	val = split(ligne,"\ ");
+	val_dat = val[1];
+	for (j = 2; j < val.length - 2 ; j++) {	val_dat = val_dat + ";" + val[j];	}
+	// -------------- Heure debut & FIN ---------------------
+	if (i == end_meta) 		date_raw_start = 	val[val.length - 2];
+	if (i == data.length - 1 ) 	date_raw_end = 		val[val.length - 2];
+		
+	item = toString(i);	
+	data_vect[i - end_meta] = val[0] +";"+profileprocessed+";"+val_dat;
+//	print(data_vect[i - end_meta]);	
+	// -------------- Ouverture image composite si pas ouverte et fermeture précédente -----------------
+	image_name = val[val.length - 1];
+//	aa = getBoolean(pathraw+profileraw+"\\"+image_name);
+	if (isOpen(pathraw+profileraw+"\\"+image_name) == false )	{	
+		if (isOpen(image_prev))	{ 	selectImage(image_prev); 	close();	}
+		open(pathraw+profileraw+"\\"+image_name); 
+		setColor(200,200, 200);
+		image_prev = image_name;			
+	}
+//	aa = getBoolean(image_name);
+	// -------------- Creation de la vignette ------------------------
+	selectImage(image_name);
+	makeRectangle(val[colx],val[coly],val[colw],val[colh]);
+	run("Copy");
+	largeur = maxOf(longline +10 , val[colw]);
+	hauteur = parseInt(val[colh]) + 31;	
+	newImage("vignette", "RGB Black", val[colw],val[colh], 1);
+	run("Paste");	
+	
+	// -------------- Ajout légende ----------------------------------
+	textesize = "width="+largeur+" height="+hauteur+" position=Top-Left zero";
+	run("Canvas Size...", textesize);
+//	aa = getBoolean(textesize);
+	setFont("SansSerif", 9);
+	drawString(echelletext,2,hauteur-15);
+	setLineWidth(1);
+	drawLine(2,hauteur-10,2+longline,hauteur-10);
+//	aa = getBoolean("OK");
+
+	// -------------- Enregistrement de la vignette ------------------
+	saveAs("jpg", pathprocessed+"\\"+profileprocessed+"_"+val[0]);
+	//	print(profileprocessed+"_"+val[0]);	
+}
+
+//aa = getBoolean("END vignettes");
+// ---------- Ecriture du PID ---------------------
+// --------------------- Lecture METADATA ---------------------------------------
+open(pathprocessed+profileprocessed+"_meta.txt");
+wait(100);
+config = getInfo();
+run("Close");
+conf  = split(config,"\n");
+field = conf[0];
+data = conf[1];
+field = replace(field,";"," ");
+data = replace(data,";"," ");
+field = split(field," ");
+data = split(data," ");
+size = field.length;
+
+// -------------------- ECRITURE PID -----------------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close"); 	} // if
+print("PID");
+print(" ");
+
+// ---------------- Metatdata ---------------------------------------------------------
+print("[Metadata]");
+for (t=0;t<size;t++) {	print(field[t]+"= "+data[t]);	} // for
+print(" ");
+
+// ---------------- Run Summary ---------------------------------------------------------
+print("[Run_Summary]");
+summary = replace(summary,"	","");
+summary = replace(summary,": ","= ");
+print(summary);
+print(" ");
+
+// ----------------- Flowcam settings ---------------------------------------------------
+open (pathraw+profileraw+"\\"+ctxfile);
+wait(100);
+settings = getInfo();
+run("Close");
+print(settings);
+print(" ");
+                              
+// --------------- Config --------------------------------------------------------------
+print("[Process]");
+print("version_no= "+version);
+print("version_date= "+date);
+print("calibration= NaN");	
+print("background_method= NaN");	
+print("nb_images= NaN");	
+print("rolling= NaN");	
+print("pixel= "+pixel);
+print("upper= NaN");	
+print("gamma= NaN");	
+print("echelle_µm= "+echelle_micro);
+print("process_option=  Zooprocess"+version);	
+print("esdmin= NaN");	
+print("spmin= NaN");	
+print("esdmax= NaN");	
+print("LUT_ofset= NaN");	
+print("LUT_slope= NaN");	
+print("Stop_after_n_images= NaN");	
+print("scale= NaN");	
+print("remove_objects_on_sides= NaN");	
+print("Stop_after_m_objects= NaN");	
+print("Nb_of_rawfile_images_in_folder= NaN");	
+print("Image_processed= NaN");	
+print("Objects_processed= "+val[0]);
+print("Remove_duplicates= NaN");	
+print("Grey_auto_adjust= NaN");	
+
+year = substring(date_raw_start,0,4);
+month = substring(date_raw_start,5,7);
+day = substring(date_raw_start,8,10);
+time = substring(date_raw_start,11,13);
+hour = substring(date_raw_start,14,16);
+dateheurestart = year+month+day+"-"+time+hour;
+
+year = substring(date_raw_end,0,4);
+month = substring(date_raw_end,5,7);
+day = substring(date_raw_end,8,10);
+time = substring(date_raw_end,11,13);
+hour = substring(date_raw_end,14,16);
+dateheureend = year+month+day+"-"+time+hour;
+
+print("Starting_time= ",dateheurestart);
+print("Ending_time= ",dateheureend);
+print("Parametre_2= NaN");	
+print("Parametre_3= NaN");	
+print("Exceptions= NaN");	
+print("Bad_subtraction= NaN");	
+	
+// ---------- Entete ------------------------------
+print(" ");
+print("[Data]");
+print(entete);
+
+// ---------- DATA --------------------------------
+for (i = 0 ; i < data_vect.length ; i++) { print(data_vect[i]);	}
+
+// ---------- Enregsitrement ----------------------
+// ---------------- Enregistrement dans le repertoire du profile -------------
+sauvepid = "save=" + pathprocessed+profileprocessed +"_dat1.pid";	
+selectWindow("Log");
+run("Text...",sauvepid);
+// ----------------- Enregistrement dans pid_results de la mission ---------
+sauvepid = "save=" + pathpidresults+profileprocessed +"_dat1.pid";
+selectWindow("Log");
+run("Text...",sauvepid);
+
+// ---------- CREATION du TSV ---------------------
+link = "http://www.zooscan.obs-vlfr.fr//";
+print(path+" "+pathprocessed+" "+profileprocessed +"_dat1.pid"+" pid no false new "+link);
+
+ret = runMacro("Zooprocess_pid_to_ecotaxa_flowcam_uvp5_generic",path+" "+pathprocessed+" "+profileprocessed +"_dat1.pid"+" pid no false new "+link);
+
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

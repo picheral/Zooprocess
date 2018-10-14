@@ -1,0 +1,110 @@
+// ---------------------- Zooscan_metadata_update ---------------------------
+version = "7.12";
+date = "20120/08/05";
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+chemmeta = projfolder + "\\Zooscan_meta\\";
+metafile = 	chemmeta+"zooscan_sample_header.csv";
+metafiletable = chemmeta+"zooscan_sample_header_table.csv";
+
+// ------------- Lecture de l'heure -----------------
+dateheuremmss =	runMacro("uvp5_get_time");
+
+if (File.exists(metafile)) {
+	// ------------------ OUVERTURE et CONVERSION fichier SAMPLE -------------------------
+	metafile = chemmeta+"zooscan_sample_header.csv";
+	open(metafile);  
+	wait(100);
+	metadata = getInfo();
+	data = split(metadata,"\n");
+	j = data.length;
+	run("Close");
+	File.rename(metafile,metafiletable);
+	// ---------------- Création vecteurs -------------------------------------------------------------------------------------
+	sampleId = newArray(j-1); 	scanop = newArray(j-1);		ship = newArray(j-1); 		scientificprog = newArray(j-1);
+	stationId = newArray(j-1); 	date = newArray(j-1); 		latitude = newArray(j-1); 	longitude = newArray(j-1);
+	depth = newArray(j-1); 		ctdref = newArray(j-1); 	otherref = newArray(j-1); 	townb = newArray(j-1);
+	towtype = newArray(j-1); 	nettype = newArray(j-1); 	netmesh = newArray(j-1); 	netsurf = newArray(j-1);
+	zmax = newArray(j-1); 		zmin = newArray(j-1); 		vol = newArray(j-1); 		sample_comment = newArray(j-1);
+	for (i=0; i< j-1 ; i++) {
+		texte = data[i+1];
+		texte = replace(texte,";"," ");
+		array = split(texte," ");
+		sampleId[i]= array[0]; 		scanop[i] = array[1]; 		ship[i]= array[2]; 		scientificprog[i]= array[3];
+		stationId[i]= array[4]; 	date[i]= array[5]; 		latitude[i]= array[6]; 		longitude[i]= array[7];
+		depth[i]= array[8]; 		ctdref[i]= array[9]; 		otherref[i]= array[10]; 	townb[i]= array[11];
+		towtype[i]= array[12]; 		nettype[i]=array[13]; 		netmesh[i]= array[14]; 		netsurf[i]= array[15];
+		zmax[i]= array[16]; 		zmin[i]= array[17]; 		vol[i]= array[18];		sample_comment[i] = array[19];
+	} // for
+	// ------------------ Impression SAMPLE file corrigé -------------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment";
+	texte = toLowerCase(texte);
+	print(texte);
+	for (i=0; i< j-1 ; i++) {
+		texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i];
+		print(texte);
+	} // for
+	text = "save="+chemmeta+"zooscan_sample_header_table.csv";
+	selectWindow("Log");
+	run("Text...",text);
+	text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_sample_header_table.csv";
+	run("Text...",text);	
+} // if
+
+metafile = 	chemmeta+"zooscan_scan_header.csv";
+metafiletable = chemmeta+"zooscan_scan_header_table.csv";
+if (File.exists(metafile)) { 
+	// --------------------- lecture du fichier SCAN SAMPLE ----------------------------
+	open(metafile);  
+	wait(100);
+	metadata_scan = getInfo();
+	data_scan = split(metadata_scan,"\n");
+	k = data_scan.length;
+	run("Close");
+	File.rename(metafile,metafiletable);
+	// ---------------- Création vecteurs -------------------------------------------------------------------------------------
+	scanId = newArray(k);
+	sampleId_frac = newArray(k);	Scanop = newArray(k);		fracId  = newArray(k);		vol_frac = newArray(k);
+	fracmin = newArray(k);		fracsup = newArray(k);		fracnb = newArray(k);	observation = newArray(k);
+	code = newArray(k);		submethod = newArray(k);	cellpart = newArray(k);	replicates = newArray(k);
+	volini = newArray(k);		volprec = newArray(k);
+	for (i=0; i< scanId.length-1; i++) {
+		texte = data_scan[i+1];
+		texte = replace(texte,";"," ");
+		array = split(texte," ");
+		scanId[i]= array[0]; 	sampleId_frac[i] = array[1];					fracId [i] = array[2];	
+		fracmin[i] = array[3];	fracsup[i] = array[4];		fracnb[i] = array[5];		observation[i] = array[6];
+		code[i] = array[7];	submethod[i] = array[8];	cellpart[i] = array[9];		replicates[i] = array[10];
+		volini[i] = array[11];	volprec[i] = array[12];
+		// ------------- Recherche SCNAOP dans SAMPLE -------------------
+		for (u=0; u< j-1 ; u++) {
+			if (sampleId[u] == sampleId_frac[i] ) {	Scanop[i] = scanop[u];		}
+		} // for
+	} // for
+	// -------------------- Ecriture du fichier final SCAN ------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	texte = "scanId;sampleId;scanop;fracId;fracmin;fracsup;fracnb;observation;code;subMethod;cellPart;replicates;volIni;volPrec";
+	texte = toLowerCase(texte);
+	print(texte);
+	for (i=0; i< scanId.length-1; i++) {
+		texte = scanId[i]+";"+sampleId_frac[i]+";"+Scanop[i]+";"+fracId[i]+";"+fracmin[i]+";"+fracsup[i]+";"+fracnb[i]+";"+observation[i]+";"+code[i]+";"+submethod[i]+";"+cellpart[i]+";"+replicates[i]+";"+volini[i]+";"+volprec[i];
+		print(texte);
+	} // for
+	text = "save="+chemmeta+"zooscan_scan_header_table.csv";
+	selectWindow("Log");
+	run("Text...",text);
+} // 
+
+// ------------------- READ table ------------------------------
+metafile = 	chemmeta+"zooscan_read_header.csv";
+metafiletable = chemmeta+"zooscan_read_header_table.csv";
+if (File.exists(metafile)) {	File.rename(metafile,metafiletable);	}//
+	
+	
+// --------------------- FIN --------------------------
+return "ok";

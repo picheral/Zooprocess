@@ -1,0 +1,42 @@
+// ------------- UVP4_convert_TIF_to_JPG.txt ------------------------------------------------------
+version = "1.00";
+date = "2008/10/08";
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+
+// ------------- Choix du repertoire ------------------------------------
+dirvig = getDirectory("Select Vignettes directory");
+setBatchMode(true);
+
+// ------------- Selection du fichier ENTETE a utiliser --------------
+filelist  = 	getFileList(dirvig);
+
+	//--------------- Selection des fichiers  -------------------
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],".tif");
+		if (ctrl == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { configpres = 0;
+		getBoolean("No vignette in "+dirvig+ "  \nPress Cancel to end !          ");
+	} //
+	else { print(j+" vignettes files in the "+dirvig);
+
+		// --------------------- Conversion ---------------------------------------------
+		for (i=0; i<j ; i++) {	image = list[i];	
+			if (i/100 == floor(i/100) && i !=0 ) {	showStatus("Converting : "+i+" /"+j);	showProgress(i/j);	 wait(1000);	} // if	
+			// --------------- Ouverture vignette -----------
+			open(dirvig+"\\"+image);	
+			long =  lengthOf(image);
+			saveimage = substring(image,0,long-4);
+			saveAs("jpg", dirvig+"\\"+saveimage+".jpg"); 
+			close();		
+		} // for
+	} // else
+
+// --------------------------------- FIN -----------------------
+ret = "OK";
+return ret;
+
+

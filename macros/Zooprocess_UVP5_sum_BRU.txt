@@ -1,0 +1,128 @@
+// --------------------- Zooprocess_UVP5_sum_BRU.txt ------------------------------
+version = "7.27";
+date = "2018/04/012";
+
+// BRU1 simplifiés
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 		arg[0];
+profileraw  = 		arg[1];
+profileprocessed  = 	arg[2];
+Firstimg = 		arg[3];
+endimg =		arg[4];
+
+pathraw = path+"\\raw\\"
+pathrawprofile = pathraw+profileraw+"\\";
+pathwork = path+"\\work\\"
+pathprocessedprofile = pathwork+profileprocessed+"\\";
+pathresults = path+"\\results\\"
+
+// ----------- Ouverture fichiers BRU successifs -------------------
+filelist = getFileList(pathrawprofile);
+j = 0;
+pos = 0;
+bru1 = false;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	if (endsWith(nomvig,".bru") || endsWith(nomvig,".bru1")  )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+	if (endsWith(nomvig,".bru1")) bru1 = true;
+} // for
+if (j >= 1) {	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	} // for
+} // if
+else { aa = getBoolean("NO BRU file !!!");	}
+
+//	aa = getBoolean("BRU1 nb "+ j +"Bru1 "+bru1);
+// ---------- Boucle sur les BRU ------------------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+for (i=0; i<listaff.length ; i++) {
+	datfile = 	listaff[i];
+	datfile = 	substring(datfile,0,17);
+	if (bru1 == false) {
+		// ------------- ANCIENS BRU complets --------------------
+		if (i <10) 		file = datfile+"_00"+i+".bru";
+		if (i > 9) 		file = datfile+"_0"+i+".bru";
+		if (i > 99) 	file = datfile+"_"+i+".bru";
+		open(pathrawprofile+"\\"+file);
+		wait(100);
+		data = getInfo();
+		wait(100);
+		run("Close");
+		showStatus("Processing "+file+"    WAIT !");
+		ligne = split(data,"\n");
+		if (profileprocessed == "tara_068_00_e" || profileprocessed == "tara_068_00_f" || profileprocessed == "tara_068_00_g" || profileprocessed == "tara_068_00_h" || profileprocessed == "tara_068_00_i" || profileprocessed == "tara_068_00_j" || profileprocessed == "tara_068_00_k" || profileprocessed == "tara_068_00_l" || profileprocessed == "tara_068_00_m" || profileprocessed == "tara_068_00_n") {
+	//	getBoolean(profileprocessed + "checked");
+			
+			for (k=1; k<ligne.length ; k++) {
+				dat = ligne[k];
+				dat = 	replace(dat,";"," ");	
+				dat = split(dat,"\ ");
+				//----------- test position ajoute le 16/09/2010 pour camera a 90°----------
+				x = parseInt(dat[5]);
+				img = parseInt(dat[0]);
+				if (x >=100 && x<=1250 && img >= Firstimg && img <= endimg ) {	print(dat[0]+";"+dat[2]+";"+dat[3]+";"+dat[4]+";"+dat[5]+";"+dat[6]);		} // if
+			} // for
+		} // if
+		else if (profileprocessed == "sn003_ptb_s" || profileprocessed == "sn003_ptb_t" || profileprocessed == "sn003z_ptb_e" || profileprocessed == "sn003z_ptb_f" ) {
+			//	getBoolean(profileprocessed + "checked");
+			for (k=1; k<ligne.length ; k++) {
+				dat = ligne[k];
+				dat = 	replace(dat,";"," ");	
+				dat = split(dat,"\ ");
+				//----------- blanked pixel line for sn003 ----------
+				x = parseInt(dat[5]);
+				img = parseInt(dat[0]);
+				if (x >=1217 || x<=1215 && img >= Firstimg && img <= endimg ) {	print(dat[0]+";"+dat[2]+";"+dat[3]+";"+dat[4]+";"+dat[5]+";"+dat[6]);		} // if	
+			} // for
+		} // if
+
+		else {
+//		getBoolean("OK");
+			for (k=1; k<ligne.length ; k++) {
+				dat = ligne[k];
+				dat = 	replace(dat,";"," ");	
+				dat = split(dat,"\ ");
+				img = parseInt(dat[0]);
+				
+				if (dat.length < 7) showMessage(datfile + " is corrupted. Correct it and restart the process of DAT & BRU files !");
+				
+				if (img >= Firstimg && img <= endimg ) {	print(dat[0]+";"+dat[2]+";"+dat[3]+";"+dat[4]+";"+dat[5]+";"+dat[6]);		} // if	
+			} // for
+		} // else
+	} // if
+	else {
+		// -------- BRU1 (sans image name, pour UVP5HD) ----------------------
+		if (i <10) 		file = datfile+"_00"+i+".bru1";
+		if (i > 9) 		file = datfile+"_0"+i+".bru1";
+		if (i > 99) 		file = datfile+"_"+i+".bru1";
+//		aa = getBoolean(file);
+		
+		open(pathrawprofile+"\\"+file);
+		wait(100);
+		data = getInfo();
+		wait(100);
+		run("Close");
+		showStatus("Processing "+file+"    WAIT !");
+		print(data);		
+	}// else
+} // for
+
+// ------------------------------------------- Enregistrement ---------------------------------------------------
+datfilename = profileprocessed+".bru";
+sauve = "save=" + pathprocessedprofile + datfilename;
+if (isOpen("Log")) {
+	selectWindow("Log");
+	run("Text...",sauve);
+	sauve = "save=" + pathresults + datfilename;
+	selectWindow("Log");
+	run("Text...",sauve);
+	run("Close");
+}// if
+
+//	showMessage( datfilename+" SAVED ! ");
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "FIN BRU OK";
+return ret;

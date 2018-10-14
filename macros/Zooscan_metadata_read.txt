@@ -1,0 +1,120 @@
+// ------------------------- Zooscan_metadata_read ----------------------------
+version= "7.27";
+date = "2018/08/26";
+
+
+// Correction pour ajout "nouveaux" metadata
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		param= array[3]; 	titre= array[4]; 
+tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	scan=array[22];	savetag= array[23];
+projfolder = array[26];
+
+// ----------------  Suppression des info de type de fichier ---------------------------------------------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+replace(titrered,".","_");
+drive = substring(chem,0,2);
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathpidpredicted = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+pathvig = 		projfolder+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+replace(titrered,".","_");
+chemwork = 	chemwork1+titrered+"\\";
+chemfile = 	chemwork + titrered;
+
+chemtemp = 	projfolder + "\\Zooscan_temp\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+
+// -----------------Le fichier meta existe dans _work -----------------------------------------------------
+metafile = chemfile + "_meta.txt";
+open(metafile);  
+wait(100);
+metadata = getInfo();
+run("Close");	
+array = split(metadata,"\n");
+for (i=0; i<array.length; i++)	{ texte = array[i]; 	 ssarray = split(texte," "); 	array[i] = ssarray[1];	   }
+SampleId = array[0]; 		Scanop = array[1]; 		Ship = array[2]; 		Scientificprog = array[3];
+StationId = array[4]; 		Date = array[5]; 		Latitude = array[6]; 		Longitude = array[7];
+Depth = array[8]; 		CTDref = array[9]; 		Otherref = array[10]; 		Townb = array[11];
+Towtype = array[12]; 		Nettype =array[13]; 		Netmesh = array[14]; 	Netsurf = array[15];
+Zmax = array[16]; 		Zmin = array[17]; 		Vol = array[18]; 		FracId = array[19];
+Fracmin = array[20]; 		Fracsup = array[21]; 		Fracnb = array[22]; 		Observation = array[23];
+Code= array[24];		SubMethod= array[25]; 		CellPart= array[26];		Replicates= array[27]; 
+VolIni= array[28]; 		VolPrec= array[29]; 		
+if (array.length > 29 ) { 	
+	sample_comment = array[30];
+	vol_qc = array[31];			depth_qc = array[32];		sample_qc = array[33]; 			barcode = array[34];
+	latitude_end = array[35];		longitude_end = array[36];	net_duration = array[37];		ship_speed_knots = array[38];
+	cable_length = array[39];		cable_angle = array[40];	cable_speed = array[41];		nb_jar = array[42];
+	czz = array[24];
+}//
+else {	sample_comment = "no";
+	vol_qc = "0";			depth_qc = "0";			sample_qc = "0000";	 	barcode = "NaN";
+	latitude_end = "NaN";		longitude_end = "NaN";		net_duration = 9999;		ship_speed_knots = 9999;
+	cable_length = 9999;		cable_angle = 9999;		cable_speed = 9999;		nb_jar = 9999;
+	czz = array[24];
+}
+
+// ---------------- IMPRESSION ------------------------------
+print("A purger");	selectWindow("Log");	run('Close');
+print("SampleId= "+SampleId);
+print("Scanop= "+Scanop);
+print("Ship= "+Ship);
+print("Scientificprog= "+Scientificprog);
+print("StationId= "+StationId);
+print("Date= "+Date);
+print("Latitude= "+Latitude);
+print("Longitude= "+Longitude);
+print("Depth= "+Depth);
+print("CTDref= "+CTDref);
+print("Otherref= "+Otherref);
+print("Townb= "+Townb);
+print("Towtype= "+Towtype);
+print("Nettype= "+Nettype);
+print("Netmesh= "+Netmesh);
+print("Netsurf= "+Netsurf);
+print("Zmax= "+Zmax);
+print("Zmin= "+Zmin);
+print("Vol= "+Vol);
+print("FracId= "+FracId);
+print("Fracmin= "+Fracmin);
+print("Fracsup= "+Fracsup);
+print("Fracnb= "+Fracnb);
+print("Observation= "+Observation);
+print("Code= "+Code);
+print("SubMethod= "+SubMethod);
+print("CellPart= "+CellPart);
+print("Replicates= "+Replicates);
+print("VolIni= "+VolIni);
+print("VolPrec= "+VolPrec);
+print("Sample_comment= "+sample_comment);
+print("vol_qc= "+vol_qc);
+print("depth_qc= "+depth_qc);
+print("sample_qc= "+sample_qc);
+print("barcode= "+barcode);
+print("latitude_end= "+latitude_end);
+print("longitude_end= "+longitude_end);
+print("net_duration= "+net_duration);
+print("ship_speed_knots= "+ship_speed_knots);
+print("cable_length= "+cable_length);
+print("cable_angle= "+cable_angle);
+print("cable_speed= "+cable_speed);
+print("nb_jar= "+nb_jar);
+//  print("czz= "+czz);
+// ---------------- Enregistrement ------------------
+selectWindow("Log");
+sauvebu= "save="+chemmeta+ "metadata.txt";
+run("Text...",sauvebu);
+	
+// --------------------------------------- FIN ---------------------------------------------------------
+ret = arg;
+return ret;

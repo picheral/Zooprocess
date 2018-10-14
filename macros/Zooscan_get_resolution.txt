@@ -1,0 +1,63 @@
+// ------------------ Zooscan_get_resolution --------------------------
+version = "7.21";
+date = "2015/09/03";
+
+
+arg = 	getArgument(); 
+array = 	split(arg," ");
+Hardware= 	array[0]; 	
+vuescan= 	array[1]; 
+code = 		array[2];	
+reduction = 	array[3];
+Resolution = 	0;
+reduction = 	parseInt(reduction);
+
+if (Hardware=="GT-9700-Flatbed" && code=="1") { 		Resolution=2400; 	} // if
+if (Hardware=="Perfection2450-Flatbed" && code=="2") { 	Resolution=2400; 	} // if
+if (Hardware=="Perfection4990-Flatbed" && vuescan == "8.3.23") {
+	if (code=="2") { Resolution=4800/reduction; } // if
+	if (code=="3") { Resolution=2400/reduction; } // if
+	if (code=="4") { Resolution=1200/reduction; } // if			
+	if (code=="5") { Resolution=600/reduction; } // if				
+	if (code=="6") { Resolution=300/reduction; } // if				
+} // if
+if (Hardware=="Perfection4990-Flatbed" && vuescan == "8.4.57") {
+	if (code=="2") { Resolution=4800/reduction; 		} // if
+	if (code=="3") { Resolution=2400/reduction; 		} // if
+	if (code=="4") { Resolution=1200/reduction; 		} // if			
+	if (code=="6") { Resolution=600/reduction; 		} // if				
+	if (code=="8") { Resolution=300/reduction; 		} // if		
+} // if	
+if (Hardware=="Perfection4490-Flatbed" && vuescan == "8.4.57") { 	// Validé le 2010/11/09
+	if (code=="2") { Resolution=4800/reduction; } // if
+	if (code=="3") { Resolution=2400/reduction; } // if
+	if (code=="4") { Resolution=1200/reduction; } // if
+	if (code=="5") { Resolution=600/reduction; } // if
+	if (code=="6") { Resolution=300/reduction; } // if
+	if (code=="8") { Resolution=150/reduction; } // if
+} // if
+if (Hardware=="Perfectionv700-Flatbed" && vuescan == "9.0.51") { 	
+	if (code=="2") { Resolution=4800/reduction; } // if
+	if (code=="3") { Resolution=2400/reduction; } // if
+	if (code=="4") { Resolution=1200/reduction; } // if
+	if (code=="5") { Resolution=800/reduction; } // if
+	if (code=="6") { Resolution=600/reduction; } // if
+	if (code=="7") { Resolution=400/reduction; } // if
+	if (code=="8") { Resolution=300/reduction; } // if
+} // if
+if (Hardware=="Perfectionv800-Flatbed" && vuescan == "9.5.24") { 	
+	if (code=="2") { Resolution=4800/reduction; } // if
+	if (code=="3") { Resolution=2400/reduction; } // if
+	if (code=="4") { Resolution=1200/reduction; } // if
+	if (code=="5") { Resolution=800/reduction; } // if
+	if (code=="6") { Resolution=600/reduction; } // if
+	if (code=="7") { Resolution=400/reduction; } // if
+	if (code=="8") { Resolution=300/reduction; } // if
+} // if
+if (Resolution == 0) getBoolean("The Zooscan is not compatible with the Vuescan defined version ! \n \nPress Cancel to abort and check configuration !     ");	
+
+// ----------------- FIN -------------------------------
+Resolution = toString(Resolution);
+ret = Resolution;
+return ret;
+

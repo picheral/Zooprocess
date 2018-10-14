@@ -1,0 +1,67 @@
+// -------------------------- Zooscan_find_vuescan ----------------------
+version = "7.26";
+date = "2018/01/10";
+
+// V800
+
+// --------------------- Test de l'existence du logiciel vuescan------------------------------------------
+chemvue= "D:\\Vuescan\\";
+mat = newArray("C:\\Vuescan\\","D:\\Vuescan\\","E:\\Vuescan\\","F:\\Vuescan\\","G:\\Vuescan\\","H:\\Vuescan\\","C:\\Zooscan\\Analysis\\");
+check= 0;
+flag="0";
+param = 1;
+vuescan = 0;
+i= 0;
+while (i<mat.length)  { 
+	chema= mat[i];
+	if (File.exists(chema) == true ) { 		
+		if (File.exists(chema+"\\"+"vuescan.exe") == true ){
+			chemvue = chema;	flag = "1";		i=mat.length+1;	
+		}
+	} // if
+	i++;
+} // while...
+
+vuescan = 	"unknown";
+vuescanexist = 	0;
+wait(500);
+
+// -------------------------- Recherche de la version --------------------------------------------------------
+if (flag == "1" && File.exists(chemvue+"\\vuescan.htm")) {
+	//	open(chemvue+"\\vuescan.htm");
+	run("Text File... ", "open="+chemvue+"\\vuescan.htm");
+//	getBoolean("Continue ?");
+	wait(100);
+	data = getInfo();
+	selectWindow("vuescan.htm");
+	run("Close");
+	index = 0;
+	pos = indexOf(data,"8.3.23");
+	if (pos > 1) 	vuescan = "8.3.23";				
+	pos = indexOf(data,"8.4.57");
+	if (pos > 1) 	vuescan = "8.4.57";		
+	pos = indexOf(data,"8.4.57");
+	if (pos > 1) 	vuescan = "8.4.57";				
+} // if
+if (flag == "1" && File.exists(chemvue+"\\vuescan.log")) {
+	run("Text File... ", "open="+chemvue+"\\vuescan.log");
+//	aa = getBoolean("Continue");
+	wait(300);
+	wait(300);
+	data = getInfo();
+	selectWindow("vuescan.log");
+	run("Close");
+	index = 0;
+	if (indexOf(data,"9.0.51") > 1) 	vuescan = "9.0.51";	
+	if (indexOf(data,"9.5.24") > 1) 	vuescan = "9.5.24";						
+} // if
+
+if (flag=="0" || vuescan == "unknown") {
+	//	showMessage("VUESCAN 8.3.23 or 8.4.57 or 9.0.51 is not installed correctly in the root of a drive, scanning tools disabled.                "); 
+} // if
+else { vuescanexist = "1";		} // else
+
+// --------------------- FIN -----------------------------------
+vuescan = toString(vuescan);
+ret = vuescan+" "+flag+" "+chemvue+" "+vuescanexist;
+return ret;

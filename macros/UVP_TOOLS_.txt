@@ -1,0 +1,144 @@
+// -------------------------------UVP  Menu principal---------------------------------------------------------------------------------------------------
+run("Misc...", "divide=Infinity antialiased_tool");
+run("free memory");
+setBatchMode(false);
+version =	 "1.05";
+date =	 "2009/11/24";
+imagejversion = "1.41o";
+
+requires(imagejversion);
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+
+ecranw= screenWidth();
+ecranh= screenHeight();
+
+if (ecranw <1260 || ecranh < 1020) { getBoolean("The dimensions of your monitor are less than 1280 x 1024.                                 \n     \nPress YES to Continue.     \nPress CANCEL to ABORT.             ");	} // if
+pathlist = newArray(100);
+pathdisplay = newArray(1);
+wrong = 0;
+
+
+// -------------------------------------Menu INITIAL----------------------------------------------------------------------------------------------------------------
+check = 0;
+rin = 0;
+
+
+
+	while (rin== 0) {	
+		Dialog.create("UVP TOOL LIST                           version "+version+"                   "+date);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("----------------------------------------------------            UVP             -----------------------------------------");
+		Dialog.addMessage("--------------------------------------     for ImageJ version "+imagejversion+"     ----------------------------------------");
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("                             Laboratoire d'Oceanologie de Villefranche sur mer");
+		Dialog.addMessage("                                                             CNRS - UPMC");
+		Dialog.addMessage("                                                        picheral@obs-vlfr.fr");
+		Dialog.addMessage("                                     UVP is in the PUBLIC domain");
+		Dialog.addMessage("                 Please refer to UVP and ImageJ if used for Publication");
+		Dialog.addMessage("                                     http://rsb.info.nih.gov/ij/index.html");
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("   SELECT PROCESS       ");
+
+		a=newArray(35);
+
+		for (i=0;i<a.length;i++) {	a[i]=" ";		} // for
+
+		a[0]=	"UVP5_process_vignettes_Z_courbe_PID";	
+				
+		a[1]=	"UVP5_sort_vig_prediction";			
+		a[2]=	"UVP5_load_vignette_from_folders";				
+		a[3]=	"ZooscanUVP_extract_sub_learningset";				//	Projet
+
+		a[5]=	"UVP4_convert_BMP_to_JPG";					
+		a[6] = 	"UVP4_convert_TIF_to_JPG";			//	Projet
+		a[8] = 	"CLOSE all opened IMAGES";
+		a[10] = 	"---------------------------------------------------";
+		a[11] = 	"EXIT UVP tools";
+		a[12] = 	"---------------------------------------------------";
+		Dialog.addChoice("      ",a);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+
+		Dialog.show();
+
+		op = Dialog.getChoice();
+
+//=========================================================================  SELECTION =================================================================================
+// ------------- Choix du repertoire ------------------------------------
+if (op != "EXIT UVP tools" ) dircruise = getDirectory("Select CRUISE root directory");
+
+		print("SELECTED PROCESS : ",op);
+
+		//--------------------"CLOSE all opened IMAGES"---------------------------------------------------------------------
+		if (op =="CLOSE all opened IMAGES") {
+			//----------------------- Close OPEN IMAGES---------------------------------
+			while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+			//	rin = 1;
+		} // if
+
+
+		// ------------------ "EXIT UVP tools" -------------------------------------------------------------------------------------
+		if (op =="EXIT UVP tools") {
+			//----------------------- Close OPEN IMAGES---------------------------------
+			while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+			rin = 1;
+		} // if
+		// ------------------"UVP5_process_vignettes_Z_courbe_PID "------------------------------------------------
+		else if (op =="UVP5_process_vignettes_Z_courbe_PID") {
+			ret = runMacro("UVP5_process_vignettes_Z_courbe_PID",dircruise);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------"UVP4_convert_BMP_to_JPG"------------------------------------------------
+		else if (op =="UVP4_convert_BMP_to_JPG") {
+			ret = runMacro("UVP4_convert_BMP_to_JPG");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------"UVP5_sort_vig_prediction"------------------------------------------------
+		else if (op =="UVP5_sort_vig_prediction") {
+			ret = runMacro("UVP5_sort_vig_prediction",dircruise);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------"ZooscanUVP_extract_sub_learningset"------------------------------------------------
+		else if (op =="ZooscanUVP_extract_sub_learningset") {
+			ret = runMacro("ZooscanUVP_extract_sub_learningset");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------"UVP5_load_vignette_from_folders"------------------------------------------------
+		else if (op =="UVP5_load_vignette_from_folders") {
+	//		ret = runMacro("UVP5_load_vignette_from_folders");
+			ret = runMacro("Zooscan_load_vignette_from_folders",dircruise+" "+dircruise);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+	
+		// ------------------"UVP4_convert_TIF_to_JPG"------------------------------------------------
+		else if (op =="UVP4_convert_TIF_to_JPG") {
+			ret = runMacro("UVP4_convert_TIF_to_JPG");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------ AUTRE ----------------------
+		else {	showMessage("Not a valid tool !");		}// else
+		
+		showMessage("NORMAL END");
+} // while
+
+// --------------------------------------------- FIN ------------------------------------------------------------------------------------------
+ret = "UVP process end";
+return ret;

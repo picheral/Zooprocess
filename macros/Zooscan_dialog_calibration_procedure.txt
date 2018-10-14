@@ -1,0 +1,16 @@
+Dialog.create("OD position PROCEDURE");
+Dialog.addMessage("  1)   Switch Zooscan ON (if not done yet)");
+Dialog.addMessage("  2)   Clean Zooscan Cell");
+Dialog.addMessage("  3)   Fill the cell with fresh water (0.6 to 1 cm thick)");
+Dialog.addMessage("  4)   Place the transparent frame in the cell  (check position)      ");
+Dialog.addMessage("  5)   Launch VUESCAN  ");
+Dialog.addMessage("  6)   Start light tempo (press green button on cover ");
+Dialog.addMessage("  7)   Click on PREVIEW button in VUESCAN ");
+Dialog.addMessage("  8)   Check your image (No white strip, no bubble, no dust on the OD ref)         ");
+Dialog.addMessage("  9)   Click on SCAN button in VUESCAN ");
+Dialog.addMessage("DO NOT CHANGE ANY SETTING (window size) in VUESCAN ! ");
+Dialog.addMessage(" ");
+Dialog.addMessage("PRESS OK or after pressing SCAN in VUESCAN ! ");
+Dialog.show();
+ret = "1_1";
+return ret;

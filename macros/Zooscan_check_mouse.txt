@@ -1,0 +1,18 @@
+// -------------------------- Zooscan_check_mouse ----------------------	
+version= "6.10";
+date = "2009/03/30";
+	
+while (nImages()>0) {	selectImage(nImages());  	run("Close");	} // while
+newImage("Mouse CHECK", "RGB White", 500, 200, 1);
+setColor(255, 0, 0);
+setFont("SansSerif" , 20);
+drawString("Click on image with ROLL mouse button    ",5,40);
+drawString("READ Value in LOG window", 5, 80);
+drawString("Wait 8 seconds without any click to abort", 5, 120);
+runMacro("ZooscanCursor_trial");
+selectImage("Mouse CHECK");
+close();
+
+// ---------------------------- FIN -----------------------
+ret = "OK";
+return ret;

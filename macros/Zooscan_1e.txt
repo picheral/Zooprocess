@@ -1,0 +1,190 @@
+//---------------------------------Zooscan_1e------------------------------------
+version = "7.21";
+date = "2015/09/07";
+
+// v800
+
+vuescan = "8.3.23";
+syst = "Biotom";
+Hardware= "no";
+
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+savetag;
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	yyy=array[22];	savetag= array[23];
+projfolder = array[26];
+
+// --------------------------- Suppression des info de type de fichier ---------------
+long = lengthOf(titre);	titrered = substring(titre, 0, long-4);
+
+chemwork = 	chemwork1+titrered+"\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+
+//---------------------Lecture fichier "Zooscan" ---------------------------------
+if (File.exists(chem+"\\Zooscan.txt")) {
+	open(chem+"\\Zooscan.txt");
+	wait(100);
+	data = getInfo();
+	wait(100);
+	run('Close');
+	ligne = split(data,"\n");
+	syst = ligne[0];
+} // if
+else {	args = chem+" "+chem+" Biotom";
+	ret = runMacro("Zooscan_select_system",args);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	showMessage("Warning message : ''Zooscan_select_system'' process aborted                       "); 	} // if
+} // else 
+open(chem+"\\Zooscan.txt");
+wait(100);
+data = getInfo();
+wait(100);
+run('Close');
+ligne = split(data,"\n");
+syst = ligne[0];
+
+//---------------------------- Si le LOG existe, on reprend les informations concernant [Image], [Fraction] et [Subsample]
+Resolution= 2400;
+Software = "Software= vuescan"+vuescan;
+ImageType= "Zooscan";
+reduction = 1;
+code="0";
+info = 0;
+author = 0;
+order = 0;		
+ligorder = 0;
+if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if
+wait(100);
+//	getBoolean("CONTINUE ?");
+print("PID");
+print("[Image]");
+debut = 2;
+liginfo = 0;
+ligauthor = 0;
+medlev = 0;	
+ligmed = 0;
+logfile = File.exists(chemwork+titrered+"_log.txt");
+if (logfile==0) {print(" ");
+	print("[Info]");
+	print("Hardware= ",syst);
+	print(Software);
+	print("ImageType= ",ImageType);
+	print("Resolution= ",Resolution);
+	// --------------------------- Sauvegarde du LOG ---------------------------------------------------
+	selectWindow("Log");	sauve = "save=" + chemwork + titrered + "_log.txt";	run("Text...",sauve);
+} // if
+// ---------------------------- Donnees entre [Image] et [Sample] ------------------------------------------------
+else if (logfile==1) {
+	open(chemwork+titrered+"_log.txt");
+	wait(100);
+	data = getInfo();
+	wait(100);
+	ligne = split(data,"\n");
+	end = ligne.length;
+	run('Close');
+	for (p=0;p<end;p++) { 
+		champ = ligne[p];
+		//-------------------------------Type Hardware----------------
+		pos = indexOf(champ,"[Crop-");
+		if (pos==0) { 	fin = lastIndexOf(champ,"]");		Hardware= substring(champ,6,fin);				} // if
+	} // for
+	if (Hardware== "no") { aa = getBoolean("The LOG file ''"+chemwork+titrered+"_log.txt'' does not contain the correct information. \n \nCheck and correct file and restart the PROCESS. \n \nPress CANCEL !");	} // if
+	for (p=0;p<end;p++) { 
+		champ = ligne[p];
+		//-------------------------------Resolution----------------
+		ref0= "PrintedDpi";
+		ref1= "ImageDpi";
+		pos0 = indexOf(champ,ref0);
+		pos1 = indexOf(champ,ref1);
+		if (pos0>=0 ) { 	deb= indexOf(champ,"=");		fin = lastIndexOf(champ,"0");		Resolution= substring(champ,deb+1,fin+1);	} // if	
+		if (pos1>=0 ) { 	deb= indexOf(champ,"=");		fin = lastIndexOf(champ,"0");		Resolution= substring(champ,deb+1,fin+1);	} // if	
+		// ---------------------- pour 2450 (proto CNRS) ---------------------------------
+		pos = indexOf(champ,"ScanResolution");
+		if (pos>=0 && Hardware=="Perfection2450-Flatbed") { deb= indexOf(champ,"=");		code= substring(champ,deb+1,deb+2);	
+			if (code=="2") { Resolution=2400; 	} // if
+			// ----------------------------  A completer pour autres valeurs.....
+		} // if
+		//-------------------------- pour 4990 (BIOTOM2006 et Hydroptic v1)  et pour 4490 (Hydroptic v2) v3 : (v700) et v4 : (v800)------------
+		posr = indexOf(champ,"TIFFSizeReduction");
+		if (posr>=0 ) { 	deb= indexOf(champ,"=");		reduction= substring(champ,deb+1,deb+2);		reduction = parseInt(reduction);	} // if
+		pos = indexOf(champ,"ScanResolution");
+		if (pos>=0 && (Hardware=="Perfection4990-Flatbed" || Hardware=="Perfection4490-Flatbed" || Hardware=="Perfectionv700-Flatbed" || Hardware=="Perfectionv800-Flatbed")) { 	deb= indexOf(champ,"=");		code= substring(champ,deb+1,deb+2);			} // if
+		// ---------------------- Determiner la ligne [Info] -------------------------------
+		posinfo = indexOf(champ,"[Info]");
+		if (posinfo == 0) { 	info = 1;		liginfo = p;		} // if
+		// ---------------------- Determiner la ligne Author -------------------------------
+		posauthor = indexOf(champ,"Author=");
+		if (posauthor == 0) { author = 1;	ligauthor = p;	} // if
+		// ---------------------- Determiner la ligne Median -------------------------------
+		posauthor = indexOf(champ,"Median_level=");
+		if (posauthor == 0) { medlev = 1;	ligmed = p;	} // if
+		// ---------------------- Determiner la ligne Order ------------------------------
+		posorder = indexOf(champ,"Order");
+		if (posorder == 0) { order = 1;		ligorder = p;	} // if
+		// ---------------------- Determiner la version de Vuescan lors du scan ------------------------------
+		posorder = startsWith(champ,"Vuescan_version= ");
+		if (posorder == true) { data =split(champ,"\ ");		vuescan = data[1];	} // if
+
+	} // for
+
+	Software = "Software= vuescan"+vuescan;	
+	// ---------------------------- Lecture de la resolution -------------------------------------------
+	red = toString(reduction);
+	argres = Hardware+" "+vuescan+" "+code+" "+red;
+	ret = runMacro("Zooscan_get_resolution",argres);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	getBoolean("Warning message : ''Zooscan_get_resolution'' process aborted.   \n \nPress Cancel to abort !                   "); 	} // if
+	else {		Resolution = parseInt(ret);	} // else
+
+	//	showMessage("info= "+info+" author= "+author+" order= "+order+" liginfo= "+liginfo+" ligauthor= "+ligauthor+" ligorder= "+ligorder+"                          ");
+	// ------------ On imprime tout a l'identique jusqu'a Author non inclus ------------------
+	if (info == 1 && author == 1) { 
+		for (p=debut;p<ligauthor-1;p++) {	champ = ligne[p];	
+			if (champ != "1") {		print(champ); 		} // if
+		} // for
+	} // 
+	// -------------- On ajoute [Info] --------------------------------------------------------------------
+	else if (medlev == 1) { 
+		for (p=debut;p<=ligmed ;p++) {	champ = ligne[p];	print(champ); 	} // for
+		print(" ");
+		print("[Info]");
+		print("Hardware= ",syst);
+		print(Software);
+		print("ImageType= ",ImageType);
+		print("Resolution= ",Resolution);
+	} // else
+	else if (author == 1) {
+		for (p=debut;p<ligauthor-4 ;p++) {	champ = ligne[p];	print(champ); 	} // for
+		print(" ");
+		print("[Info]");
+		print("Hardware= ",syst);
+		print(Software);
+		print("ImageType= ",ImageType);
+		print("Resolution= ",Resolution);
+	} // if
+	// ------------------------------ Sortie de SCAN -------------------------
+	else { 
+		for (p=debut;p<end;p++) {	champ = ligne[p];	print(champ); 	} // for
+		print(" ");
+		print("[Info]");
+		print("Hardware= ",syst);
+		print(Software);
+		print("ImageType= ",ImageType);
+		print("Resolution= ",Resolution);
+	} // else
+} // else if logfile
+
+//-------------------------Sauvegarde temporaire du LOG-----------------------------
+selectWindow("Log");	sauve = "save=" + chemtemp + "temp_log.txt"; 		run("Text...",sauve);
+
+// ---------------------------- FIN ---------------------------------------------------------
+ret = toString(Resolution);
+return ret;
+

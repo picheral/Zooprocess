@@ -1,0 +1,50 @@
+// --------------------- Zooprocess_UVP5_sum_HDR ------------------------------
+version = "7.21";
+date = "2015/10/05";
+
+// UVP5 type (HD/STD)
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 		arg[0];
+profileraw  = 		arg[1];
+profileprocessed  = 	arg[2];
+
+pathraw = path+"\\raw\\"
+pathrawprofile = pathraw+profileraw+"\\";
+pathwork = path+"\\work\\"
+pathprocessedprofile = pathwork+profileprocessed+"\\";
+pathresults = path+"\\results\\"
+
+uvp5type = "uvp5std";
+process_type = "none";
+// ------------------------------- LISTE HDR  ------------------------------------
+file = pathrawprofile+profileraw;
+save_file_red = pathprocessedprofile+profileraw;
+save_file_res = pathresults+profileraw;
+// ------- renommer --------------
+if (File.exists(file+".hdr")) {	
+	File.rename(file+".hdr",file+".txt");
+	open(file+".txt");
+	wait(100);
+	data = getInfo();
+	// ----------- Type UVP5 ---------------
+	if (indexOf(data,"uvp5hd")> 1) uvp5type = "uvp5hd";
+	// ----------- Type process ------------
+	if (indexOf(data,"TaskType= 0")> 1) process_type = "save_only";
+	run("Close");
+	File.rename(file+".txt",file+".hdr");
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print(data);
+	text = "save="+save_file_red+".txt";
+	selectWindow("Log");
+	run("Text...",text);
+	text = "save="+save_file_res+".txt";
+	selectWindow("Log");
+	run("Text...",text);
+	run("Close");
+} // if
+
+// ----------------------------- FIN ----------------------------------------------
+ret = uvp5type+" "+process_type;
+return ret;

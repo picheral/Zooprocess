@@ -1,0 +1,131 @@
+//----------------------------------- Zooscan_dialog_scan_procedure5.txt ----------------------------------------------------
+version = "7.21";
+date = "2015/09/07";
+
+// v800
+
+args = 		getArgument();
+arg = 		split(args," ");
+proc = 		arg[0];
+nbframe = 	arg[1];
+framesize = 	arg[2];
+bitperpixel =	arg[3];
+tifiletype =		arg[4];
+color =		arg[5];
+scanfile =		arg[6];
+framesize = 	arg[7];
+operation = 	arg[8];
+rawfile = 		arg[9];
+tiffile = 		arg[10];
+projfolder = 	arg[11];
+chem = 		arg[12];
+Hardware = 	arg[13];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+
+// ---------------------- USER / ADVANCED -----------------------------------
+mode_user = chemconfig+"mode_file_user.txt";
+mode_advanced = chemconfig+"mode_file_advanced.txt";
+
+savebal = 	false;
+save16 =		false;
+colorbalance = 	color;
+min = 		0;
+max = 		0;
+gamma = 	0;
+sens = 		"before";
+adjust = 		"yes";
+odrange = 	"1.8";
+ratio = 		"1.15";
+
+if (operation == "scan") { 	aff = newArray(5);	aff[4] = "Scan 16 bits RAW image ONLY";		} // if
+else {	aff = newArray(4);				} //
+
+aff[0] = "Keep actual setting";
+if (operation == "scan") {	aff[0] = aff[4];					} // if
+
+aff[1] = "Process 8 bits image using NONE color balance";
+aff[2] = "Process 8 bits image using NEUTRAL color balance";
+aff[3] = "Process 8 bits image using MANUAL color balance";
+if (operation == "grey_level" || operation == "background") {	aff[0] =  aff[3];		} // if
+
+message = "setting error ";
+if (color == "none" 	&& tiffile == "1" ) { 	message = aff[1];	} // if
+if (color == "neutral" 	&& tiffile == "1" ) { 	message = aff[2];	} // if
+if (color == "manual" && tiffile == "1" ) { 	message = aff[3];	} // if
+if (tiffile == "0" 	&& rawfile == "1" && operation == "scan") { 		message = aff[4];	} // if
+if (tiffile == "0" 	&& rawfile == "1" && operation == "scan_process") { 	message = aff[3];	} // if
+if (tiffile == "0" 	&& rawfile == "1" && operation == "background") { 		message = aff[3];	} // if
+
+//---------------------- TANT QUE l'option choisie n'est pas valide -------------------------------
+hh = 1;
+while (hh == 1) {
+	if (File.exists(mode_advanced) == false || Hardware == "Perfectionv700-Flatbed" || Hardware == "Perfectionv800-Flatbed") {
+		color = aff[0];
+		save16 = true;
+		savebal = false;
+	} // if
+	else {
+		Dialog.create("SCANNING OPTIONS version = "+version);
+		Dialog.addMessage("------------INFORMATION comes from "+scanfile+" --------------");
+		Dialog.addMessage("Operation performed =  "+operation);
+		Dialog.addMessage("Actual settings = "+message);
+		if (operation != "grey_level" || operation != "background") { 
+			if (rawfile == 1) {	Dialog.addMessage("16 bits RAW image SAVED");		} // if
+			else {		Dialog.addMessage("16 bits RAW image NOT SAVED");	} // else
+		} // if
+
+		Dialog.addChoice(" ",aff);
+
+		if (rawfile == 1 || operation == "background" || operation == "grey_level") {	Dialog.addCheckbox("Save 16 bits RAW image ? ", true);	} // if
+		else {		Dialog.addCheckbox("Save 16 bits RAW image ? ", false);	} // else
+		if (operation != "grey_level" && operation != "background") { 	Dialog.addCheckbox("Save changes to ''"+scanfile+"'' ? ", false);	} // if
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("If any doubt, Cancel process or DO NOT change any setting !    ");
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------");	
+		Dialog.show();
+		color = Dialog.getChoice();
+		save16 =	Dialog.getCheckbox();
+		if (operation != "grey_level" && operation != "background") { 	savebal = Dialog.getCheckbox();		} // if
+	} // else
+
+	if (operation == "scan") {
+		if (color == aff[4]) { 	colorbalance = 	"keep";		save16 =	"1";	hh = 0;	} // if
+	} // if
+	if (color == "Keep actual setting") { 	color = 		message;	hh = 0;	} // if
+	if (color == aff[1]) { 	colorbalance = 	"none";		hh = 0;	} // if
+	if (color == aff[2]) {	colorbalance = 	"neutral";		hh = 0;	} // else
+	if (color == aff[3]) { 	colorbalance = 	"manual";		
+		//----------------------------Test sur l'existence du repertoire des fichiers de config-------------------------------
+		confrep = File.exists(chemconfig);
+		if (confrep==0) { 	showMessage("Error message : "+chemconfig+" folder doesn't exist, select another scanning procedure        ");  	}
+		else { 	// -----------------------------Existence d'une LUT ------------------------------------------------------
+			conflut = File.exists(chemconfig+"lut.txt");
+			if (conflut == 0) { showMessage("Error message : lut.txt file doesn't exist, select another scanning procedure           ");  	}
+			else { 	//---------------------Lecture fichier LUT ---------------------------------
+			open(chemconfig+"lut.txt");
+			lutdata = getInfo();
+			run('Close');
+			ligne = split(lutdata,"\n");
+			min = 	ligne[0];		
+			max = 	ligne[1];		
+			gamma = ligne[2];
+			sens = 	ligne[3];
+			adjust = 		"no";	
+			odrange = 	1.8;	
+			ratio = 		1.15;
+			if (ligne.length == 6) {	adjust = ligne[4];	odrange = ligne[5];	ratio = 1.15;	
+				showMessage("Zooprocess requires a new LUT file.                 \nUpdate your LUT file for Zooprocess 3.05 and above versions.                ");
+			} // if
+			if (ligne.length == 7) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];		} // if	
+			odrange = parseFloat(odrange);
+			if (odrange >= 3) { odgrange = 1.15;							} // if
+		} // else
+	} // if
+} // while
+if (savebal == true) { savebal = 		"1";		} // if
+else  {		savebal = 	"0";		} // else
+if (save16 == true) { save16 = 		"1";		} // if
+else  {		save16 = 		"0";		} // else
+
+ret = colorbalance+" "+savebal+" "+save16+" "+min+" "+max+" "+gamma+" "+sens+" "+adjust+" "+odrange+" "+ratio;
+return ret;

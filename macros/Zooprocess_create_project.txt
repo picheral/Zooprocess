@@ -1,0 +1,230 @@
+// -------------------- Zooprocess_create_project ------------------
+version =	 "7.26";
+date =	 "2017/10/20";
+
+// Ajout path docs pour Zooscan
+// N° Série UVP5
+// Vérifications N° de série
+// Fichier INFO cruise
+// Pathsettings cree par défaut
+// Fichier INFO cruise (DO)
+// Plus de liste zoo par défaut
+
+args = 	getArgument();
+arg = 	split(args," ");
+
+chem = 	arg[0];
+dateheure = 	arg[1];
+instrum = 	arg[2];
+uvp_sn = "xxx";
+uvp_sn_txt = "999";
+uvp_type = "undefined";
+if (instrum == "uvp5" && arg.length > 3) { uvp_type = arg [3]; uvp_sn_txt = arg[4];	}
+else if (instrum == "uvp5") {
+	// --------------- N° de série --------------------------------------------------------------
+	uvp_sn_input = 0;
+	uvp_sn ="999";
+	// ------------------- N° SERIE UVP5 -----------------------------------------------------------------
+	while(uvp_sn_input == 0) {				
+		uvp_sn = getNumber("Input UVP5 serial number (3 numbers)",uvp_sn);
+		uvp_sn_txt = toString(uvp_sn);
+		uvp_sn_input = 1;
+		if 	(lengthOf(uvp_sn_txt) == 1) 	{	uvp_sn_txt = "00"+uvp_sn_txt;		}
+		else if (lengthOf(uvp_sn_txt) == 2) 	{	uvp_sn_txt = "0"+uvp_sn_txt;		}
+		else if (lengthOf(uvp_sn_txt) == 3) 	{	uvp_sn_txt = uvp_sn_txt;		}
+		else { showMessage("Serial number is not correct, enter again !");	uvp_sn_input  = 0;	}
+	} // while
+	uvp_type = "std";
+	if (parseInt(uvp_sn_txt) >= 200) uvp_type = "hd";		
+}
+
+if(isOpen("Zooprocess")) {selectImage("Zooprocess"); 	close();		} // if
+// --------------------------Affichage de la date et de l'heure ------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+// -------------------------- Lecture fichier UVP5_configuration_data.txt si existe ----------------------
+if (File.exists(chem+"\\uvp5_configuration_data.txt") && instrum == "uvp5") {
+	uvp_sn_data = "XXX";
+	open(chem+"\\uvp5_configuration_data.txt");
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	for (i=1;i<conf.length;i++){
+		data = replace(conf[i],"="," ");
+		dat = split(data," ");		
+		if (startsWith(dat[0],"sn"))		uvp_sn_data = dat[1];
+	}// for	
+	if (uvp_sn_data != uvp_sn_txt) { showMessage("Default  UVP5sn = "+uvp_sn_data+"\nSelected UVP5sn = "+uvp_sn_txt+"\n \nCheck carefully the settings in the coming screens !");	}
+} // if
+
+// ---------------------------------- Creation du projet ----------------------------------------------------------------------------------------------------
+check = 0;
+drives = newArray("C:\\","D:\\","E:\\","F:\\","G:\\","H:\\","I:\\","J:\\","K:\\","L:\\","M:\\","N:\\","O:\\","P:\\","Q:\\","R:\\","S:\\","T:\\","U:\\","V:\\","W:\\","X:\\","Y:\\","Z:\\");
+while (check != 1) {
+	affdrive = newArray(25);
+	ind = 0;
+	t= 0;
+	while (t<drives.length) {
+		if (File.exists(drives[t])) { 	ex = drives[t];	affdrive[ind] = ex;	ind++;	} // if
+		t++;
+	} // while
+	aff = newArray(ind);
+	for (r=0;r<ind;r++) { aff[r] = affdrive[r];	} // if
+	Dialog.create("PROJECT MANAGER                version "+version);
+	Dialog.addMessage("------------------------------ NEW project --------------------------------               ");
+	Dialog.addMessage("Instrument:  "+instrum);	
+	Dialog.addMessage("------------------------------------------------------------------------------- ");
+	Dialog.addMessage("Select drive (Do not select CD drive) !               ");
+	Dialog.addChoice("           ",aff);
+	Dialog.addMessage("Enter project name   (DO NOT INCLUDE instrument UVP5 s/n in project name)           ");
+	Dialog.addString("           ","enter project name"); 
+	Dialog.show();
+	drive = Dialog.getChoice();
+	proj = Dialog.getString();
+	processchoice = false;
+	proj = toLowerCase(proj);
+	proj = replace(proj," ","_");
+	proj = replace(proj,".","_");
+	proj = replace(proj,"/","_");
+	proj = replace(proj,";","_");
+	proj = replace(proj,"!","_");
+	proj = replace(proj,"+","_");
+	proj = replace(proj,"-","_");
+	proj = replace(proj,"$","_");
+	if (proj != "enter_project_name") {
+		if (instrum == "uvp5") {		path = drive+instrum+"_sn"+uvp_sn_txt+"_"+proj;			}//if	
+		else if (instrum == "flowcam") {	
+			aa = getBoolean("SELECT FLOWCAM TYPE OF DATA : \n \nPress YES if you recorded ALL raw images. \nPress NO if you saved only COMPOSITE images.");
+			if (aa == 0) {			path = drive+instrum+"_composite_"+proj;			}
+			else 	{			path = drive+instrum+"_"+proj;					} //else
+		}// if
+		else {					path = drive+instrum+"_"+proj;					} //else
+		pathconfig =	path+"\\"+"\\config";
+		pathsettings = 	path+"\\"+"\\config"+"\\uvp5_settings\\";
+		pathdoc = 	path+"\\"+"\\docs";
+		pathmeta = 	path+"\\"+"\\meta\\";
+		pathback = 	path+"\\"+"\\back\\";
+		pathwork = 	path+"\\"+"\\work";
+		pathraw = 	path+"\\"+"\\raw";
+		pathresults = 	path+"\\"+"\\results";
+		pathctd = 	path+"\\"+"\\ctd_data_cnv";
+		pathdocs = 	path+"\\"+"\\docs";
+		//------------------PID folders---------------------------------------
+		pathpid = 		path+"\\"+"\\PID_process";
+		pathlearn = 		path+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+		pathpidresults = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+		pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+		pathsortedvig = 	path+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+		pathpredic = 		path+"\\"+"\\PID_process\\"+"\\Prediction\\";
+		pathpidpredicted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+		pathdat1extracted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_extracted\\";
+		pathdat1validatted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+		pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+		//---------------------------- Tester le nom dans la liste et verifier les repertoires --------------------------------------	
+		if (File.exists(path) && File.exists(pathconfig) && File.exists(pathmeta)  && File.exists(pathwork) && File.exists(pathraw) && File.exists(pathresults)) {
+			info = getBoolean(path+" already in list         \nPress YES to select this project          \nPress NO to choose another name     ");
+			if (info == 1) { 		check = 1;		} // if 
+		} // if	
+		else {
+			// ------------ Main folders ------------------------------------------------------------------------------
+			File.makeDirectory(path);
+			File.makeDirectory(pathdoc);
+			File.makeDirectory(pathconfig);
+			File.makeDirectory(pathmeta);
+			File.makeDirectory(pathwork);
+			File.makeDirectory(pathraw);
+			File.makeDirectory(pathresults);
+			if (instrum == "Zooscan" || instrum == "Flowcam")	File.makeDirectory(pathback);
+			if (instrum == "uvp5") 	{	File.makeDirectory(pathctd);	File.makeDirectory(pathdocs);		} // if
+			//-----------------PID folders-----------------------------------------------------------------------------
+			File.makeDirectory(pathpid);
+			File.makeDirectory(pathlearn);
+			File.makeDirectory(pathpidresults);
+			File.makeDirectory(pathvig);
+			File.makeDirectory(pathsortedvig);
+			File.makeDirectory(pathpredic); 
+			File.makeDirectory(pathpidpredicted); 
+			File.makeDirectory(pathdat1extracted); 		
+			File.makeDirectory(pathdat1validatted);
+			
+			if (instrum == "uvp5") {
+				File.makeDirectory(pathsettings);
+				// --------------------- ENTETE mission -----------------------------------------------------------------------------------
+				if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+				Dialog.create("PROJECT MANAGER                version "+version);
+				Dialog.addMessage("------------------------------ NEW project -------------------------------------------------------------------------------------               ");
+				Dialog.addMessage("Instrument:  "+instrum);
+				Dialog.addMessage("Project:     "+proj);
+				Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------------ ");
+				Dialog.addString("Enter UVP5 main operator name for the cruise","enter op. name"); 
+				Dialog.addString("Enter UVP5 main operator email","enter op. email"); 
+				Dialog.addString("Enter cruise chief scientist ","enter op. name"); 
+				Dialog.addString("Enter cruise chief scientist email","enter op. email"); 
+				Dialog.addString("Enter UVP5 data owner name ","enter op. name"); 
+				Dialog.addString("Enter UVP5 data owner email","enter op. email"); 
+				Dialog.addString("Enter cruise scientific project acronym ","acronym"); 
+				Dialog.addString("       Enter cruise scientific project additional info (other operators, funding...)","info");
+				Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------------ ");		 
+				Dialog.show();
+				data_proj = newArray(8);
+				data_proj[0] = Dialog.getString();
+				data_proj[1] = Dialog.getString();
+				data_proj[2] = Dialog.getString();
+				data_proj[3] = Dialog.getString();
+				data_proj[4] = Dialog.getString();
+				data_proj[5] = Dialog.getString();
+				data_proj[6] = Dialog.getString();
+				data_proj[7] = Dialog.getString();
+				data_hdr = newArray("op_name","op_email","cs_name","cs_email","do_name","do_email","acron","gen_info");
+				for (b = 0; b < data_proj.length ; b++) { dat = data_proj[b];
+					//dat = toLowerCase(dat);
+					//dat = replace(dat," ","_");
+					dat = replace(dat,"/","_");
+					dat = replace(dat,";","_");
+					dat = replace(dat,"!","_");
+					dat = replace(dat,"+","_");
+					dat = replace(dat,"$","_");
+					print(data_hdr[b]+"="+dat);
+				} // for
+				text =  "save=" + pathconfig+"\\cruise_info.txt";
+				selectWindow("Log");
+				run("Text...",text);	
+				wait(100);
+				run("Close");
+			} // if
+	
+			// --------------------- Verification du fichier de config ----------------------------------------------------------------
+			if (indexOf(path,"flowcam_composite") < 1 ) {
+				op = "Edit configuration file";
+				ret = runMacro("Zooprocess_edit_configuration",pathconfig+" "+instrum+" create "+chem+" "+uvp_type+" "+uvp_sn_txt);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+			}// if composite
+			check = 1;
+
+			//--------------------- Ecriture dans le fichier instrument ------------------------------------------------------------	
+			open(chem+"instrument.txt");
+			wait(100);
+			info = getInfo();
+			data = split(info,"\n");
+			run("Close");
+			if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+			print(data[0]);
+			print("path= "+path);
+			print("created= "+dateheure);
+			text =  "save=" + chem+"\\instrument.txt";
+			selectWindow("Log");
+			run("Text...",text);	
+			run("Close");
+
+			// ------------------ display -------------------------------------------------------------------------------------------------
+			showMessage("Project "+path+" created");
+		} // else
+	} // if
+} // while
+
+// ---------------- FIN ---------------------------------------------
+ret = path;
+return ret;	

@@ -1,0 +1,207 @@
+ // -------------------- Zooscan_edit_metadata_maj_files ---------------------------------------
+version = "7.23";
+date = "2017/01/30";
+
+// MAJ tables ECOTAXA
+// retire noid
+
+
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+metadatamat = newArray(43);
+for (i = 0; i < metadatamat.length ; i++) {	
+	metadatamat[i] = 	array[2 * i]+" "+array[2 * i + 1];	
+} // for
+
+//	aaa = getBoolean(30+"  "+metadatamat[30]);
+
+
+titrered = 	array[metadatamat.length * 2];
+projfolder = 	array[metadatamat.length * 2 + 1];                    
+method = 	array[metadatamat.length * 2 + 2];
+
+chem = 		projfolder + "\\Zooscan_scan\\_work\\";
+chemraw = 	projfolder + "\\Zooscan_scan\\_raw\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+pathconfig = 	projfolder + "\\Zooscan_config\\";
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+chemfile = chemraw + "\\"+ titrered;
+titrered1 = titrered;
+long = lengthOf(titrered1);
+sample = substring(titrered,0,long-1);
+titrered2 = sample+"_2";
+
+// -------------------- Rapport --------------------------------------------------------------------------------------------------
+message = "Metadata modified in the following files : \n ";
+message = message+"\n- "+chemfile + "_meta.txt \n ";
+
+// -------------------- Mise a jour du/des PID, du/des LOG, du/des META ---------------------------------------------
+
+// ----------------------- META ----------------------------------------------------
+imagemeta1 = 	chem+"\\"+titrered1+"\\"+titrered1+"_meta.txt";
+if ( File.exists(imagemeta1)) {
+	run("Text...","save="+imagemeta1);			
+	message = message+"\n- "+chem+"\\"+titrered1+"\\"+titrered1+"_meta.txt";
+} // if
+imagemeta2 = 	chem+"\\"+titrered2+"\\"+titrered2+"_meta.txt";
+if ( File.exists(imagemeta2)) {
+	run("Text...","save="+imagemeta2);	
+	message = message+"\n- "+chem+"\\"+titrered2+"\\"+titrered2+"_meta.txt";
+} // if
+
+// ----------------------- LOG et PID -----------------------------------------------------
+// ----------------- Liste des fichiers qui doivent être recherches -----------------
+filelist = newArray(50000);
+j = 0;
+// ----------------- Repertoires et noms fixes ------------------------------------------	
+if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_log.txt")){ 		filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_log.txt";		j++;		} // if
+if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid";		j++;		} // if	
+if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_log.txt")){		filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_log.txt";		j++;		} // if
+if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid";		j++;		} // if
+
+// ----------------- Liste des repertoires à tester pour dat1.pid et dat1.txt des 2 frames ------------------------------------------------
+repliste = newArray(4);
+repliste[0] = projfolder+"\\PID_process\\"+"\\Prediction\\";
+repliste[1] = projfolder+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+repliste[2] = projfolder+"\\PID_process\\"+"\\Pid_results\\";
+repliste[3] = projfolder+"\\PID_process\\"+"\\Sorted_vignettes\\";
+
+// ------------------------- Boucle sur les répertoires et sous-répertoires -------------------------
+	for (t = 0;t<4;t++) {
+		path = repliste[t];
+		// ---------------- Recherche des fichiers dat1.pid et dat1.txt dans path --------------------
+		sorted = getFileList(path);
+		if (sorted.length >=1) {	
+			// ---------------------------- Boucle sur les fichiers et repertoires --------------------------------
+			for (i=0; i<sorted.length ; i++) {	  
+				replist = newArray(1000);
+				rr = sorted[i];
+
+				// -----------------Fichiers ----------------------------------------------------------------------------------
+				if (endsWith(rr,titrered1+"_dat1.pid"))	 {		rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered2+"_dat1.pid"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered1+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered2+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered1+"_dat1.ext"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered2+"_dat1.ext"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else { 
+					// nothing to do...
+				} // 
+				// ----------------- Sous repertoire ----------------------------------------------------------------------
+				if (endsWith(rr,"/"))	 {
+					subpath = path+rr+"\\";
+					rep =  getFileList(subpath);
+					if (rep.length >=1) {
+						// ----------------- Boucle sur les fichiers ---------------------------------------		
+						for (x=0;x<rep.length ;x++) {
+							gg = rep[x];
+							if (endsWith(gg,titrered1+"_dat1.pid"))	 {		gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered2+"_dat1.pid"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered1+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered2+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered1+"_dat1.ext"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered2+"_dat1.ext"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else {
+								// Nothing to do
+							} //  else
+						} // for
+					} // if
+				} // for
+			} // if
+		} // if
+	} // for
+	// ------------------------- Reduction taille vecteur ------------------------------------------------
+	listprocess  = newArray(j); 
+	for (k = 0;k<j;k++) { 
+		rr = filelist[k]; 	
+		listprocess[k] = rr;	
+//		getBoolean(rr);
+	} // for
+
+	// ----------------- SYNTHESE ------------------------------------------------------------
+	for (k = 0;k<j;k++) {	
+		text = listprocess[k];
+	//	aa = getBoolean(text);
+	//	aa = getBoolean( File.exists(text));
+		//	showMessage(text);
+		// --------------- Effacement du log --------------------------------	
+		print("A purger");	selectWindow("Log");	run('Close');
+		open(text);  
+		wait(100);
+		data = getInfo();
+		array = split(data,"\n");
+		run("Close");
+		index = 0;
+		fin = array.length;
+		sample_deb = 0;
+		fraction_deb = 0;
+		Subsample_deb = 0;
+		// ------------------ Recherche de la fin de la section metadata pour raccourcir le process --------------------
+		while (index < array.length) {data = array[index];
+			if (startsWith(data,"[Sample]")) { 	sample_deb = index;		} // if
+			if (startsWith(data,"[Fraction]")) { 	fraction_deb = index;		} // if
+			if (startsWith(data,"[Subsample]")) { 	Subsample_deb = index;		} // if
+			if (startsWith(data,"[Process]")) { 	fin = index;		index = array.length;	} // if
+			index++;
+		} // while
+		for (i=0; i < sample_deb + 1 ; i++) 	{	print(array[i]);	}//for
+		for (i=0; i < 19 ; i++)			{	print(metadatamat[i]);	}//for
+		for (i=30; i < 43 ; i++)		{	print(metadatamat[i]);	}//for
+		print(" ");
+		print("[Fraction]");
+		print(metadatamat[24]);	
+		print(metadatamat[19]);	
+		print(metadatamat[20]);	
+		print(metadatamat[21]);	
+		print(" ");
+		print("[Subsample]");	
+		dd = split(metadatamat[22],"\ ");	print("SubPart= "+toString(dd[1]));	
+		for (i=25; i < 30 ; i++)		{	print(metadatamat[i]);	}//for
+		print(metadatamat[23]);	
+		print(" ");
+		for (i=fin; i < array.length ; i++) 	{	print(array[i]);	}//for
+		// ----------------- Enregistrement ----------------------------------------
+		selectWindow("Log");
+		run("Text...","save="+text);
+		message = message+"\n- "+text;
+		// ----------------- MAJ ECOTAXA --------------------------------------------
+		outlines = false;
+		status = false;
+		folder = "no";
+		if (endsWith(listprocess[k],"dat1.pid") && indexOf(listprocess[k],"\work")> 0 ) {		
+			process_opt = "pid";
+			if (indexOf(listprocess[k],titrered1) > 0) 	{	pid_file = titrered1;					}
+			else if (indexOf(listprocess[k],titrered2) > 0) {	pid_file = titrered2;					}
+			else { aa = getBoolean(listprocess[k]+" file is NOK ! \n \nPress CANCEL to abort and correct ethe file.");	}
+			folder = chem+"\\"+titrered+"\\";
+			ret = runMacro("Zooprocess_pid_to_ecotaxa_zooscan",projfolder+" "+folder+" "+pid_file+"_dat1.pid "+process_opt+" "+outlines+" "+status+" maj "+"http://www.zooscan.obs-vlfr.fr//");
+			ret = toString(ret);
+			if (lengthOf(ret) > 1) {
+				if (ret == "yes") message = message+"\n- "+folder+"ecotaxa_"+titrered+".tsv";
+			}//
+		} //if
+		else if (endsWith(listprocess[k],"dat1.txt")&& indexOf(listprocess[k],"\Dat1_validated")> 0 ) {		
+			process_opt = "text";
+			if (indexOf(listprocess[k],titrered1) > 0) 	{	pid_file = titrered1;					}
+			else if (indexOf(listprocess[k],titrered2) > 0) {	pid_file = titrered2;					}
+			else { aa = getBoolean(listprocess[k]+" file is NOK ! \n \nPress CANCEL to abort and correct ethe file.");	}
+			folder = projfolder+"\\PID_process\\Pid_results\\Dat1_validated";
+			ret = runMacro("Zooprocess_pid_to_ecotaxa_zooscan",projfolder+" "+folder+" "+pid_file+"_dat1.txt "+process_opt+" "+outlines+" "+status+" maj "+"http://www.zooscan.obs-vlfr.fr//");
+			ret = toString(ret);
+			if (lengthOf(ret) > 1) {
+				if (ret == "yes") {
+					message = message+"\n- "+projfolder+"\\ecotaxa\\ecotaxa_"+titrered+"_validated.tsv";
+					message = message+"\n- "+projfolder+"\\ecotaxa\\"+titrered+"\\ecotaxa_"+titrered+"_validated.tsv";
+				}
+			}
+		} //if	
+	} // for
+	print("A purger");	selectWindow("Log");	run('Close');
+	if (method == "sample") 	showMessage("NORMAL END of EDIT METADATA        ",message);
+// -------------------- FIN --------------------------	
+ret = arg;
+return ret;

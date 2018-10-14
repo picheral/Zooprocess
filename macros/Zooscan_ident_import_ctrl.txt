@@ -1,0 +1,21 @@
+
+arg = getArgument();
+array = split(arg," ");
+longm = array[1];
+longe= array[2];
+nbcol= array[3];
+
+Dialog.create("Importation CONTROL");
+message1= "labels in results file    = "+longm;
+message1= "labels in old ident file = "+longe;
+message2= "labels imported           = "+nbcol;
+Dialog.addMessage(message1);
+Dialog.addMessage(message2);
+if (nbcol== longe) { message3 = "All previous "+longe+ " labels imported in new IDENT file"; }
+else { message3 = "Difference may be due to JPEG compression, press CANCEL to process again RAW image            "; }
+Dialog.addMessage(message3);
+Dialog.show();	
+
+ret = "1";
+return ret;
+	

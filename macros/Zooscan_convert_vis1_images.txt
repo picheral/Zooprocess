@@ -1,0 +1,166 @@
+// --------------------------- Zooscan_convert_vis1_images---------------------------------------
+version = "5.08";
+date = "2008/11/12";
+arg = 		getArgument(); 
+//	arg = "E:\\Zooscan E:\\Zooscan_demo_train\\";
+array = 		split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+drive = 	substring(projfolder,0,2);
+lon = 	lengthOf(projfolder);
+zoosc = 	indexOf(projfolder,"Zooscan_");
+proj = 	substring(projfolder,zoosc+8,lon);
+
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemwork1 = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemraw = 	chemscan + "_raw\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+chemzip = 	chemscan + "_zip\\";
+chemback = 	drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_back\\";
+
+// -------------------- Liste des sous repertoires OK --------------------
+filelist  = getFileList(chemwork1);
+//-------------- Selection des fichiers ---------------------
+j = 0;	
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	identlong = 	lengthOf(rr);
+	rr = 		substring(rr,0,identlong-1);	
+	//--------------- Recherche du fichier image en ZIP ou en JPG ----------
+	imagezip  =  chemwork1+"\\"+rr+"\\"+rr+"_vis1.zip";
+	imagejpg = chemwork1+"\\"+rr+"\\"+rr+"_vis1.jpg";
+	imagelog = chemwork1+"\\"+rr+"\\"+rr+"_log.txt";
+	imagepid = chemwork1+"\\"+rr+"\\"+rr+"_dat1.pid";
+	imagemsk = chemwork1+"\\"+rr+"\\"+rr+"_msk1.gif";
+	imageout = chemwork1+"\\"+rr+"\\"+rr+"_out1.gif";
+	zipexist = File.exists(imagezip);
+	jpgexist = File.exists(imagejpg);
+	logexist = File.exists(imagelog);
+	pidexist = File.exists(imagepid);
+
+	pidexist = 1;
+
+	mskexist = File.exists(imagemsk);
+	outexist = File.exists(imageout);
+	if ((zipexist == 1 || jpgexist == 1)&&logexist == 1 && pidexist == 1 && mskexist == 1 && outexist == 1){ list[j] = rr;  j++;  	} // if
+} // for
+if (j==0) { print("No valid ''sample'' folder in the "+projfolder);
+	getBoolean("No valid sample folder in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+} //
+// ---------------------------Purger les lignes vides  ----------------------
+else {	listaffind = newArray(j);
+	for (i=0; i<listaffind.length ; i++) {	rr = list[i]; 	listaffind[i] = rr;		} // for	
+} // else
+
+// --------------------------- Choix du premier fichier --------------------------------------------------------
+Dialog.create("Convert vis1 images for display purpose  v : "+version);
+	Dialog.addMessage( "-----------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project :  "+proj);
+	Dialog.addMessage( "-----------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage("SELECT FIRST IMAGE to convert.           ");
+	Dialog.addChoice("                    ", listaffind);
+	Dialog.addMessage( "-----------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addString("              Enter text ", "ZOOSCAN DEMO IMAGE (300dpi), contact AUTHORS for full resolution image");
+	Dialog.addMessage( "-----------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	titrered = 	Dialog.getChoice();
+	message = 	Dialog.getString();
+
+// ------------------------------ Recherche de l'index de la premiere image -------------------------------------------------
+for (i=0; i<listaffind.length ; i++) {	rr = listaffind[i];
+	if (titrered == rr ) 	k = i;
+} // for
+
+// ------------------------------ Boucle sur les images ----------------------------------------------------------------------------
+setBatchMode(1);
+print("CONVERSION");
+run("Close");
+while (k < j) {	
+	titre = listaffind[k];
+	chemwork = chemwork1 + "\\"+titre+"\\";
+	openfile = chemwork+titre+"_vis1.zip";
+	print(openfile);
+	open(openfile);	
+	wait(100);
+	// -------------------- Reduction 600 dpi --------------------
+	largeur= 		getWidth()/4;
+	largeurcor = 	floor(largeur);
+	largeurcor = 	toString(largeurcor);
+	hauteur = 	getHeight()/4;
+	hauteurcor = 	floor(hauteur);
+	hauteurcor = 	toString(hauteurcor);
+	text = 		"width="+largeurcor+" height="+hauteurcor;
+	run("Size...", text);
+	rename("image");
+	
+	// ----------------------- Soustraction du fond -----------------------
+	openfile = chemwork+ titre+"_msk1.gif";
+	open(openfile);
+	rename("MASK");
+	run("Size...", text);
+	text =  "image1=MASK operation=Add image2=image";
+	run("Image Calculator...", text);
+	selectImage("image");
+	close();
+
+	// -------------------- Ajout filigramme -----------------------
+	newImage("fond", "8-bit White",largeur, hauteur, 1);
+	long = lengthOf(message);
+	stepx = 	long * 50;
+	stepy = 	150;
+	setFont("SansSerif" , 75, "italic");	
+	for (y = 1;y < hauteur/stepy; y++) {
+		offset = random();
+		X = (offset)*stepx - stepx;
+		for (t = 0;t<largeur/stepx;t++) {
+			setColor(200+offset*25);
+			//	print(X+t*stepx+"   "+y*stepy);
+			drawString(message,X+t*stepx,y*stepy);
+		} // for
+	} // for
+	run("Image Calculator...", "image1=MASK operation=Min image2=fond");
+	selectImage("fond");
+	close();
+
+	// -------------------- Reduction 600 dpi --------------------
+	largeur= 	getWidth()/2;
+	largeurcor = 	floor(largeur);
+	largeurcor = 	toString(largeurcor);
+	hauteur = 	getHeight()/2;
+	hauteurcor = 	floor(hauteur);
+	hauteurcor = 	toString(hauteurcor);
+	text = 		"width="+largeurcor+" height="+hauteurcor;
+	run("Size...", text);
+	// -------------------- Enregistrement ------------------------
+	saveAs("Jpeg", chemwork+titre+"_vis1_300dpi.jpg"); 
+	// -------------------- Fermeture ------------------------------
+	close();
+	for (i=0; i<4; i++)	{	run("free memory");		wait(1000);	} // for
+	k++;
+} // while
+
+wait(500);
+setBatchMode(0);
+// --------------------- FIN --------------------
+ret = "Fin";
+return ret;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

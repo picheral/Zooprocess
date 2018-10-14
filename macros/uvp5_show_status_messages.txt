@@ -1,0 +1,55 @@
+// ------------------ uvp5_show_status_messages -----------------------
+version =	 "7.20";
+date =	 "2015/03/22";
+
+// data en unites scientifiques
+
+ff = getArgument();
+ret = ff;
+
+if (indexOf(ff,"C110") >= 0) {
+	aa = indexOf(ff,"C110DATA");
+	ffr = substring(ff,aa,aa+110);
+	ff = ffr;
+	// ------------- Affichage VC110 ---------------------------
+	ret = "ACQ : "+"------------------------------";
+	c110 = replace(ff,"*"," ");	c110 = replace(c110,"_"," ");		c110 = split(c110," ");
+	if (c110.length > 8) {
+		depth = c110[1+4];			neg = substring(depth,0,1);
+		angle = c110[2+4];			temp = c110[4+4];				voltage = c110[5+4];
+		data = c110[2];				factor= 1;
+		if ( voltage != "aaaaa") {
+			if (neg ==  "-" )  {	depth = substring(depth,1,5); factor = -1;	}
+			depth = parseInt(depth);	depth = factor * depth/10;		depth = toString(depth); //	if (indexOf(depth,".") <1) depth = depth+".0";
+			angle = substring(angle,2,5);
+			voltage = parseInt(voltage);	voltage = voltage/100;		voltage = toString(voltage);	
+			if (lengthOf(voltage) >3) voltage = substring(voltage,0,4);
+			if (lengthOf(voltage) < 3) voltage = voltage+".0";
+			if (lengthOf(voltage) == 4) voltage = voltage+"0";
+			temp = parseInt(temp);		temp = toString(temp);
+			ret = "ACQ : "+angle+"°   "+temp+"°C   "+voltage+"V   "+depth+"m   "+data;
+		}
+	}
+}
+else if (indexOf(ff,"V092DATA")>=0) {
+	// ------------- Affichage V092 ---------------------------
+	v092 = replace(ff,"*"," ");	v092 = replace(v092,"_"," ");	v092 = split(v092," ");
+	if (v092.length > 13) {
+		depth = v092[1];		neg = substring(depth,0,1);
+		angle = v092[2];		temp = v092[4];			voltage = v092[5];		time = v092[13];
+		MM = substring(time,0,2);	DD = substring(time,2,4);	hh = substring(time,4,6);	mm = substring(time,6,8);
+		ss = substring(time,8,10);	factor= 1;
+		if (neg ==  "-" )  {	depth = substring(depth,1,5); factor = -1;	}
+		depth = parseInt(depth);	depth = factor * depth/10;		depth = toString(depth);	//	if (indexOf(depth,".") <1) depth = depth+".0";
+		angle = substring(angle,2,5);
+		voltage = parseInt(voltage);	voltage = voltage/100;			voltage = toString(voltage); 	
+		if (lengthOf(voltage) > 3) voltage = substring(voltage,0,4);
+		if (lengthOf(voltage) < 3) voltage = voltage+".0";
+		temp = parseInt(temp);		temp = toString(temp);
+		ret = "SURV : "+MM+"/"+DD+" "+hh+":"+mm+":"+ss+"     "+angle+"°   "+temp+"°C   "+voltage+"V   "+depth+"m";
+	} // if
+}				
+
+// ------------ FIN ----------------------
+return ret;
+

@@ -1,0 +1,82 @@
+//-------------------Zooscan_select_system.txt---------------------------------
+version = "7.21";
+date = "2015/09/06";
+
+arg = getArgument(); 
+array = split(arg," ");
+chem= 		array[0]; 
+projfolder = 	array[1];
+scanner = 	array[2];
+source = "0";
+ret = "1111";
+vuescan = 	"unknown";
+//---------------------Lecture fichier "Zooscan" ---------------------------------
+if (File.exists(chem+"\\Zooscan.txt")) {
+	open(chem+"\\Zooscan.txt");
+	data = getInfo();
+	run('Close');
+	ligne = split(data,"\n");
+	scanner = ligne[0];
+	// ---------- Si 2e ligne, lecture du champ source ------------------------------------------------------
+	if (ligne.length == 3) source = ligne[2]; source = toString(source);
+} // if
+
+// --------------------- Test de l'existence du logiciel vuescan------------------------------------------
+ret = runMacro("Zooscan_find_vuescan");
+flag=toString(ret);
+l= lengthOf(flag);
+if (l==1)  { getBoolean("Zooscan_find_vuescan macro aborted? \n \nPress Cancel to abort !    ");	} // if
+else {	argret = split(flag," ");	vuescan = argret[0];	flag = 	argret[1];		chemvue = argret[2];	vuescanexist = argret[3];	} // else
+
+aff = newArray(scanner,"Hydroptic v4 Window7/8","Hydroptic v3 Window7","Hydroptic v2","Hydroptic v1","Biotom");	//,"Hydroptic v3 WindowXp"
+aff[0] = scanner;
+vuescanlist = 	newArray("8.3.23","8.4.57","9.0.51","9.5.24");
+vuescanlist[0] = vuescan;
+scannerold = scanner;
+vuescanold = vuescan;
+fin = 0;
+while (fin == 0) {
+	Dialog.create("Zooscan selector   version = "+version);
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------");
+	if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN installed version is : "+vuescan);
+	else {				Dialog.addMessage("VUESCAN is not installed. VUESCAN Default files will not be created !   ");	} // else
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addChoice("       Select ZOOSCAN system ",aff);
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addCheckbox("Update Vuescan configuration files in the "+chem+ "\_config folder ?", true);
+	Dialog.addMessage("The previous scanning files are saved and named according to the previous model name.");
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------");
+	Dialog.show;	
+	scanner = 	Dialog.getChoice();
+	update = 	Dialog.getCheckbox();
+	syst = 		scanner;	
+		if ((syst == "Biotom" || syst == "Hydroptic v1") && (vuescan == "8.3.23" || vuescan == "8.4.57") )  	{			fin = 1;		}
+		else if (syst == "Hydroptic v2" && vuescan == "8.4.57") 						{			fin = 1;		}
+		else if (syst =="Hydroptic v3 Window7" && vuescan == "9.0.51")						{			fin = 1;		}
+		else if (syst =="Hydroptic v4 Window7/8" && vuescan == "9.5.24")					{			fin = 1;		}	
+		else {			
+			showMessage("WARNING","VUESCAN 8.3.23 is OK for Biotom and Hydroptic v1 Zooscans. \nHydroptic v2 Zooscan requires VUESCAN 8.4.57  \nHydroptic v3 Zooscan requires VUESCAN 9.0.51 and Windows 7 or 8 pro 64 bits \nHydroptic v4 Zooscan requires VUESCAN 9.5.24 and Windows 7 or 8 pro 64 bits \n \nVUESCANxx.exe installers are available in the Zooprocess install archive from on the Zooscan website !      ");
+			getBoolean("WARNING\nThe selected Vuescan "+vuescan+" version is not compatible with the "+syst+" Zooscan.     ");		
+		} // else
+} // while
+if (scannerold == scanner ) { getBoolean("WARNING : \nYou have not changed the Zooscan/Vuescan configuration. \nor \nYou are creating a new project and you need to select the Zooscan model. \n \nPress YES to KEEP the ''"+scanner+"'' system and CHECK frame dimensions. \n \nPress Cancel to abort !           ");		} // if
+
+//------------------- Impression dans le fichier ---------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+print(scanner);
+print(vuescan);	
+print(source);
+text =  "save=" + chem+"\\Zooscan.txt";
+selectWindow("Log");
+run("Text...",text);	
+run("Close");
+ret = scanner+" "+vuescan+" "+source;
+// ------------------------------------ Mise a jour des fichiers ----------------------------------------------
+if (update == true ) {
+	scanner = replace(scanner," ","_");
+	scannerold = replace(scannerold," ","_");
+	ret = runMacro("Zooprocess_install_5",version+" maj "+scanner+" "+chem+" "+scannerold+" "+vuescan+" "+vuescanold);
+	ret=toString(ret);
+} // if
+// --------------------------------------- FIN -----------------------------------
+return ret;

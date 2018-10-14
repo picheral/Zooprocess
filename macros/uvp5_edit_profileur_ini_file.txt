@@ -1,0 +1,170 @@
+// ------------------ uvp5_edit_profileur_ini_file.txt -----------------------
+version =	"7.20";
+date =		"2015/09/01";
+
+// HD
+
+args = getArgument();
+arg = split(args," ");
+pathconfig = arg[0];
+uvp_sn = arg[2];
+path = arg[3];
+
+// -------------------- OUVERTURE ---------------------------------------
+openconfig = pathconfig+"\\"+"ProfileurVideo.ini";
+if (File.exists(openconfig)) {
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	// ------------------- Detection UVP5 HD -------------------
+	uvp_type = "uvp5std";
+	if (indexOf(config,"NbImageMaxPerDirectory")>1) uvp_type = "uvp5hd";
+	conf  = split(config,"\n");
+	inifile = 0;
+	if ( conf.length < 20 && uvp_sn != "000") {	showMessage("Your UVP5 camera application should be updated to get higher sampling rates.\n\nContact HYDROPTIC ASAP.");		} //if
+	for (i=1;i<conf.length;i++){
+	file = conf[i];
+	if (lengthOf(file) > 3) {
+		file = replace(file," ","_"); file = replace(file,"__","_"); file = replace(file,"="," "); data = split(file,"\ ");
+		//	getBoolean(file);
+		if (startsWith(file,"Serial_Port"))					{	Serial_Port=data[1];	}
+		 if (startsWith(file,"Serial_speed_in_bauds"))				{	Serial_speed_in_bauds=data[1];	}
+		 if (startsWith(file,"Parity"))						{	Parity=data[1];	}
+		 if (startsWith(file,"bit_resolution"))					{	bit_resolution=data[1];	}
+		 if (startsWith(file,"Bit_stop_number"))				{	Bit_stop_number=data[1];	}
+		 if (startsWith(file,"Start_charactere"))				{	Start_charactere=data[1];	}
+		 if (startsWith(file,"End_charactere"))					{	End_charactere=data[1];	}
+		 if (startsWith(file,"initialisation_file") && i != conf.length-1)	{	initialisation_file=data[1];	}
+		 if (startsWith(file,"Flash_disk"))					{	Flash_disk=data[1];	}
+		 if (startsWith(file,"Hard_disk"))					{	Hard_disk=data[1];	}
+		 if (startsWith(file,"NbMaxLineDAT"))					{	NbMaxLineDAT=data[1];	}
+		 if (startsWith(file,"NbMaxLineLightBRU"))				{	NbMaxLineLightBRU=data[1];	}
+		 if (startsWith(file,"NbMaxLineFullBRU"))				{	NbMaxLineFullBRU=data[1];	}
+		 if (startsWith(file,"initialisation_file") && i == conf.length-1)	{	initialisation_file1=data[1];	}
+		 if (conf.length > 20) {
+			 if (startsWith(file,"Send_frame_interval") )			{	Send_frame_interval=data[1];	}
+			 if (startsWith(file,"HDStartMinFreeSpaceMo") )			{	HDStartMinFreeSpaceMo=data[1];	}
+			 if (startsWith(file,"HDProcessMinFreeSpaceMo") )		{	HDProcessMinFreeSpaceMo=data[1];	}
+			 if (startsWith(file,"FDStartMinFreeSpaceMo") )			{	FDStartMinFreeSpaceMo=data[1];	}
+			 if (startsWith(file,"FDProcessMinFreeSpaceMo") )		{	FDProcessMinFreeSpaceMo=data[1];	}
+			 if (startsWith(file,"NbImageMaxPerDirectory") )		{	NbImageMaxPerDirectory=data[1];	}
+			 
+		 }// if
+	} // if length
+} // for
+		Dialog.create("EDIT profileur.ini FILE for UVP5					 ");
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");	
+		Dialog.addMessage("WARNING :  \n \nWRONG data may result in camera failure to acquire data !");
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+//		Dialog.addString("     Serial Port=",Serial_Port);
+//		Dialog.addNumber("     Serial speed in bauds=",Serial_speed_in_bauds);
+//		Dialog.addNumber("     Parity=",Parity);
+//		Dialog.addNumber("     bit resolution=",bit_resolution);
+//		Dialog.addNumber("     Bit stop number=",Bit_stop_number);
+//		Dialog.addString("     Start charactere=",Start_charactere);
+//		Dialog.addString("     End charactere=",End_charactere);
+//		Dialog.addString("     initialisation file=",initialisation_file);
+		Dialog.addString("     Flash disk path in camera",Flash_disk);
+		Dialog.addString("     Hard disk path in camera",Hard_disk);
+		Dialog.addNumber("     Maximum number of images before spliting data files",NbMaxLineDAT);
+		Dialog.addNumber("     Maximum number of objects before spliting data files",NbMaxLineLightBRU);
+//		Dialog.addNumber("     NbMaxLineFullBRU=",NbMaxLineFullBRU);
+		if (conf.length > 20) {	
+			Dialog.addNumber("     Refreshment interval of sensor data & rs232 messages (ms)",Send_frame_interval);
+			Dialog.addNumber("     HD Minimum space to start acquisition (Mo)",HDStartMinFreeSpaceMo);
+			Dialog.addNumber("     HD End of acquisition space (Mo)",HDProcessMinFreeSpaceMo);
+			Dialog.addNumber("     FD Minimum space to start acquisition (Mo)",FDStartMinFreeSpaceMo);
+			Dialog.addNumber("     FD End of acquisition space (Mo)",FDProcessMinFreeSpaceMo);
+		}// if
+		if (uvp_type == "uvp5hd") {
+			Dialog.addNumber("     Number MAX of images/vignettes per folder",NbImageMaxPerDirectory);
+		}
+			
+			
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+
+		//=====================================================================================
+		Dialog.show;	
+		//=====================================================================================
+			
+//		Serial_Port = Dialog.getString();
+//		Serial_speed_in_bauds = Dialog.getNumber();
+//		Parity = Dialog.getNumber();
+//		bit_resolution = Dialog.getNumber();
+//		Bit_stop_number = Dialog.getNumber();
+//		Start_charactere = Dialog.getString();
+//		End_charactere = Dialog.getString();
+//		initialisation_file = Dialog.getString();
+		Flash_disk = Dialog.getString();
+		Hard_disk = Dialog.getString();
+		NbMaxLineDAT = Dialog.getNumber();
+		NbMaxLineLightBRU = Dialog.getNumber();
+		NbMaxLineFullBRU = NbMaxLineLightBRU;
+//		NbMaxLineFullBRU = Dialog.getNumber();
+//		initialisation_file1 = Dialog.getString();
+		if (conf.length > 20) {
+			Send_frame_interval = Dialog.getNumber();
+			HDStartMinFreeSpaceMo = Dialog.getNumber();
+			HDProcessMinFreeSpaceMo = Dialog.getNumber();
+			FDStartMinFreeSpaceMo = Dialog.getNumber();
+			FDProcessMinFreeSpaceMo = Dialog.getNumber();
+		}// if
+		
+		if (uvp_type == "uvp5hd") {
+			NbImageMaxPerDirectory =  Dialog.getNumber();
+		}
+		// --------------------- Impression ----------------------------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[Serial configuration]");
+		if (lengthOf(file) > 20) {print("Serial Port="+Serial_Port);	}
+		else {		print("Serial Port="+parseInt(Serial_Port));	}//
+		print("Serial speed in bauds="+parseInt(Serial_speed_in_bauds));
+		print("Parity="+Parity);
+		print("bit resolution="+parseInt(bit_resolution));
+		print("Bit stop number="+parseInt(Bit_stop_number));
+		print("Start charactere="+Start_charactere);
+		print("End charactere="+End_charactere);		
+		if (conf.length > 20) {		print("Send frame interval="+Send_frame_interval);	} //if
+		print("[Directory configuration]");
+		print("initialisation file="+initialisation_file);
+		print("Flash disk="+Flash_disk);
+		print("Hard disk="+Hard_disk);
+		print("NbMaxLineDAT="+NbMaxLineDAT);
+		print("NbMaxLineLightBRU="+parseInt(NbMaxLineLightBRU));
+		print("NbMaxLineFullBRU="+parseInt(NbMaxLineFullBRU));	
+		if (conf.length > 20) {		
+			print("HDStartMinFreeSpaceMo="+HDStartMinFreeSpaceMo);
+			print("HDProcessMinFreeSpaceMo="+HDProcessMinFreeSpaceMo);
+			print("FDStartMinFreeSpaceMo="+FDStartMinFreeSpaceMo);
+			print("FDProcessMinFreeSpaceMo="+FDProcessMinFreeSpaceMo);
+		}// if	
+		if (uvp_type == "uvp5hd") {
+			print("ShutDownOnExit=1");
+			print(";SimulationDirectory=C:\DataIn\HDR20130912075511");
+			print("AddPerfColumnOnDat=0");
+			print("NbImageMaxPerDirectory="+NbImageMaxPerDirectory);
+			print(";Autostart=mixtfd");
+		}
+		print("[Extension for file]");
+		print("initialisation file="+initialisation_file1);
+
+check = getBoolean("WARNING :  \n \nWRONG data may result in camera failure to acquire data !\n \nPRESS YES to overwrite \n \nPRESS NO abort ");
+
+if (check == 1) {
+	// ------------------------ Sauvegarde -----------------------
+	selectWindow("Log");
+	text =  "save=" + openconfig;
+	run("Text...",text);	
+	wait(100);
+	text =  "save=" + path+"\\"+"ProfileurVideo.ini";
+	run("Text...",text);	
+	wait(100);	
+	run("Close");
+	showMessage("WARNING","The new ''ProfileurVideo.ini'' file must be sent to UVP5 and UVP5 restarted !");
+}
+}// if exists
+else { showMessage("File cannot be edited. Download it first from UVP5 !");	} // else
+
+// ------------------- FIN -------------------------------
+return "OK";

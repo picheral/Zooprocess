@@ -1,0 +1,11 @@
+listaff = newArray("EDIT","END");
+Dialog.create("SEPARATION MASK CONTROL");
+Dialog.addMessage("Separation mask operation :");
+Dialog.addMessage(" EDIT : add separation lines to the mask \n END : accept the existing mask \n ");
+Dialog.addChoice("SELECT ", listaff);
+Dialog.addMessage("Press OK when you have selected YES or RESET");
+Dialog.addMessage("Never press CANCEL !");
+Dialog.show();
+choice = Dialog.getChoice();
+ret = choice;
+return ret;

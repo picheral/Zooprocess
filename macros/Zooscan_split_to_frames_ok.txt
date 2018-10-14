@@ -1,0 +1,95 @@
+//----------------------Zooscan_split_to_frames.txt
+
+version = "6.01";
+date = "2009/03/16";
+
+
+args = 		getArgument();
+arg = 		split(args," ");
+chemscan = 	arg[0];
+titrered = 	arg[1];
+overlap = 	arg[2];
+resolution =	arg[3];
+blancres =	arg[4];
+
+batch =		"0";
+if (arg.length == 6) 	batch= arg[5];
+if (arg.length == 7)		batch= arg[5];	chemtemp =	arg[6];
+
+overlap =	parseFloat(overlap);
+resolution = 	parseInt(resolution);
+blancres = 	parseInt(blancres);
+nbframes = 	2;
+
+for (i=0; i<5; i++) {	showStatus("Free memory");	run("free memory");	progress = (i)/5;	showProgress(progress);	wait(1000);	} // for
+
+if (batch == "1") { setBatchMode(true);	} // if
+	// -----------------chargement de l'image source -------------------------
+	open(chemscan+titrered+"_1.tif");
+
+	// ------------------Lecture de la resolution de l'image--------------------
+	largeur = getWidth();
+	hauteur = getHeight();
+	run("Show Info...");
+	imagedata = getInfo();
+	selectWindow("Info for "+titrered+"_1.tif");
+	run('Close');
+	ligne = split(imagedata,"\n");
+	for (k = 0;k<ligne.length;k++) {
+		champ = ligne[k];
+		pos1 = indexOf(champ,"Resolution:");
+		if (pos1==0 ) { 		
+			deb= indexOf(champ,": ");		
+			end= indexOf(champ,"pixel");
+			val = substring(champ,deb+1,end);	
+			resolution = parseInt(val);		
+		} // if
+	} // for
+backratio = 	resolution/blancres;
+
+
+	selectImage(titrered+"_1.tif");
+	overlap = overlap*hauteur;
+	overlap = overlap/backratio;
+	overlap = backratio*floor(overlap);
+	cropy = hauteur/2 +overlap;
+	deby = hauteur/2 -overlap;
+
+	// -------------------crop de l'image "inferieure" qui devient frame 1 et ecrasement de l'image source ------
+	makeRectangle(0, deby, largeur, hauteur-deby);
+	run("Crop");
+
+	// -------------------Enregistrement temporaire frame 1 ------------------------------------------
+	saveAs("Tiff",chemtemp+raw");
+	close();
+	for (i=0; i<5; i++) {	showStatus("Free memory");	run("free memory");	progress = (i)/4;	showProgress(progress);	wait(1000);	} // for
+
+	// -----------------chargement de l'image source -------------------------
+	open(chemscan+titrered+"_1.tif");
+
+	//------------------ crop de l'image "superieure" qui sera la frame _2 --------------------
+	makeRectangle(0, 0, largeur, cropy);
+	run("Crop");
+	saveAs("Tiff",chemscan+titrered+"_2.tif");
+	close();
+	for (i=0; i<5; i++) {	showStatus("Free memory");	run("free memory");	progress = (i)/5;	showProgress(progress);	wait(1000);	} // for
+
+	//------------------- chargement de l'image source --------------------------------------------
+	open(chemtemp+"raw");
+	wait(100);
+	saveAs("Tiff",chemscan+titrered+"_1.tif");
+	close();
+	for (i=0; i<5; i++) {	showStatus("Free memory");	run("free memory");	progress = (i)/5;	showProgress(progress);	wait(1000);	} // for
+
+
+xofset = hauteur/2 - overlap;	
+xofset = parseInt(xofset*4800/resolution);
+xofset =	toString(xofset);
+cropy =	toString(cropy);
+backratio = toString(backratio);
+
+// ------------ FIN -------------------
+print("Image splitted in two frames");
+ret = backratio+" "+nbframes+" "+cropy+" "+xofset;
+if (batch == "1") { setBatchMode(false);	} // if
+return ret;

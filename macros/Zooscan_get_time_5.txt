@@ -1,0 +1,17 @@
+// -------------------------------- Zooscan_get_time_5 --------------------------------------------------
+getDateAndTime(year, month, dayOfWeek, dayOfMonth, hour, minute, second, msec);
+year = toString(year);
+month = month+1;
+if (month<10) { month=toString(month);		month = "0"+month;			} // if
+month=toString(month);
+if (dayOfMonth<10) { dayOfMonth=toString(dayOfMonth);	dayOfMonth =  "0"+dayOfMonth;	} // if
+dayOfMonth=toString(dayOfMonth);
+if (hour<10) { hour=toString(hour);				hour =  "0"+hour;			} // if
+hour=toString(hour);
+if (minute<10) { minute=toString(minute);			minute =  "0"+minute;		} // if
+minute=toString(minute);
+dateheure =year+month+dayOfMonth+"_"+hour+minute;
+
+// ---------------------------- FIN -------------------------------------------------------
+ret = dateheure;
+return ret;

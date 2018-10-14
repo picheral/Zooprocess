@@ -1,0 +1,18 @@
+// ------------------------- Zooscan_metadata -----------------------------
+version = "7.10";
+date = "2012/05/28";
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+// --------------------- Chargement des metadata à partir du dossier RAW ---------
+
+
+
+
+//----------------------- FIN --------------------------------------
+ret = arg;
+return ret;

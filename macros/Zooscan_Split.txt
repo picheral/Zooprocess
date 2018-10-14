@@ -1,0 +1,135 @@
+//------------------Zooscan SPLIT-----------------------------------------
+
+// Le masque de separation est OUVERT
+// L'image VIS est OUVERTE 
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+savetag;
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	yyy=array[22];	savetag= array[23];
+
+// Ouverture et chargement des configurations
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		resolution = array[6];		xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+// Suppression des info de type de fichier
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+chemtemp = chem + "Zooscan_temp\\";
+// Traits noirs sur l'image des organismes
+run("Colors...", "foreground=black background=white selection=red");
+setColor(0);
+//-------------------FIN INITIALISATION-------------------------------------
+
+selectImage(titrered);
+
+setTool(12); // Scrolling Tool
+fin=1;
+a = newArray(4000);
+index = 0;
+
+listaff = newArray("EDIT","END");
+	ret = runMacro("Zooscan_dialog_split_control",arg);
+choice=toString(ret);
+l= lengthOf(choice);
+if (l==1)  { choice = listaff[1]; } // if
+
+if (choice==listaff[1]) { // ------------------------SORTIE ------------------
+	selectImage(titrered);
+	close();
+	// Ouverture du masque de separation _sep
+	open(chemtemp+"temp_sep.tif"); 
+} // if
+else { // ------------------------------EDITION----------------------
+// Tant qu'on ne sort pas par CANCEL
+	ret = runMacro("Zooscan_dialog_first_object");
+while (fin==1) {	// Deplacement vers la zone a separer
+	check = 0;
+	run("Line Width...", "line=1");
+	// Bouton central pour lancer la selection
+	
+	while (check==0) { 	wait(100);
+		ret = runMacro("ZooscanCursor");
+		flags = parseInt(ret);
+		if (flags==broll) {  // Suivant bouton central
+			check = 1;	}
+		else;
+		}
+		// print("Trace du trait");
+		test=0;
+		prevflags=0;
+		while (test==0) { 	wait(100);
+				setTool(4);
+					ret = runMacro("ZooscanCursor");
+				flags = parseInt(ret);
+				// Changement d'etat du flag, valable en tool4
+				dif = flags - prevflags;
+				prevflags = flags;
+				//print("Flags= ",flags," Dif= ",dif);
+				ref = -bleft;
+				if (dif==ref) { test = 1;	}
+				else;
+			}
+		getSelectionCoordinates(x, y);
+     		a[index] = x[0];
+		a[index+1] = y[0];
+		a[index+2] = x[1];
+		a[index+3] = y[1];
+		// print(index ," ",a[index]," ",a[index+1]," ",a[index+2]," ",a[index+3]);
+		// Dessin du trait dans l'image
+			run("Line Width...", "line=3");
+			moveTo(a[index],a[index+1]);
+			lineTo(a[index+2],a[index+3] );
+			wait(300);
+			//print("FILL LINE");
+			makeRectangle(1, 1, 2, 2);
+		index = index + 4;
+		//print("Next ",index);
+			ret =runMacro("Zooscan_dialog_NextObject.txt");
+		setTool(12); // Scrolling Tool
+		fin = parseInt(ret);
+} // while
+selectImage(titrered);
+close();
+
+// Ouverture du masque de separation _sep
+open(chemtemp+"temp_sep.tif"); 
+
+// Trace des traits blancs sur fond noir
+setColor(255);
+i=0;
+run("Line Width...", "line=3");
+while (i<index)	{
+		drawLine(a[i],a[i+1],a[i+2],a[i+3]);
+		i = i+4;
+		}
+} // else edition
+// FIN
+
+ret = arg;
+return ret;

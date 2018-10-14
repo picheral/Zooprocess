@@ -1,0 +1,154 @@
+// ------------------------- Zooscan_metadata_from_barcode -----------------------------
+version = "7.20";
+date = "2015/06/18";
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+projfolder = 	array[0];
+instrum = 	array[1];
+chem = 		array[2];
+
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+
+// Choix du répertoire contenant les tables
+//	chemmeta = getDirectory("SELECT FOLDER CONTAINING METADATA TABLES");
+
+// selection du fichier META sample
+list_meta = getFileList(chemmeta);
+//--------------- Selection des fichiers  -------------------
+j = 0;
+list = newArray(list_meta.length);
+for (i=0; i<list_meta.length ; i++) {	
+	ctrl = endsWith(list_meta[i],".bmp");
+//	showMessage(list_meta[i]);
+	
+	if (indexOf(list_meta[i],"zooscan_sample_header_table") >= 0 )	{rr = list_meta[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { configpres = 0;
+	getBoolean("No SAMPLE METADATA FILE in "+chemmeta+ "  \nPress Cancel to end !          ");
+} //
+else { print(j+" SAMPLE METADATA FILES in "+chemmeta);
+	
+Dialog.create("FILE SELECTOR FOR BARCODE CHECK "+version);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------");
+Dialog.addChoice("   SELECT SAMPLE METADATA FILE      ",list);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------");
+Dialog.show();
+sample_file = 	Dialog.getChoice();
+
+// Ouverture META
+metafile = chemmeta+"\\"+sample_file;
+open(metafile);  
+wait(100);
+meta_data = getInfo();
+meta_data = toLowerCase(meta_data);
+run("Close");
+
+// ouverture SCAN si EXISTE
+if (File.exists(chemmeta+"zooscan_scan_header_table.csv")) {
+	scanfile = chemmeta+"zooscan_scan_header_table.csv";
+	open(scanfile);  
+	wait(100);
+	scan_data = getInfo();
+	run("Close");
+} // if
+else { aa = getBoolean("No SCAN file for this "+sample_file+" file ! \nPress CANCEL to ABORT !"	} // else
+
+barcode_aff = "";
+process = true;
+save_meta = false;
+while(process == true) {
+	// Scan du barcode
+	option = "new";
+
+	while (option == "new") {
+		Dialog.create("BARCODE INPUT "+version);
+		Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("Projfolder : "+projfolder);
+		Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("Enter ''NO'' to end ");
+		Dialog.addString("        SELECT BARCODE      ",barcode_aff);
+		Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.show();
+		barcode = 	Dialog.getString();
+		barcode = toLowerCase(barcode);
+		barcode_aff = barcode;
+		// Détection si dans META
+		if (indexOf(meta_data,barcode) < 0 && barcode != "no") {
+			aa = getBoolean("The selected barcode "+barcode+" does not exist.\n \n- Press YES to enter another barcode.\n- Press NO to ADD it in the sample base. \n- Press CANCEL to ABORT");
+			if (aa == 0) {
+				// Saisie des meta si pas dans META
+				argu = chem+" "+projfolder;
+				ret = runMacro("Zooscan_metadata_fill",argu+" fill_one "+barcode);
+				
+				
+				
+	//			sel = true;
+	//			while (sel == true) {
+	//				// ----------- SAISIE du SAMPLE ID ----------------------------------
+	//				sampleId = getString("Enter SAMPLEID for barcode "+barcode, "_");
+	//				// ----------- Vérifier qu'il n'est pas dans la table ---------------
+	//				if (indexOf(meta_data,toLowerCase(sampleId)) >0) {	showMessage(sampleId+" already exists in SAMPLE FILE\n \nEnter ANOTHER sampleId !");	}
+	//				else {	sel = false;	showMessage(sampleId+" added in SAMPLE FILE with default metadata. \n \nUse ''Edit Metadata'' tool to complete the metadata.");	}					
+	//			}// while
+	//			texte_meta = sampleId+";ship;cruise;stationid;19000101-1200;-89.99;0;9999;ctdfilename;otherref;99;1;nettype;9999;9999;9999;9999;9999;nan;0;0;999999;"+barcode+";-89.99;0;9999;9999;99999;99999;99999;1";
+	//			if(save_meta == true)	{	meta_data_add = meta_data_add+"\n"+texte_meta;			}
+	//			else {				meta_data_add = texte_meta;					}
+	//			// Sauvegarde du fichier
+	//			save_meta = true;
+	//			barcode_aff = "";
+	//			// ------------- Lecture de l'heure -----------------
+	//			dateheuremmss =	runMacro("uvp5_get_time");
+			}// if ADD
+		} //if
+		else if (toLowerCase(barcode) == "no") { process = false;	option = "abort";	}
+		else					{ option = "found";	} // else
+	}//
+	if (process == true) {
+		// Détection si scannée
+		scan = "NOT SCANNED YET";
+
+		// Affichage des META avec statut du SCAN
+		meta_data_line = split(meta_data,"\n");
+		entete =  replace(meta_data_line[0],";"," ");
+		entete = split(entete," ");
+		if (option == "found") {
+			message = "BARCODE : "+barcode+"\n";
+			for (i=0; i< meta_data_line.length ; i++) {
+				if (indexOf(meta_data_line[i],barcode) >= 0 ) {
+					data =  replace(meta_data_line[i],";"," ");
+					data = split(data," ");
+					// --------- Recherche SCAN ---------
+					sampleId = data[0];
+					if (indexOf(scan_data,sampleId) >= 0 ) scan = "SCANNED";
+					
+					// --------- AFFICHAGE --------------
+					for (h=0; h< entete.length ; h++) {	message = message + entete[h]+" : "+data[h]+"\n";	}
+					message = message + "\nScan Status : "+scan;
+					showMessage(message);	
+					message = "";
+				}// if 
+			} // for
+		}// if
+	} // if 
+} // while
+		
+// Sauvegarde
+if(save_meta == true) {
+//	print("A purger");	selectWindow("Log");		run("Close");
+//	meta_data_line = split(meta_data,"\n");
+//	for (i=0; i< meta_data_line.length ; i++) {
+//		print(meta_data_line[i]);
+//	}// for
+//	print(meta_data_add);
+//	text = "save="+chemmeta+"zooscan_sample_header_table_"+dateheuremmss+".csv";
+//	selectWindow("Log");
+//	run("Text...",text);
+//	showMessage("SAMPLE TABLE SAVED NOW !");
+}
+showMessage("END OF BARCODE CHECK TOOL");
+// ---------------------- FIN ---------------------------
+ret = "OK";
+return ret;

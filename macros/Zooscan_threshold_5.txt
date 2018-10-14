@@ -1,0 +1,356 @@
+//-----------------------Zooscan_threshold_5----------------------------
+date = "2009/11/06";
+version = "6.15";
+// --------------------------Affichage de la date et de l'heure ---------------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+
+// args = chem+" "+chemvue+" "+proc+" "+proj +" "+projfolder;
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+chemvue = 	arg[1];
+proc = 		arg[2];
+proj = 		arg[3];
+projfolder =	arg[4];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemwork = 	chemscan + "_work\\";
+
+drive =		substring(projfolder,0,2);
+
+nbframe = 1;		ratio = 0.6;		time = 40;		ecranw= screenWidth();	ecranh= screenHeight();
+vuescanofsetx = 10;	vuescanofsety = 10;	resolution = 300;		
+Hardware= "none";	Unit= 0;	reduction=1;		AutoOffset=0;
+PreviewXOffset= 0;		XOffset= 0;		XSize= 0;			XSpacing= 0;
+YOffset= 0;		YSize=0;
+operation = "threshold";
+bitperpixel = 	8;	bitperpixelligne =	0;	tifiletype=		8;
+tifileligne =	0;	colorbalance = 	"neutral";	colballigne = 	0;
+save16 = 	0;
+tiffile = 0;			rawfile = 0;
+titrefinal = " ";
+check = 0;
+while (check == 0) {
+	//---------------------------- Recherche de fichiers contenant le mot "target" dans le repertoire "work" ----------------------------
+	workfolder = 	File.exists(chemwork);	
+	if (workfolder == 1) {			
+		filelist  = getFileList(chemwork);
+		//-------------- Selection des fichiers dont le nom comporte le mot "target"---------------------
+		j = 0;	flagframe = 0;
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  ctrl = indexOf(filelist[i],"target");	print(filelist[i]);
+			if (ctrl>=0)	{ rr = filelist[i]; 
+				identlong = 	lengthOf(rr);
+				rr = 		substring(rr,0,identlong-1);	
+				//--------------- Recherche du fichier image en ZIP ou en JPG ----------
+				imagezip  =  chemwork+"\\"+rr+"\\"+rr+"_vis1.zip";
+				imagejpg = chemwork+"\\"+rr+"\\"+rr+"_vis1.jpg";
+				imagelog = chemwork+"\\"+rr+"\\"+rr+"_log.txt";
+				zipexist = File.exists(imagezip);
+				jpgexist = File.exists(imagejpg);
+				logexist = File.exists(imagelog);
+				if ((zipexist == 1 || jpgexist == 1)&&logexist == 1 ){ list[j] = rr;  j++;  	flagframe = 0; 		} // if
+			} // if
+		} // for
+		if (j==0) { print("No valid ''target'' file in the "+projfolder);
+			configpres = 0;
+			getBoolean("No valid ''target'' file in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+		} //
+		else {	// ---------------------------Purger les lignes vides  ----------------------
+			listaff = newArray(j);
+			for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	
+				//	identlong = 	lengthOf(rr);
+				//	rr = 	substring(rr,0,identlong-1);	
+				listaff[i] = rr;	
+			} // for	
+			// -------------------------- Selection de l'image a traiter ----------------------------
+			Dialog.create("SELECT Image for threshold process         version "+version);
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+			Dialog.addMessage("Project  :  "+proj);
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+			Dialog.addMessage("SELECT Image from the project            ");
+			Dialog.addChoice("    ", listaff);
+			Dialog.show();
+			sample = 	Dialog.getChoice();
+			check = 1;
+		}// else
+	} // if
+	else { getBoolean("No "+chemwork+" folder, press CANCEL to ABORT !");						} // else
+} // while
+
+run("free memory");		wait(1000);	
+run("free memory");		wait(1000);	
+run("free memory");		wait(1000);	
+run("free memory");		wait(1000);
+test = isOpen("Results");
+if (test==1) { selectWindow("Results");	run('Close'); 	} // if
+
+imagezip  =  chemwork+"\\"+sample+"\\"+sample+"_vis1.zip";
+imagejpg = chemwork+"\\"+sample+"\\"+sample+"_vis1.jpg";
+imagelog = chemwork+"\\"+sample+"\\"+sample+"_log.txt";
+zipexist = File.exists(imagezip);
+jpgexist = File.exists(imagejpg);
+
+// ------------------Lecture des informations sur l'image--------------------
+resolution = 300;
+size = 		5.6;
+thmin = 	240;
+thmax = 	250;
+grey03 = 	199;
+grey09 = 	113;
+thtest =		250;
+method = 	"none";
+roll = 		0;
+back = 		0;
+open(imagelog);
+data = getInfo();
+ligne = split(data,"\n");
+run("Close");	
+for (p=0;p<ligne.length;p++) { 	champ = ligne[p];
+	if (startsWith(champ, "Resolution") == 1) { 					array = split(champ," ");	resolution = array[1];	resolution = parseInt(resolution);	} // if
+	if (startsWith(champ, "Image_treatment=") == 1) {				array = split(champ," ");	method = array[1];						} // if
+	if (startsWith(champ, "Rolling_ball_background_subtrack_value=") == 1) {		array = split(champ," ");	roll = 1;								} // if
+	if (startsWith(champ, "Background_correct_using=") == 1) {			array = split(champ," ");	back = 1;							} // if
+} // for
+resolution = parseInt(resolution);
+
+if (method == "natural") 		method = "neutral";
+if (roll == 1 && method == "none") 	method == "neutral";
+if (back == 1 && method == "none") 	method == "log-gamma2";
+
+if (method == "log-gamma2") {
+	size = 		5.6;
+	thmin = 	240;
+	thmax = 	250;
+	grey03 = 	199;
+	grey09 = 	113;
+	thtest =		250;
+} // if
+
+else if (method == "neutral") {
+	size = 		5.6;
+	thmin = 	230;
+	thmax = 	245;
+	grey03 = 	150;
+	grey09 = 	73;
+	thtest =		243;
+} // if
+
+methodtext = method;
+if (methodtext == "neutral") methodtext = "natural";
+
+// --------------------- Parametres ----------------------------------------------------------
+Dialog.create("SELECT parameters for threshold process         version "+version);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+Dialog.addMessage("Calibration image processed using the ''"+methodtext+"'' method !         ");
+Dialog.addMessage("Original Image Resolution = "+resolution);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+Dialog.addNumber("          Target diametre (mm) ",5.6);
+Dialog.addNumber("      Threshold minimum ",thmin);			
+Dialog.addNumber("      Threshold maximum ",thmax);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+Dialog.addMessage("Theoritical grey values        (should not be modified)   ");	
+Dialog.addNumber("      Mean grey for OD = 0.3 ",grey03);			
+Dialog.addNumber("      Mean grey for OD = 0.9 ",grey09);
+Dialog.show();
+size = 		Dialog.getNumber();
+thmin = 	Dialog.getNumber();
+thmax = 	Dialog.getNumber();
+grey03 = 	Dialog.getNumber();
+grey09 = 	Dialog.getNumber();
+size = minOf(size,20);
+size = maxOf(size,1);
+thmin = maxOf(thmin,0);
+thmax = minOf(thmax,255);
+
+// ------------------------- Calcul des valeurs a differents thresholds -------------------------------------------
+thnb =	 thmax - thmin;
+thmat = 		newArray(thnb+1);
+meanmat = 	newArray(thnb+1);
+esdmat = 	newArray(thnb+1);
+ind = 0;
+if (zipexist == 1 ) { open(imagezip);	rename("image");		} // if
+else {		open(imagejpg);	rename("image");		} // if
+largeur = 	getWidth();
+hauteur = 	getHeight();
+
+// ------------------------ Conversion 300 dpi ---------------------------------------------------------------------
+if (resolution != 300) { 
+	selectImage("image");
+	ratio = resolution / 300;
+	width = largeur / ratio;
+	height = hauteur/ratio;
+	text = "width="+width+" height="+height+" constrain interpolate";
+	run("Size...", text);
+} // if
+resolution = 300;
+setVoxelSize(1,1,8,"pixel");
+minsize = 	size *0.7;
+maxsize = 	size*1.5;
+minesd = 	maxsize;
+maxesd = 	minsize;
+pixel = 25.4/resolution;
+
+Smmin=(3.1416/4)*pow(minsize,2);
+Spmin = round(Smmin/(pow(pixel,2)));
+Smmax=(3.1416/4)*pow(maxsize,2);
+Spmax = round(Smmax/(pow(pixel,2)));
+
+// ------------------- Boucle sur les differents threshold --------------------------------------------------------
+for(th = thmin;th<=thmax;th++) {
+	selectImage("image");
+	run("Duplicate...", "image-1");
+	setThreshold(0, th);
+	run("Threshold", "thresholded remaining black");
+	rename("msk");
+	selectImage("msk");
+	run("Set Measurements...", "area display redirect=msk decimal=2");
+	analysis1 =  "minimum=" + Spmin + " maximum=" + Spmax + " circularity=0.00-1.00 show=Nothing display exclude include";
+	run("Analyze Particles...",analysis1);
+	selectImage("msk");
+	run("Close");
+	// ------------------------- Moyenne des données de taille -------------------------------------------------------
+	nbblobs = nResults;
+	sumarea = 0;
+	for (i=0;i < nbblobs;i++) {	sumarea = sumarea + getResult("Area", i);	} // for
+	areamean = sumarea/nbblobs;
+	esdmm=2*pow(areamean/3.1416,0.5);
+	esdmm = esdmm * 0.08467;
+	esdmat[ind] = esdmm;
+	minesd = minOf(minesd,esdmm);
+	maxesd = maxOf(maxesd,esdmm);
+	thmat[ind] = th;
+	meanmat[ind] = parseInt(areamean);
+	test = isOpen("Results");
+	if (test==1) { selectWindow("Results");	run('Close'); 	} // if
+	ind++;
+} // for th
+
+// ----------------------- Graphe AREA/Threshold -------------------------------------
+Plot.create("Plot  "+sample,"Threshold", "ESD (mm)");
+Plot.setLimits(thmin, thmax, minesd, maxesd);
+Plot.setLimits(thmin, thmax, 5, 6);
+Plot.setColor("red");
+Plot.add("circles", thmat, esdmat);
+Plot.show();
+setColor(255, 0, 0);
+setFont("SansSerif" , 12);
+//	drawString("ZOOPROCESS : "+sample+"           ''"+methodtext+"''", 65, 30);
+rename("Threshold");
+
+// ------------------------------ Traitement image au threshold choisi -----------------------------------------------
+selectImage("image");
+Dialog.create("Threshold, version "+version);
+Dialog.addMessage("------------------------------------------------         ");
+Dialog.addMessage("Select threshold ");
+Dialog.addNumber("        ",thtest);
+Dialog.addMessage("------------------------------------------------         ");
+Dialog.show();
+threshold = 	Dialog.getNumber();
+selectImage("image");
+run("Duplicate...", "image-1");
+setThreshold(0, threshold);
+run("Threshold", "thresholded remaining black");
+rename("msk");
+setVoxelSize(1,1,1,pixel);
+run("Set Measurements...", "area mean median limit display redirect=image decimal=2");
+run("Analyze Particles...",analysis1);
+selectImage("msk");
+run("Close");
+nbblobs = 	nResults;
+median = 	newArray(nbblobs);
+no = 		newArray(nbblobs);
+
+// ----------------- Calcul des medians pour chaque groupe --------------------
+medianmin = 255;
+medianmax = 0;
+for (i=0;i < nbblobs;i++) {	median[i] =  getResult("Median", i);	
+	medianmin = minOf(medianmin,median[i]);
+	medianmax = maxOf(medianmax,median[i]);
+	no[i] = i;
+} // for
+medianA = 	newArray(nbblobs);
+medianB = 	newArray(nbblobs);
+minmedA = 255;
+maxmedA = 0;
+minmedB = 255;
+maxmedB = 0;
+end = 0;
+	indA = 0;
+	indB = 0;
+	medA = 0;
+	medB = 0;
+	for (i=0;i < nbblobs;i++) {
+		//--------------- 03 = A -----------------------------------------
+		if (median[i] < grey03*1.2 && median[i] > grey03*0.8) { val = median[i];	medianA[indA] = val;	indA++;	medA = medA +val;	minmedA = minOf(val,minmedA);	maxmedA = maxOf(val,maxmedA);	} // if
+		//--------------- 09 = B -----------------------------------------
+		if (median[i] < grey09*1.2 && median[i] > grey09*0.8) { val = median[i];	medianB[indB] = val;	indB++;	medB = medB +val;	minmedB = minOf(val,minmedB);	maxmedB = maxOf(val,maxmedB);	} // if
+	}// for
+	medAI = 	parseInt(medA/indA);
+	medBI = 	parseInt(medB/indB);
+	medA = 	medA/indA;
+	medB = 	medB/indB;
+	minmedAI = 	parseInt(minmedA);
+	maxmedAI = 	parseInt(maxmedA);
+	minmedBI = 	parseInt(minmedB);
+	maxmedBI = 	parseInt(maxmedB);
+
+// ----------------------- Graphe AREA/Threshold -------------------------------------
+Plot.create("Plot  "+sample,"N° (Top - Bottom)", "Median grey level (8bits)   ");
+//	Plot.setLimits(0, nbblobs,medianmin, medianmax);
+Plot.setLimits(0, nbblobs,0,250);
+Plot.setColor("blue");
+Plot.add("circles", no, median);
+Plot.show();
+setColor(255,0,0);
+setFont("SansSerif" , 12);
+drawString("median 0.3 = "+medAI+" ("+minmedAI+"-"+maxmedAI+")      median 0.9 = "+medBI+" ("+minmedBI+"-"+maxmedBI+") ", 65, 210);
+drawString("ZOOPROCESS : "+sample+"           ''"+methodtext+"''", 65, 13);
+hauteur = getHeight;
+rename("Graph");
+
+//------------------Sauvegarde graphe composite --------------------------------------------------
+largeur = 	getWidth();
+hauteur = 	getHeight();
+hauteurgraphe = hauteur * 2;
+text = "width="+largeur+" height="+hauteurgraphe+" position=Bottom-Left";
+run("Canvas Size...", text);
+selectWindow("Threshold");
+run("Select All");
+run("Copy");
+close();
+selectWindow("Graph");
+makeRectangle(0,0, largeur, hauteur);
+run("Paste");
+run("Select None");
+sauvename =  dateheure+"_"+sample +"_OD.jpg";
+name = chemresults+sauvename;
+saveAs("Jpeg",name);
+
+// ------------------------- sauvegarde du tableau de resultats --------------------------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+
+print("------------------------------------------------------------------");
+print("Method= "+methodtext);
+print("------------------------------------------------------------------");
+print("Threshold;Area(pixels);ESD(mm)");
+for (i=0;i <= thnb;i++) {	print(thmat[i]+";"+meanmat[i]+";"+esdmat[i]);	} // for
+print("------------------------------------------------------------------");
+print("Measurements at threshold "+threshold);
+print("medianA= "+medA+"  range("+minmedA+" - "+maxmedA+") ");
+print("medianB= "+medB+"  range("+minmedB+" - "+maxmedB+") ");
+print("------------------------------------------------------------------");
+selectWindow("Log");
+sauvemeta = "save=" + chemresults +dateheure+"_"+sample+ "_threshold.txt";
+run("Text...",sauvemeta);
+
+test = isOpen("Results");
+if (test==1) { selectWindow("Results");	run('Close'); 	} // if
+
+// ----------------------------- FIN ------------------------------------------------------------------
+ret = sample;
+return ret;

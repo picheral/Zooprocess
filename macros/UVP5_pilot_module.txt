@@ -1,0 +1,2953 @@
+// ------------ UVP5_pilot_module ---------------------
+version =	 "7.26";
+date =	 "2018/01/21";
+
+// Create XML file
+// UVP5sn
+// Gestion camera en "pre_acq"
+// Creation fichier XML pour SeaBird
+// Plot from SERIAL link
+// [config]
+// Cas cable débranché !!!
+// Get INI file from UVP en mode USER
+// Modification_programmation sequence plus explicite
+// Correction start_val et stop_val par défaut
+
+
+args = getArgument();
+arg = split(args," ");
+pathconfig = arg[0];
+path = arg[1];
+chem = arg[2];
+run("serial ext");
+
+// ---------------- UVP5 sn ------------------------------
+starting_time = 55;
+stop_time = 25;
+aa = indexOf(path,"uvp5_sn");
+uvp_sn_txt = substring(path,aa+7,aa+10);
+if (indexOf(path,"sn000") >=0) uvp_sn_txt = "000";
+if (uvp_sn_txt == "000" ) starting_time = 70;
+if (uvp_sn_txt == "000" ) stop_time = 40;
+
+// ---------------- Capacité des disques par défaut et type UVP5 -------
+mem_fd_full = 13000;
+mem_hd_full = 64000;
+uvp_type = "std";
+if (parseInt(uvp_sn_txt) >= 200) {
+	uvp_type = "hd";
+	mem_fd_full = 95000;
+	mem_hd_full = 95000;
+}
+		
+// ---------------- MODE FILES ---------------------------
+mode_user = 	pathconfig+"\\mode_file_user.txt";
+mode_advanced = pathconfig+"\\mode_file_advanced.txt";
+advanced_mode = false;
+if (File.exists(mode_advanced)) advanced_mode = true;
+
+pathconfig = pathconfig+"\\"+"uvp5_settings\\";
+if (File.exists(pathconfig) == 0) File.makeDirectory(pathconfig);
+pathlog = path+"\\pilot_logs\\";
+if (File.exists(pathlog) == 0) File.makeDirectory(pathlog);
+pathraw = 	path+"\\"+"\\raw\\";
+pathresults = 	path+"\\"+"\\results\\";
+
+// ------------- Settings ---------------------------
+active = 0;
+op = " ";
+setBatchMode(true);
+work_option = "UVP5 connected, complete tool list";
+
+// -------------------- LOG -------------------------------------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+dateheure =	runMacro("Zooscan_get_time_5");
+print("-----------------------------------------------------------------------------------------------------------------");
+print("UVP5 Pilot Module, version "+version+"    "+date);
+print("Pilot Starting Time : "+dateheure);
+print("Project path : "+path);
+print("-----------------------------------------------------------------------------------------------------------------");
+selectWindow("Log");
+log_file =  pathlog+"\\pilot_log_"+dateheure+".txt";
+textlog = "save=" + log_file;
+run("Text...",textlog);
+
+// ------- Vérification existence du fichier de configuration du module de pilotage ------------
+openconfig = pathconfig+"\\uvp5_configuration_file.txt";
+test = File.exists(openconfig);
+config_option = "edit";
+if (test == 0) 	{
+	config_option = "create";
+	// ------- Si absent, création ---------------
+	config_option = runMacro("uvp5_edit_configuration",pathconfig+" "+chem+" "+config_option+" "+ports);
+	// ---------- Fermeture LOG ---------------------------
+	if (isOpen("Log")) {
+		selectWindow("Log");
+		run("Text...",textlog);	
+		wait(100);
+		run("Close");	
+	} // if
+	// ---------- COPIE dans Zooprocess -------------------
+	open(openconfig);
+	data_config = getInfo();
+	run("Close");
+	print(data_config);
+	selectWindow("Log");
+	text =  "save=" + chem+"\\uvp5_configuration_file.txt";
+	run("Text...",text);	
+	wait(100);
+	run("Close");	
+	// ------------- Relecture du fichier LOG ----------------------
+	open(log_file);
+	wait(100);
+	data = getInfo();
+	run("Close");
+	print(data);
+} // if
+
+// ------------- Lecture de l'heure -----------------
+dateheuremmss =	runMacro("uvp5_get_time");
+hm = substring(dateheuremmss,9,11);
+mm = substring(dateheuremmss,11,13);
+sm = substring(dateheuremmss,13,15);
+hm = 3600 * parseInt(hm);
+mm = 60 * parseInt(mm);
+hms_prec = hm+mm+sm;
+
+// ------- Lecture du fichier de configuration du module de pilotage ------------
+config_ret = runMacro("uvp5_read_config",pathconfig);
+config_data = split(config_ret," ");
+PilotBR= config_data[0];
+comport= config_data[1];
+databits= config_data[2];
+stopbits= config_data[3];
+parity= config_data[4];
+Pressure_Filter_N= config_data[5];
+Presure_Filter_Thres= config_data[6];
+Pressure_Pre_Po= config_data[7];
+Pmin= config_data[8];
+DeltaP_Upturn_Flag= config_data[9];
+Upturn_Flag= config_data[10];
+Battery_Threshold= config_data[11];
+Temperature_Threshold= config_data[12];
+CNA_Ind= config_data[13];
+CNA_s= config_data[14];
+CNA= config_data[15];
+hd_path = config_data[16];
+fd_path = config_data[17];
+modfile_path = config_data[18];
+			
+// ---------------- Lecture des paramètres UVP ---------------------------------
+if (File.exists(pathconfig+"\\uvp5_configuration_data.txt")) {
+	open(pathconfig+"\\uvp5_configuration_data.txt");
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	for (i=1;i<conf.length;i++){
+		data = replace(conf[i],"="," ");
+		dat = split(data," ");		
+		if (startsWith(dat[0],"img_vol"))		img_vol = parseFloat(dat[1]);
+		if (startsWith(dat[0],"aa_calib"))		aa_calib = parseFloat(dat[1]);
+		if (startsWith(dat[0],"exp_calib"))		exp_calib = parseFloat(dat[1]);
+		if (startsWith(dat[0],"fd_cap_mo"))		mem_fd_full = parseFloat(dat[1]);
+		if (startsWith(dat[0],"hd_cap_mo"))		mem_hd_full = parseFloat(dat[1]);
+	}// for
+}// if
+else { showMessage(pathconfig+"\\uvp5_configuration_data.txt does not exists. \nSome tools may not work !\n \nThis message is normal if you are piloting the UVP in this project for the first time.\nDo not forget to run the tool ''GET ACQUISITION and INI files from UVP5'' to download the file from the UVP5.");	}
+if (work_option == "UVP5 connected, complete tool list") {	
+	// ----------------- Verification --------------------
+	aa = getBoolean("- Check that UVP5 is powered (Deck Unit or Battery shunt).\n \n- Check that MOTOCROSS is closed. \n \nPRESS YES to continue. \nPRESS CANCEL to abort.");
+	port_status = "nok";
+	edit_config = false;
+	while (port_status == "nok") {
+		// -------------------- Vérification des ports ------------------------------------------------
+		print("=>  Checking COMPUTER Communication ports");
+		showStatus("CHECKING COM PORTS, WAIT !");
+		wait(500);
+		toto = "nok";
+		while (toto == "nok") {
+			ports = Ext.ports();
+			// ------------- Suite vérification -------------------------------------
+			port_list = split(ports,";");
+			com = "failed";
+			print("Port list = "+ports);
+			if (indexOf(ports,"COM") != 0) {
+				// ------------ NO PORT ---------------------
+				print("No com port available !");
+				aa = getBoolean("NO available com port ! \n \n-Check COM PORTS \n-Close other Terminal application (MOTOCROSS) \n-Check computer configuration \nPRESS CANCEL to abort and RESTART ImageJ. \nPRESS YES to try again after freeing port ! ");	
+			} // if
+			else {		port_status = "ok";	toto = "ok";	} // else
+		}//
+		// ------------ Vérification de la configuration ---------------
+		com = "failed";
+		while (com == "failed"){
+			for (i=0;i<port_list.length;i++) {
+				port_nbe = port_list[i];
+				port_nb = substring(port_nbe,3,lengthOf(port_nbe));
+				if (comport == port_nb) com = "passed";
+			}// for
+			// ------------------- Si port défini n'éxiste pas -----------
+			aa = 1;
+			if (com == "failed") {
+				aa= getBoolean("COM"+comport+" cannot be opened. \n \nIt may already be open \n \nCheck that COM port is not open by another application (MOTOCROSS) and PRESS YES to try again \nPRESS NO to change COM port in configuration file \nPRESS CANCEL to exit PILOT module and restart ImageJ to recover com port !");
+			}
+			if (aa==0 || edit_config == true) {
+				// ------------ Edit Confgiguration ----------------------------	
+				print("-----------------------------------------------------------------------------------------------------------------");
+				print("ACTION : EDIT Pilot board Configuration file to change COM port");
+				print("-----------------------------------------------------------------------------------------------------------------");
+				// ---------- Fermeture LOG ---------------------------
+				if (isOpen("Log")) {	
+					selectWindow("Log");
+					run("Text...",textlog);	
+					wait(100);
+					run("Close");		
+				} // if
+				ret = runMacro("uvp5_edit_configuration",pathconfig+" "+path+" edit "+ports);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+				else {	// ---------- COPIE dans Zooprocess -------------------
+					open(openconfig);
+					data_config = getInfo();
+					run("Close");
+					print(data_config);
+					selectWindow("Log");
+					text =  "save=" + chem+"\\uvp5_configuration_file.txt";
+					run("Text...",text);	
+					wait(100);
+					run("Close");	
+				}
+				
+				// ------- Lecture du fichier de configuration du module de pilotage ------------
+				config_ret = runMacro("uvp5_read_config",pathconfig);
+				config_data = split(config_ret," ");
+				PilotBR= config_data[0];
+				comport= config_data[1];
+				databits= config_data[2];
+				stopbits= config_data[3];
+				parity= config_data[4];
+				Pressure_Filter_N= config_data[5];
+				Presure_Filter_Thres= config_data[6];
+				Pressure_Pre_Po= config_data[7];
+				Pmin= config_data[8];
+				DeltaP_Upturn_Flag= config_data[9];
+				Upturn_Flag= config_data[10];
+				Battery_Threshold= config_data[11];
+				Temperature_Threshold= config_data[12];
+				CNA_Ind= config_data[13];
+				CNA_s= config_data[14];
+				CNA= config_data[15];
+				hd_path = config_data[16];
+				fd_path = config_data[17];
+				modfile_path = config_data[18];
+				for (i=0;i<port_list.length;i++) {
+					port_nbe = port_list[i];
+					port_nb = substring(port_nbe,3,lengthOf(port_nbe));
+					if (comport == port_nb) com = "passed";
+				}
+				edit_config = false;
+				// ------------- Relecture du fichier LOG ----------------------
+				open(log_file);
+				wait(100);
+				data = getInfo();
+				run("Close");
+				print(data);
+			}// if
+		} // while
+		// ------------------------------- Port ouvert ! Vérifier messages --------------
+		print("> COM PORT "+comport+" being checked now for UVP5 status messages ");
+
+		// -------------------- Ouverture controlée du port de communication ------------------------
+		text1 = "COM"+comport;
+		text2 = "DATABITS_"+databits+" STOPBITS_"+stopbits+" PARITY_"+parity;
+		Ext.open(text1,PilotBR,text2);
+		// -------------------- Attente 30 secondes pour ouverture ------------------------
+		time = 0;
+		while (time < 30) {
+			Ext.write("s");
+			wait(1000);
+			active = Ext.alive();			// returns "0" or "1"
+			if (active == 1 || active == "1") time = 3000;
+			if (time == 29) {
+				// ---------------- FERMETURE ------------------------------------
+				Ext.close();
+				getBoolean("COM"+comport+" could not be opened. \nPRESS CANCEL to ABORT and check PC configuration. ");
+			}	
+			time++;
+		}// while
+		print("> COM"+comport+" OPEN");
+
+		// -------------- Lecture COM pour V092 et C110 --------------------------
+		com = "failed";
+		while (com == "failed") {
+			time = 1;
+			opts = "no";
+			while (time < 501) {
+				ff = Ext.read();
+				ff_v = split(ff,"\n");
+				for (h = 0; h < ff_v.length ; h++ ) {
+					ff = ff_v[h];
+					if (lengthOf(ff) >20)	{	long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,long);	}
+					else {status_message = "No UVP message on com"+comport+"  Check UVP5 is ON or just WAIT !";	}
+					if (indexOf(ff,"C110")>=0  && lengthOf(ff) >=110 ) 		{	
+						time = 100000; 	
+						com = "passed";
+						message = runMacro("uvp5_show_status_messages.txt",ff);
+						print(message);
+						print("> Message C110... UVP recording now ");	
+						opts = "c110";	
+					}
+					else if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 )	 {	
+						time = 100000; 	
+						com = "passed";	
+						message = runMacro("uvp5_show_status_messages.txt",ff);
+						print(message);
+						print("> Message V092... UVP running now ");	
+						opts = "v092";	
+					}
+					else { 		showStatus("Checking COM"+comport+" for messages from UVP5");	}
+				}
+				time++;		wait(50);	progress = time/501;		showProgress(progress);		showStatus("Checking COM"+comport+" for messages");
+				Ext.write("s");
+			} // while
+			
+			if (opts == "c110") {				
+				// ---------------------- Arrêt urgence ACQUISITION -------------------------------------------
+				choix = getBoolean("CAMERA is in ACQUISITION mode. \n \nPress YES when you want to try to STOP it ? \n \nPRESS NO to keep uvp5 in acquisition. ");
+				if (choix == 1) {
+					op = "EMERGENCY STOP";
+				}// choix
+			} // c110
+			// -------------- Si pas de message VERIFIER SI CAMERA ON ------------------
+			else if (opts == "no") {
+				// ------------- TEST WATCHDOG CAMERA ON ? ----------------
+				print("> UVP5 does not send any message, keep WAITING for more tests !");
+				stby = "failed";
+				essai = 0;
+				sent_message = "S013WATCHDOG!";
+				ret_message = "WATCHDOG_";
+				print("=>  CHECKING CAMERA STATUS");		
+				while (essai < 2) {
+					Ext.write(sent_message);	print("sent: "+sent_message);	
+					// -------------------- WATCHDOG OK ------------------------------------------------
+					time = 0;
+					while (time < 200) {
+						ff = Ext.read();
+						ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							// -------------- Affichage messages UVP5 -------------------------
+							if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}	
+							if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	
+								print("ret: "+ff);
+								if (startsWith(ff,"C042")) {
+									mem_fd = parseInt(substring(ff,13,18));
+									mem_hd = parseInt(substring(ff,20,25));
+								}
+								else if (startsWith(ff,"C043")) {
+									mem_fd = parseInt(substring(ff,13,19));
+									mem_hd = parseInt(substring(ff,20,26));
+								}
+								mem_fd_r = round(100*mem_fd/mem_fd_full);
+								if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
+								else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
+								print("-----------------------------------------------------------------------------------------------------------------");
+								print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+								print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								print("-----------------------------------------------------------------------------------------------------------------");
+							} // if
+						} // for
+						time++;		wait(50);
+					} // while
+					essai++;	progress = essai/5;		showProgress(progress);		// showStatus("Testing that camera is ON");
+				}// while
+				res = 0;
+				if (stby == "passed") {
+					com = "passed";
+					res = getBoolean("CAMERA is ON \n \nPRESS YES to shut down Camera \n \nPRESS NO to keep it powered ");
+					opts = "cam_on";
+				}
+				else { print("> CAMERA seems to be OFF");				}// else
+				if (res == 1) {
+					// ----------------------- ARRET CAMERA -----------------------------------------
+					op = "TURN OFF UVP5 camera";
+					opts = "ok";
+				}// fs shuting down camera
+			} // si pas de reponse sur le com
+//			aa = getBoolean(opts);			
+			if (opts == "no" || opts == "v092") {
+				// ---------------- TEST STBY -------------------------------
+				print("=> Testing if UVP5 responds to SBTY messages");
+				// ---------------- STANDBY and RUN ------------------------------
+				stby = "failed";
+				essai = 1;
+				sent_message = "U013STBY_PRG!";
+				ret_message = 	"V012STBY_OK!";
+				ret_message_b = "V011SLEEP_OK!";
+				ret_message_c = "C016STOP_ACQ_OK!";
+				while (essai < 5) {
+					Ext.write(sent_message);
+					// -------------------- STANDBY OK ------------------------------------------------
+					time = 0;
+					while (time < 100) {
+						ff = Ext.read();
+						ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];	
+							long = minOf(lengthOf(ff),20);
+							status_message = substring(ff,0,long);
+							showStatus(status_message);
+							if (indexOf(status_message,"V011SLEEP_OK!")==0 ) 	{time = 100000;	essai = 10; com = "passed"; 	opts = "sleep";		}
+							if (indexOf(status_message,"V012STBY_OK!")==0 ) 	{time = 100000;	essai = 10; com = "passed"; 	stby = "passed";	opts = "stby";		}
+						} // for
+						time++;		wait(50);
+					} // while
+					essai++;		showProgress(time/10000);		showStatus("Trying to standby UVP5");
+				}// while
+				// --------------------- Test STOP_ACQ -----------------------------------------------------
+				if (opts == "stby" ) {
+					time = 0;
+					while (time < 150) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus("PLEASE WAIT ! ");
+						if (indexOf(ff,"C016STOP_ACQ_OK!") >= 0 ) 	{time = 100000;		opts = "stop_acq";	print("ret: C016STOP_ACQ_OK!");	}
+						time++;		wait(50);	showProgress(time/200);
+					} // while
+					if (opts == "stop_acq") {	print("> UVP5 is in PRE_ACQUISITION MODE. CAMERA BEING STOPPED NOW. WAIT ! ");	}//		
+				} //
+				if (opts == "sleep") {			print("> UVP5 is in SLEEP mode (time programmed or no sequence)");	} //
+				else if (stby == "failed") {		print("> UVP5 STBY_OK messages NOT received"); 		opts = "no";		} // if
+				else {
+					// ----------------- RUN UVP -------------------------
+					sent_message = 		"U012RUN_UVP!";
+					ret_message = 		"V015RUN_UVP_OK!";
+					ret_message_b = 	"V015HD_CAM_OFF!";
+					ret_message_c = 	"C016EXITSOFT_OK!";
+					test = "failed";
+					essai = 1;
+					print_opt = true;
+					while (essai < 8) {
+						Ext.write(sent_message);
+						// -------------------- RUN OK ------------------------------------------------
+						time = 0;
+						while (time < 10000) {
+							ff = Ext.read();
+							long = minOf(lengthOf(ff),20);
+							status_message = substring(ff,0,long);
+							showStatus(status_message);
+							if (indexOf(ff,ret_message)>=0) 	{time = 100000;	essai = 8; test = "passed"; opts = "run";			}
+							else if (indexOf(ff,ret_message_c)>=0 || indexOf(ff,ret_message_b)>=0) 	{
+								showStatus("UVP5 camera stopped"); 
+								if (print_opt == true) {	print("> UVP5 camera stopped and turned OFF");		print_opt = false;	}
+							}				
+							else if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	time = 100000;	essai = 8; test = "passed"; opts = "v092";		}
+							time++;		wait(50);	showProgress(time/2000);
+						} // while
+						essai++;						
+						if (test == "passed") {		print("> UVP RUN_OK or V092 messages received");		opts = "v092";		}//if
+					}// while
+				} // if stby
+			} // if no
+			
+			// -------------- Dernier cas --------------------
+			if (opts == "no") {
+				Dialog.create("UVP5 PILOT MODULE   ");
+				Dialog.addMessage("-----------------------------------------------------------------------------------------------------------");
+				Dialog.addMessage("NO message received on COM"+comport+"        ");
+					Dialog.addMessage("The UVP5 may not be connected to selected COM "+comport);
+					Dialog.addMessage("The DATA SEA CABLE may not be connected.");
+					Dialog.addMessage("The Deck Unit maybe OFF");
+					Dialog.addMessage("The POWER CABLE may not be connected");
+					options = newArray("TRY AGAIN after cable & power CHECK","CLOSE COM PORT and EDIT CONFIGURATION");
+				Dialog.addChoice("         SELECT OPTION    ", options);		
+				Dialog.addMessage("-----------------------------------------------------------------------------------------------------------");
+				Dialog.show();
+				task = Dialog.getChoice();
+				port_status = "ok";
+				if (task == "CLOSE COM PORT and EDIT CONFIGURATION") {
+					// ---------------- FERMETURE ------------------------------------
+					Ext.close();
+					print("COM"+comport+" CLOSED");
+					edit_config = true;
+					com = "nok";
+					work_option = "UVP5 not connected, limited tool list";
+					print("> "+work_option);
+				}
+			}//
+			if (opts == "sleep") {	op = "WAKE UP sleeping UVP5";	} // if
+		}	 // while	
+	} // while
+}
+
+// ---------------- MENU principal -------------------------------
+check = 0;
+while (check == 0) {
+	// ------------------ Liste des operations --------------------------
+	if ( work_option == "UVP5 not connected, limited tool list") {
+		if (advanced_mode == true) {
+			a=newArray(6);
+			for (i=0;i<a.length;i++) {	a[i]=" ";		} // for
+			a[0]=  "EXIT PILOT MODULE (COM port will be closed)";			// +OK	
+			a[2] = "EDIT Pilot board Configuration file";				// OK
+			a[3]= 	"EDIT ProfileurVideo ini file"; 				//
+			a[4]=	"EDIT ACQUISITION files";				//
+		} // if
+		else {	a_use = newArray(1);
+			a_use[0]=  "EXIT PILOT MODULE (COM port will be closed)";	
+		} // else
+	}
+	else {	
+		// ------------------- FERMETURE DU PORT COM entre chaque operation -----------------
+		Ext.close();	
+		if (advanced_mode == true) {		
+			a=newArray(35);
+			for (i=0;i<a.length;i++) {	a[i]=" ";		} // for
+			a[0]=  "EXIT PILOT MODULE";			// +OK	
+			a[1]= 	"--------------------------------------------------------------------";
+		
+			a[3]=	"TEST & MONITOR COM PORT";				// +OK	
+	//		a[4]= 	"VISUALIZE PROFILE from COM PORT DATA";
+		
+			a[5]=	"Synchronize UVP5 time with Computer time";		// +OK	
+		
+			a[7]=	"DOWNLOAD DATA from UVP5";				// OK
+			a[8]=	"DELETE DATA in UVP5";
+			
+			a[10]= 	"TURN ON UVP5 light (test / alignment)";
+
+			a[12]=	"READ / PROGRAM sequences";				// +OK
+		
+			a[14]=	"GET ACQUISITION and INI files from UVP5";		// +OK
+			a[15]=	"EDIT ACQUISITION files";				//
+//			a[16]= 	"EDIT ProfileurVideo ini file"; 				//
+			a[17]=	"SEND ACQUISITION and INI files to UVP5";		// OK
+			
+			a[19]=	"START ACQUISITION (manual)";		// OK
+			a[20]=	"TURN ON UVP5 camera";					// +OK			
+			a[21]=	"TURN OFF UVP5 camera";					// OK
+	
+			a[23]=	"EMERGENCY STOP";					// OK	
+			a[24]=	"WAKE UP sleeping UVP5";				// OK	
+			a[25]= 	"RUN UVP5";						// OK		// OK
+		
+			a[26]=	"EDIT Pilot board Configuration file";				// +OK
+			a[27]=	"SEND configuration to pilot board";			// +OK
+		
+//			a[30]= 	"START Camera for calibration";
+			a[29]= 	"Set GAIN for ANALOG output";
+//			a[30]= 	"Event.log maintenance";
+
+			a[32]=	"SWITCH mode (advanced/user)";
+		}// if
+		else {
+			a_use = newArray(24);
+			for (i=0;i<a_use.length;i++) {	a_use[i]=" ";		} // for
+			a_use[0]=  "EXIT PILOT MODULE";			// +OK	
+			a_use[1]= 	"--------------------------------------------------------------------";
+		
+			a_use[3]=	"TEST & MONITOR COM PORT";				// +OK	
+//			a_use[4]= 	"VISUALIZE PROFILE from COM PORT DATA";
+		
+			a_use[5]=	"Synchronize UVP5 time with Computer time";		// +OK	
+		
+			a_use[7]=	"DOWNLOAD DATA from UVP5";				// OK
+			a_use[8]=	"DELETE DATA in UVP5";
+			
+			a_use[10]= 	"TURN ON UVP5 light (test / alignment)";		// OK
+
+			a_use[12]=	"READ / PROGRAM sequences";				// +OK
+			
+			a_use[14]=	"START ACQUISITION (manual)";		// OK
+			
+			a_use[16]=	"GET ACQUISITION and INI files from UVP5";
+	
+			a_use[18]=	"EMERGENCY STOP";					// OK	
+			a_use[19]=	"WAKE UP sleeping UVP5";				// OK
+			
+			if (opts == "cam_on") {
+				a_use[21]=	"TURN OFF UVP5 camera";					// OK	
+			}
+	
+			a_use[23]=	"SWITCH mode (advanced/user)";
+			
+	//		a_use[20]= 	"START Camera for calibration";
+
+		}// else
+	}// else
+	if (op != "EMERGENCY STOP" && op != "TURN OFF UVP5 camera" && op != "WAKE UP sleeping UVP5") {
+		Dialog.create("UVP5 PILOT MODULE            version : "+version+"             "+date);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Piloting module for UVP5 systems ");
+		Dialog.addMessage("Any other Terminal application may also be utilized (motocross.exe) ");
+		Dialog.addMessage("Developped by MARC PICHERAL, Laboratoire d'Océanographie de Villefranche sur mer");	
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("COM"+comport+" SELECTED");
+		Dialog.addMessage("Project :        "+path);	
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		if (advanced_mode == true) {	Dialog.addMessage("ADVANCED MODE");	}
+		else {				Dialog.addMessage("USER MODE");		}
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "SELECT OPERATION from the list.             " ;
+		Dialog.addMessage(message);
+		if (advanced_mode == true) {	Dialog.addChoice("      ",a);	}
+		else {				Dialog.addChoice("      ",a_use);}
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("DO NOT PRESS CANCEL to EXIT. Com"+comport+" would not be properly closed !");
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show();
+		op = Dialog.getChoice();
+	} // if op
+	print("-----------------------------------------------------------------------------------------------------------------");
+	print("ACTION : "+op);
+	print("-----------------------------------------------------------------------------------------------------------------");
+
+	// ----------------- SORTIE --------------------------------	
+	if (op == "EXIT PILOT MODULE" || op == "EXIT PILOT MODULE (COM port will be closed)") {	showMessage("PILOT MODULE being CLOSED \n \nDO NOT FORGET to TURN OFF UVP5 if necessary ");	check = 1;	} // if
+	else {
+		if (op == " ") showMessage("Select another menu !");
+		else if (op != "EDIT Pilot board Configuration file")		{	
+			text1 = "COM"+comport;
+			text2 = "DATABITS_"+databits+" STOPBITS_"+stopbits+" PARITY_"+parity;
+			Ext.open(text1,PilotBR,text2);
+			// -------------------- Attente 30 secondes pour ouverture ------------------------
+			time = 0;
+			while (time < 30) {
+				wait(1000);
+				active = Ext.alive();			// returns "0" or "1"
+				if (active == 1 || active == "1") {	time = 3000;	print("> COM"+comport+" OPEN NOW");	}
+				if (time == 29) {
+					// ---------------- FERMETURE ------------------------------------
+					Ext.close();
+					getBoolean("COM"+comport+" could not be opened. Check Configuration !\n \nCHECK that COM is not open in other application. \n \nPRESS CANCEL to ABORT ");
+				}
+			}// while
+		}// else		
+		
+		//-------------------- "Synchronize UVP5 time with Computer time" ---------------------------------------------------------------------
+		//-------------------- "CONFIGURE UVP5" ---------------------------------------------------------------------
+		choix1 = 0;	choix2 = 0;
+		if (op == "Event.log maintenance" || op == "Synchronize UVP5 time with Computer time" || op == "TURN ON UVP5 light (test / alignment)" || op == "Set GAIN for ANALOG output" || op =="SEND configuration to pilot board" || op == "READ / PROGRAM sequences" || op== "GET ACQUISITION and INI files from UVP5") {
+			choix1 = 1;
+		}
+		if (op == "DOWNLOAD DATA from UVP5" || op == "DELETE DATA in UVP5" || op == "START Camera for calibration" || op == "TURN ON UVP5 camera" || op == "TURN OFF UVP5 camera" || op == "SEND ACQUISITION and INI files to UVP5" ) {
+			choix2 = 1;
+		}
+		if (op == "SWITCH mode (advanced/user)") {
+			// ----------- MAJ des modes --------------------------------------------------------------------------------------
+			if (File.exists(mode_user)) { 		mode_select = File.rename(mode_user,mode_advanced);	advanced_mode = true;	} // if
+			else { 					mode_select = File.rename(mode_advanced,mode_user);	advanced_mode = false;	} // if	
+		} // if		
+		else if (choix1 == 1 || choix2 == 1) {
+			// -------------------- STANDBY ---------------------------------------------------
+			stby = "failed";
+			test = "failed";
+			essai = 1;
+			sent_message = "U013STBY_PRG!";
+			ret_message = "V012STBY_OK!";
+			print("=> TRYING TO STANDBY UVP5");
+			while (essai < 3) {
+				Ext.write(sent_message);
+				print("sent: "+sent_message);
+				delay = 0;
+				// -------------------- STANDBY OK ------------------------------------------------
+				time = 0;
+				while (time < 200) {
+					ff = Ext.read();
+					long = minOf(lengthOf(ff),20);
+					status_message = substring(ff,0,long);
+					showStatus(status_message);
+					if (indexOf(ff,ret_message)>=0) {delay = time;	time = 100000;	essai = 5; stby = "passed"; }
+					time++;
+					wait(50);
+				} // while
+				print("UVP STBY_OK messages received");	essai++;			progress = essai/5;				showProgress(progress);
+				// ----------- Temps de réponse en secondes --------------------------------------
+				delay = delay * 50/1000;
+				print("> Responding time = "+delay+ " sec.");
+				if (delay > 3.5 )	showMessage("WARNING","UVP5 responding time seems to be > 3.5 sec.\n \nRefer to UVP5 manual to perform an event.log maintenance as soon as possible");
+			}// while
+			// ------------------- TOOLS REQUIRING TO START CAMERA -------------------------------------
+			stop_cam = 1;
+			if (op == "DOWNLOAD DATA from UVP5" || op == "DELETE DATA in UVP5" || op == "START Camera for calibration" || op == "TURN ON UVP5 camera" || op == "TURN OFF UVP5 camera" || op == "GET ACQUISITION and INI files from UVP5" || op == "SEND ACQUISITION and INI files to UVP5") {
+				// ------------- TEST WATCHDOG ----------------------------
+				stby = "failed";
+				essai = 0;
+				sent_message = "S013WATCHDOG!";
+				ret_message = "WATCHDOG_";
+				print("=>  CHECKING CAMERA STATUS");		
+				while (essai < 2) {
+					Ext.write(sent_message);	print("sent: "+sent_message);	
+					// -------------------- WATCHDOG OK ------------------------------------------------
+					time = 0;
+					while (time < 200) {
+						ff = Ext.read();
+						ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							// -------------- Affichage messages UVP5 -------------------------
+							if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}	
+							if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	
+								print("ret: "+ff);
+								if (startsWith(ff,"C042")) {
+									mem_fd = parseInt(substring(ff,13,18));
+									mem_hd = parseInt(substring(ff,20,25));
+								}
+								else if (startsWith(ff,"C043")) {
+									mem_fd = parseInt(substring(ff,13,19));
+									mem_hd = parseInt(substring(ff,20,26));
+								}
+								mem_fd_r = round(100*mem_fd/mem_fd_full);
+								if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
+								else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
+								print("-----------------------------------------------------------------------------------------------------------------");
+								print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+								print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								print("-----------------------------------------------------------------------------------------------------------------");
+							} // if
+						} // for
+						time++;		wait(50);
+					} // while
+					essai++;	progress = essai/5;		showProgress(progress);		// showStatus("Testing that camera is ON");
+				}// while				
+				if (stby == "passed") {	
+					stop_cam = 0; 
+					test = "passed";
+					showMessage("CAMERA is ON ");	
+				} // if
+				else if (op != "TURN OFF UVP5 camera") {
+					// -------------- START CAMERA ------------------------------------------------------
+					// showMessage("STARTING CAMERA \n \nBE PATIENT !");
+					sent_message = "U017START_HD_CAM!";
+					ret_message = "V016CAM_STARTED!";
+					test = "failed";
+					Ext.write(sent_message);
+					print("=>  STARTING CAMERA");			print("sent: "+sent_message);
+					Ext.close();
+					for (t=1;t<starting_time;t++) { showProgress(t/starting_time);	time_index = starting_time - t;	showStatus("CAMERA BEING STARTED : "+time_index+ " sec.");	wait(1000);	}//for
+					print("=> CHECKING if UVP5 CAMERA application is running");
+					Ext.open(text1,PilotBR,text2);
+					// -------------------- START ------------------------------------------------
+					time = 0;	counter = 2400;
+					while (time < counter) {
+						ff = Ext.read();
+						ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							// -------------- Affichage messages UVP5 -------------------------
+							//	if (indexOf(ff,"V092")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}
+							if (indexOf(ff,ret_message)>=0) {time = 100000; test = "passed"; h = 100000000;		print("ret: "+sent_message);		} // if
+						} // for
+						time++;		wait(25);		progress = time/counter;	showProgress(progress);		showStatus("Checking if cam. app. is running");
+					} // while
+					//	showMessage(sent_message+"  "+test);
+					// ------------- TEST WATCHDOG ----------------------------
+					test = "failed";
+					essai = 1;
+					sent_message = "S013WATCHDOG!";
+					ret_message = "WATCHDOG_";
+					print("=>  CHECKING CAMERA STATUS");		
+					while (essai < 5) {
+						Ext.write(sent_message);	print("sent: "+sent_message);	
+						// -------------------- WATCHDOG OK ------------------------------------------------
+						time = 0;
+						while (time < 400) {
+							ff = Ext.read();
+							ff_v = split(ff,"\n");
+							for (h = 0; h < ff_v.length ; h++ ) {
+								ff = ff_v[h];
+								// -------------- Affichage messages UVP5 -------------------------
+								if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}	
+								if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; test = "passed";	
+									print("ret: "+ff);
+									if (startsWith(ff,"C042")) {
+										mem_fd = parseInt(substring(ff,13,18));
+										mem_hd = parseInt(substring(ff,20,25));
+									}
+									else if (startsWith(ff,"C043")) {
+										mem_fd = parseInt(substring(ff,13,19));
+										mem_hd = parseInt(substring(ff,20,26));
+									}
+									mem_fd_r = round(100*mem_fd/mem_fd_full);
+									if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
+									else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
+									print("-----------------------------------------------------------------------------------------------------------------");
+									print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+									print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+									print("-----------------------------------------------------------------------------------------------------------------");
+								} // if
+							} // for
+							time++;		wait(50);
+						} // while
+						essai++;	progress = essai/5;		showProgress(progress);		// showStatus("Testing that camera is ON");
+					}// while
+					//	showMessage(sent_message+"  "+test);
+					if (test == "passed" ) stop_cam = 0;					
+				} // else
+				while (stop_cam == 0) {
+					// ------------------ CAMERA ON ----------------------------------
+					print("CAMERA STARTED & RESPONDING");
+					// ------------------ Options ------------------------------------
+					if (test == "passed" && op == "TURN ON UVP5 camera") {
+						// -------------------- op == "TURN ON UVP5 camera" ------------------
+						showStatus("UVP5 CAMERA powered NOW ");
+						stop_cam = getBoolean("CAMERA STARTED. \n \nYou can now acces camera folders by network. \n \nKEEP this window OPEN and PRESS YES when you want to STOP CAMERA (do not forget !)\n \nDO NOT PRESS CANCEL (camera will stay ON)!");
+					}
+					else if (op == "START Camera for calibration") {
+						showStatus("UVP5 CAMERA powered NOW ");
+						// -------------------- ENVOI HEURE PC --------------------------------------------
+						dateheuremmss =	runMacro("uvp5_get_time");
+						YYYY = substring(dateheuremmss,0,4);
+						MM= substring(dateheuremmss,4,6);
+						DD= substring(dateheuremmss,6,8);
+						HH= substring(dateheuremmss,9,11);
+						mm= substring(dateheuremmss,11,13);
+						SS= substring(dateheuremmss,13,15);
+						sent_message = "S033SET_TIME_"+YYYY+"_"+MM+"_"+DD+"_"+HH+"_"+mm+"_"+SS+"!";
+						print("sent: "+sent_message);
+						Ext.write(sent_message);
+					
+						// -------------------- MODFILE list ----------------------
+						config_list = getFileList(pathconfig);
+						file_list = newArray(config_list.length);
+						m = 0;
+						for (g = 0 ; g < config_list.length ; g++ ) {
+							file = config_list[g];
+							if (lengthOf(file) == 10 && endsWith(file,".ini")) {	file_list[m] = substring(file,0,6); 	m++;	} // if
+						}
+						mod_list = newArray(m+1);
+						for (g = 1 ; g < m+1 ; g++ ) { rr = file_list[g-1];	mod_list[g] = rr;	}
+						mod_list[0] = "do not select";
+						keep_rec = 1;	
+						// -------------------- Valeurs par défaut ---------------------------------------------------
+						obj_opacity = newArray("dark","dark","heterogeneous","transparent","dark_spheres 200","dark_spheres 500","dark_spheres 800","dark_spheres float");
+						comment = "no";	
+						obj_type = "aggregate";
+						obj_image = " ";
+						cam_lens = 0;
+						cam_mag = 1;
+						while (keep_rec == 1) {	
+							// -------------------- lecture heure pour délais 1 minute -----------------------------------
+							delais = false;
+							while (delais == false) {
+								dateheuremmss =	runMacro("uvp5_get_time");
+								hm = substring(dateheuremmss,9,11);
+								mm = substring(dateheuremmss,11,13);
+								sm = substring(dateheuremmss,13,15);
+								hm = 3600 * parseInt(hm);
+								mm = 60 * parseInt(mm);
+								hms = hm+mm+sm;
+								if (hms > hms_prec + 10) {	delais = true; hms_prec = hms;	}
+								else {		wait(500);	showStatus("WAITING 1 minute beetween objects");	}
+							} // delais
+							header_fill = false;
+							message = " ";
+							while (header_fill == false) {	
+								showStatus("Fill object information !");
+								// -------------------- Saisie des metadata de l'objet ---------------------------------------
+								Dialog.create("UVP5 Calibration MODULE            version : "+version+"             "+date);
+								Dialog.addMessage("---------------------------------------------------------------------------------------------");
+								Dialog.addString(" Enter Object TYPE ",obj_type);
+								Dialog.addMessage(message);
+								Dialog.addString("      Enter binocular Image reference ",obj_image);
+								Dialog.addNumber(" Enter Camera lens ",cam_lens);
+								Dialog.addNumber(" Enter Camera magnification ",cam_mag);
+								Dialog.addChoice(" Select object properties      ",obj_opacity);
+								Dialog.addString(" Enter comment ",comment);
+								Dialog.addMessage("---------------------------------------------------------------------------------------------");
+								Dialog.addChoice(" Select modfile ",mod_list)
+								Dialog.addMessage("---------------------------------------------------------------------------------------------");
+								Dialog.show();
+								header_fill = true;
+								obj_type =	Dialog.getString();
+								obj_image_nb = 	Dialog.getString();
+								if (obj_image_nb == obj_image) {	header_fill = false; message = "Change image reference !";	}
+								else {	obj_image = obj_image_nb; 	} // 
+								cam_lens = 	Dialog.getNumber();
+								cam_mag = 	Dialog.getNumber();
+								obj_prop = 	Dialog.getChoice();
+								obj_opacity[0] = obj_prop;
+								comment = 	Dialog.getString();
+								modfile = 	Dialog.getChoice();
+								mod_list[0] = 	modfile;
+							} // while
+							
+							// -------------------- DEBUT acquisition ----------------------------------------------------
+							showMessage("Press OK to start recording ! ");
+														
+							// -------------------- Allumage des éclairages ----------------------------------------------
+							sent_message = "U024SET_OUTPUT_00001001!";	//	Camera-light
+							Ext.write(sent_message);
+							wait(500);
+							
+							// -------------------- Début de séquence ----------------------------------------------------
+							sent_message = "S024STARTACQ_001_"+modfile+"!";
+							Ext.write(sent_message);
+							
+							// ------------------------ Affichage messages C110 --------------------------
+							print("=>  PRESS space bar to record time of particle being visible in FOV");
+							res1 = 0;
+							stop_button = false;
+							space = 0;
+							while (stop_button == false) {
+								ff = Ext.read();
+								ff_v = split(ff,"\n");						
+								time = 0;								
+								while (time < 10) {
+									keyd = isKeyDown("space"   );
+									if (keyd == true && space == 0) {
+										// ------------------ Lecture de l'heure ----------------------------
+										dateheuremmss =	runMacro("uvp5_get_time");
+										space = 1;
+										print("Time START particle : "+dateheuremmss);
+										print("=>  PRESS space bar to STOP sequence");
+									} // if
+									else if (keyd == true && space == 1) {
+										wait(500);
+										// ------------ ARRET ? ----------------------------------------------
+										reso = getBoolean("Do you want to stop acquisition for this object ? \n \nPRESS YES to stop \n \nPRESS NO to keep recording.");
+										if (reso == 1)	{	stop_button = true;		space = 2;				}
+									}//
+									wait(100);			
+									time++;
+								}					
+								// ------------------ Messages -------------------------------------------	
+								for (h = 0; h < ff_v.length ; h++ ) {
+									ff = ff_v[h];
+									if (indexOf(ff,"C110")>=0  && lengthOf(ff) >=110 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);		showStatus(message);		}
+								} // for
+								wait(50);
+							} // while
+							// -------------------- Arrêt enregistrement -------------------------
+							sent_message = "S014STOP_ACQU!";
+							print("sent: "+sent_message);
+							Ext.write(sent_message);	
+							wait(500);			
+							// --------------------------- Arrêt éclairages -----------------------
+							sent_message = "U024SET_OUTPUT_00001000!";	//	Camera-light
+							print("sent: "+sent_message);
+							Ext.write(sent_message);
+														
+							// -------------------- Lecture du NOM de la séquence ----------------------------------------
+							profile_list = getFileList(hd_path);
+							hdr_list = newArray(profile_list.length);
+							index_profile = 0;
+							for (x = 0;x<profile_list.length;x++){
+								profile_source = profile_list[x];
+								if (endsWith(profile_source,"/") && startsWith(profile_source,"HDR")){									
+									hdr_list[index_profile] = profile_source;									
+									index_profile++;
+									// print(profile_source);
+								}//
+							}//
+							seq_name = 1;
+							for (x = 0;x<index_profile;x++){
+								long = lengthOf(hdr_list[x]);
+								rr = substring(hdr_list[x],4,long-1); 
+								seq_name = maxOf(seq_name,rr);
+							} // for
+							seq_name = toString(seq_name);
+							showStatus(seq_name);
+												
+							// -------------------- Enregistrement du fichier CSV ----------------
+							print("A purger");	selectWindow("Log");		run("Close");
+							metafile = pathresults+"calibration_header.csv";
+							if (File.exists(metafile)) {
+								open(metafile);  
+								wait(100);
+								metadata = getInfo();
+								print(metadata);
+								run("Close");
+							} // 
+							else { print("obj_type;obj_image;cam_lens;cam_mag;obj_prop;comment;time;seq_name;modfile");	} // else
+							print(obj_type+";"+obj_image+";"+cam_lens+";"+cam_mag+";"+obj_prop+";"+comment+";"+dateheuremmss+";"+seq_name+";"+modfile);
+							text = "save="+metafile;
+							selectWindow("Log");
+							run("Text...",text);
+							metafile = pathresults+"\\"+dateheuremmss+"_calibration_header.csv";
+							text = "save="+metafile;
+							selectWindow("Log");
+							run("Text...",text);							
+							print("A purger");	selectWindow("Log");		run("Close");
+							// -------------------- AUTRE OBJET ?? --------------------------------
+							keep_rec = getBoolean("PRESS YES to record another object. \n \nPRESS NO to stop acquisition and turn OFF Camera.\n \n(DO NOT press CANCEL !)");
+						} // while	
+						stop_cam = 1;
+						// --------------------------- Arrêt éclairages -----------------------
+						sent_message = "U024SET_OUTPUT_00001000!";	//	Camera-light
+						print("sent: "+sent_message);
+						Ext.write(sent_message);
+					} // else if
+					else if (op == "TURN OFF UVP5 camera") {
+						stop_cam = getBoolean("ARE YOU SURE that you WANT to STOP CAMERA ?  \n \nPRESS YES to PROCEED \n \nPRESS NO to abort ");
+					} // else if
+					else if (op == "DELETE DATA in UVP5") {
+						delete = 0;
+						while (delete == 0) {
+							// ------------------ Liste des profiles ---------------------
+							wait(5000);
+							arg_delete = fd_path+" "+pathraw;
+							del_file_fd = runMacro("uvp5_check_delete_files.txt",arg_delete);
+							print("Remaining casts in FD : "+del_file_fd);	
+							arg_delete = hd_path+" "+pathraw;
+							del_file_hd = runMacro("uvp5_check_delete_files.txt",arg_delete);
+							print("Remaining casts in HD : "+del_file_hd);	
+							
+							list = newArray("CANCEL - EXIT","DELETE ALL data in FD","DELETE ALL data in HD","DELETE ALL data in FD & HD");
+							Dialog.create("UVP5 DELETING MODULE            version : "+version+"             "+date);
+							Dialog.addMessage("------------------------------------------------------------------");
+							Dialog.addMessage("TOTAL casts in FD : "+del_file_fd);
+							Dialog.addMessage("TOTAL casts in HD : "+del_file_hd);
+							Dialog.addMessage("------------------------------------------------------------------");
+							Dialog.addMessage("     SELECT option      ");
+							Dialog.addChoice("       ", list);
+							Dialog.addMessage("------------------------------------------------------------------");
+							Dialog.show();
+							del_choice = Dialog.getChoice();
+							if (del_choice == "CANCEL - EXIT") delete = 1;
+							else {
+								res = getBoolean("DO YOU REALLLY WANT TO "+del_choice+" ?  \n \nPRESS YES to PROCEED \n \nPRESS NO to ABORT ");
+								if (res == 1) {
+									if (del_choice == "DELETE ALL data in FD") 		{	sent_list = newArray("S013RESET_FD!");		} // 
+									else if (del_choice == "DELETE ALL data in HD") 	{	sent_list = newArray("S013RESET_HD!");		} //
+									else  	{	sent_list = newArray("S013RESET_HD!","S013RESET_FD!");		} //
+									for (y = 0;y<sent_list.length;y++) {
+										// ------------- Purge des fichiers -------------------
+										stby = "failed";
+										sent_message = sent_list[y];
+										ret_message = "C016RESET";
+										print("sent: "+sent_message);
+										del_path = hd_path;
+										if (endsWith(sent_message,"FD!"))	del_path = fd_path;
+										arg_delete = del_path+" "+pathraw;
+										print("uvp drive being deleted: "+del_path);
+										loop = 0;
+										castnb = 1000;
+										while (stby == "failed") {
+//											ffo = "-";
+											// ------------------ Vérification de la suppression des répertoires ---------------------
+											del_file = runMacro("uvp5_check_delete_files.txt",arg_delete);
+											print("Casts to delete : "+del_file);	
+											if (del_file != 0) {	Ext.write(sent_message);
+												showStatus("DELETING FILES wait ");	
+												for (t=1; t < 20;t++) { 
+													ff = Ext.read();
+													ff_v = split(ff,"\n");
+													for (h = 0; h < ff_v.length ; h++ ) {
+														ff = ff_v[h];
+														if (indexOf(ff,"C036RESET_")>=0  && lengthOf(ff) >=35 ) 		{
+															// ------------- Decodage DRIVE et CAPACITE -------------
+															uu = replace(ff,"*"," ");
+															data = split(uu,"\ ");
+															drive = data[0];
+															cap_mo = parseInt(data[1]);
+															if (indexOf(drive,"FD") > 1) {	cap_tot = mem_fd_full;	drive = "FD";	}
+															if (indexOf(drive,"HD") > 1) {	cap_tot = mem_hd_full;	drive = "HD";	}
+															showProgress(cap_mo/cap_tot); 
+															ratio = round(1000*cap_mo/cap_tot)/10 ;
+															showStatus(drive + " free drive capacity : " +ratio+ " %  WAIT ! ");
+														}//if
+													}//for
+													wait(1000); 		
+												} // for	
+											}//if
+											if (del_file == castnb) {	loop++;					}
+											else {				castnb = del_file;	loop = 0; 	}
+											if (loop == 20 ) {
+												// ------------------- Cas répertoire ne pouvant être effacés -----------------------------
+												aaa = getBoolean("WARNING ! \n \n UVP5 tried "+loop+" times to delete data. \nA file must be corrupted in "+del_path+" \nCall Hydroptic to trouble shoot. \nYou can anyhow continue to work with UVP. \nPress YES to end deleting the data in the drive !\nPress NO to keep trying !");
+												if (aaa == 1 ) stby = "exit";
+											}// if 	                   
+											if (parseInt(del_file) == 0) {stby = "passed";	}
+
+										}// while
+									} // for	
+									if (sent_list.length == 1 && stby == "passed" ) delete = getBoolean(del_choice+"  done. \n \nPRESS YES to END \n \nPRESS NO to proceed other drive ");
+								} // if res
+								else { delete = 1;}
+							} //else
+							showStatus("Delete completed ");
+						} // while delete
+						// ------------- TEST WATCHDOG ----------------------------
+						essai = 1;
+						sent_message = "S013WATCHDOG!";
+						ret_message = "WATCHDOG_";
+						print("=>  CHECKING CAMERA MEMORY AFTER DELETE ");		
+						while (essai < 5) {
+							Ext.write(sent_message);	
+							print("sent: "+sent_message);	
+							// -------------------- WATCHDOG OK ------------------------------------------------
+							time = 0;
+							while (time < 250) {
+								ff = Ext.read();
+								ff_v = split(ff,"\n");
+								for (h = 0; h < ff_v.length ; h++ ) {
+									ff = ff_v[h];
+									// -------------- Affichage messages UVP5 -------------------------
+									if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}	
+									if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; test = "passed";	
+										print("ret: "+ff);
+										if (startsWith(ff,"C042")) {
+											mem_fd = parseInt(substring(ff,13,18));
+											mem_hd = parseInt(substring(ff,20,25));
+										}
+										else if (startsWith(ff,"C043")) {
+											mem_fd = parseInt(substring(ff,13,19));
+											mem_hd = parseInt(substring(ff,20,26));
+										}
+										mem_fd_full = maxOf(mem_fd_full,mem_fd);
+										mem_hd_full = maxOf(mem_hd_full,mem_hd);
+										print("-----------------------------------------------------------------------------------------------------------------");
+										if (mem_fd == mem_fd_full) {	print("FD MAXIMUM space (free now) = "+mem_fd_full+" Mo");	}
+										else {	mem_fd_r = round(100*mem_fd/mem_fd_full);
+											print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+										}											
+										if (mem_hd == mem_hd_full) {	print("HD MAXIMUM space (free now) = "+mem_hd_full+" Mo");	}
+										else {
+											if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
+											else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
+											print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+										}
+										print("-----------------------------------------------------------------------------------------------------------------");
+										h =  ff_v.length;
+										// ------------- FICHIER ---------------------
+										if (isOpen("Log")) {	
+											selectWindow("Log");
+											run("Text...",textlog);	
+											wait(100);
+											run("Close");		
+										} // if
+										// ---------------- On ajoute dans le fichier "uvp5_configuration_data.txt" ---------------------
+										if (File.exists(pathconfig+"\\uvp5_configuration_data.txt")) {
+											open(pathconfig+"\\uvp5_configuration_data.txt");
+											wait(100);
+											config = getInfo();
+											run("Close");
+											wait(100);
+											conf  = split(config,"\n");
+											if (conf[0] != "[config]") print("[config]");
+											print_mem = false;
+											for (i=0;i<conf.length;i++){	
+												if (startsWith(conf[i],"fd_cap_mo= ")) 	{		print("fd_cap_mo= "+mem_fd_full);	print_mem = true;	}
+												else if (startsWith(conf[i],"hd_cap_mo= "))	{	print("hd_cap_mo= "+mem_hd_full);	print_mem = true;	}
+												else {	print(conf[i]);			}
+											}// for
+											if (print_mem == false) {
+												print("fd_cap_mo= "+mem_fd_full);
+												print("hd_cap_mo= "+mem_hd_full);
+											}
+										} // if
+										
+										if (isOpen("Log")) {
+											selectWindow("Log");
+											run("Text...","save=" +pathconfig+"\\uvp5_configuration_data.txt");
+											run("Text...","save=" +chem+"\\uvp5_configuration_data.txt");
+											run("Close");
+										}// if
+										// ------------- Relecture du fichier LOG ----------------------
+										open(log_file);
+										wait(100);
+										data = getInfo();
+										run("Close");
+										print(data);
+									} // if
+								} // for
+								time++;		wait(50);
+							} // while
+							essai++;	progress = essai/5;		showProgress(progress);		// showStatus("Testing that camera is ON");
+						}// while
+						stop_cam = 1;
+					} // else if delete
+					// ----------------------- "DOWNLOAD DATA from UVP5" ---------------------------------
+					else if (op == "DOWNLOAD DATA from UVP5") {
+						// --------------- Test remote folders -----------------
+						check_folder = true;
+						while (check_folder == true) {
+							loop_test = 0;
+							fd= false;
+							hd = false;
+							res2 = 1;
+							while (loop_test < 10) {
+								if (File.exists(fd_path)) {	loop_test = 100; fd = true;	}
+								wait(1000);
+								loop_test++;
+							}
+							loop_test = 0;
+							while (loop_test < 10) {
+								if (File.exists(hd_path)) {	loop_test = 100; hd = true;	}
+								wait(1000);
+								loop_test++;
+							}
+							if (fd == false && hd == false) {
+								res2 = getBoolean(fd_path +"\n and/or \n "+hd_path+"\ncould not be checked.\n \nCheck that remote UVP5 folders are connected \n \nCheck that you have the writing permission. \n \nPRESS OK to proceed \n \nPRESS NO to cancel download.\nDO NOT press CANCEL !!!");
+							}// if
+							if (res2 == 1 || res2 == 0) check_folder = false;
+						} // while
+						if (res2 == 1) { 
+							res = getBoolean("Profiles from : \n \n"+hd_path+"\n or/and \n"+fd_path+"\n \nwill be COPIED into : "+pathraw+"\n \nUse the dedicated tool to remove profiles from UVP5. \n \nPRESS OK to proceed. \n \nPRESS NO to abort. \nDO NOT press CANCEL !!!");
+							if (res == 1) {
+								// ------------------- COPIE des fichiers ----------------------------
+								arg_copie = "\\"+hd_path+" \\"+fd_path+" "+pathraw+" skip";
+								if (fd == false) arg_copie = "\\"+hd_path+" \\"+hd_path+" "+pathraw+" skip";
+								if (hd == false) arg_copie = "\\"+fd_path+" \\"+fd_path+" "+pathraw+" skip";
+								if (isOpen("Log")) {	selectWindow("Log");	run("Text...",textlog);	wait(100);	run("Close");		} // if
+								copie = runMacro("uvp5_copy_files.txt",arg_copie);
+								// ------------- Relecture du fichier LOG ----------------------
+								open(log_file);		wait(100);		data = getInfo();		run("Close");		print(data);
+								print("END of COPY");
+							}// if
+						} //if copie
+						stop_cam = 1;
+					} // 
+					// ----------------------- "SEND ACQUISITION and INI files to UVP5" ---------------------
+					else if (op == "SEND ACQUISITION and INI files to UVP5") {
+						res = getBoolean("ALL Configurations files from "+pathconfig+" \n \nwill replace files in \n \n"+modfile_path+" \n \nPRESS YES to procees \n \nPRESS NO to abort");
+						if (res == 1) {
+							print("Source= "+pathconfig);
+							print("Destination= "+modfile_path);
+							if (isOpen("Log")) {	selectWindow("Log");	run("Text...",textlog);	wait(100);	run("Close");		} // if
+							// ------------------- COPIE des fichiers ----------------------------
+							res2 = getBoolean("Check that remote UVP5 folders are connected \n \nCheck that you have the writing permission. \n \nPRESS OK to proceed \n \nPRESS NO to cancel");
+							arg_copie = pathconfig+" "+pathconfig+" \\"+modfile_path+" ini";
+							if (res2 == 1) {
+								copie = runMacro("uvp5_copy_files.txt",arg_copie);
+								// ------------- Relecture du fichier LOG ----------------------
+								open(log_file);
+								wait(100);
+								data = getInfo();
+								run("Close");
+								print(data);
+							}
+						}
+						stop_cam = 1;
+					}
+					// ------------------------- "GET ACQUISITION and INI files from UVP5" -------------------					
+					else if (op == "GET ACQUISITION and INI files from UVP5") {
+						res = getBoolean("ALL Configurations files from "+modfile_path+" \n \nwill replace files in \n \n"+pathconfig+" \n \nPRESS YES to procees \n \nPRESS NO to abort");
+						if (res == 1) {
+							print("Source= "+modfile_path);
+							print("Destination= "+pathconfig);
+							if (isOpen("Log")) {	
+								selectWindow("Log");
+								run("Text...",textlog);	
+								wait(100);
+								run("Close");		
+							} // if
+							// ------------------- COPIE des fichiers ----------------------------
+							showMessage("Check that remote UVP5 folders are connected and PRESS OK.");
+							arg_copie = modfile_path+" "+modfile_path+" "+pathconfig+" ini";
+							copie = runMacro("uvp5_copy_files.txt",arg_copie);
+							
+							// -------------------- Copie du fichier CONFIG du projet vers Zooprocess -----------------
+							// PENSER à ajouter le SN dans le fichier....
+							open(pathconfig+"\\uvp5_configuration_data.txt");
+							wait(100);
+							data_config = getInfo();
+							run("Close");
+							if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+							print(data_config);
+							// ------- SN -------------
+							if (indexOf(data_config,"sn=") < 0) print("sn= "+uvp_sn_txt);
+							text =  "save=" + chem+"\\uvp5_configuration_data.txt";
+							selectWindow("Log");
+							run("Text...",text);
+							run("Close");		
+							
+							// ------------- Relecture du fichier LOG ----------------------
+							open(log_file);
+							wait(100);
+							data = getInfo();
+							run("Close");
+							print(data);
+						}
+						stop_cam = 1;	
+					} // else if edit modfiles		
+
+				} // while
+				// ----------------------- ARRET CAMERA -----------------------------------------
+				print("=>  CAMERA being stopped NOW");
+				// showMessage("CAMERA being stopped NOW");
+				// -------------------- SHUTING DOWN CAMERA --------------------------------
+				sent_message = "S013EXITSOFT!";
+				ret_message = "C016EX";
+				stby = "failed";
+				essai = 0;
+				while (essai < 3) {
+					print("sent: "+sent_message);
+					Ext.write(sent_message);
+					// -------------------- EXIT SOFT ------------------------------------------------
+					time = 0;
+					while (time < 150) {
+						ff = Ext.read();
+						// -------------- Affichage messages UVP5 -------------------------
+						long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,16);	showStatus(status_message);	
+						if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	print("> CAMERA APPLICATION STOPPED");	}
+						time++;
+						wait(50);
+					} // while
+					essai++;			progress = essai/5;			showProgress(progress);
+				}// while
+				sent_message = "U016STOP_HD_CAM!";
+				ret_message1 = "V016CAM_STOPPED!";
+				ret_message2 = "V015HD_CAM_OFF!";
+				stby = "failed";
+				essai = 0;
+				while (essai < 2) {
+					print("sent: "+sent_message);
+					Ext.write(sent_message);
+					// -------------------- STOP CAMERA ------------------------------------------------
+					time = 0;
+					stop_time = 30;
+					if (uvp_sn_txt == "000" ) stop_time = 40;
+					while (time < 1500) {
+						ff = Ext.read();
+						// -------------- Affichage messages UVP5 -------------------------
+						if (indexOf(ff,"V092")>=0 || indexOf(ff,"C110")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}
+						else {	long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,long);	showStatus(status_message);	}
+						if (startsWith(ff,ret_message1) == 1 || startsWith(ff,ret_message2) == 1 ) {time = 100000;	essai = 5; stby = "passed";	}
+						time++;		wait(50);		progress = time/1500;		showProgress(progress);	showStatus("SHUTING DOWN CAMERA");
+					} // while
+					essai++;
+				}// while
+				// showMessage("CAMERA OFF");
+				print("CAMERA OFF");
+			} // TOOLS with CAMERA ON 
+			
+			// ------------------- LIGHT TEST -------------------------------------------------------------------------------------
+			if (op == "TURN ON UVP5 light (test / alignment)") {
+				// -------------------- POWER ON LIGHT ---------------------------------------------------
+				sent_message = 	"U024SET_OUTPUT_00000001!";	//	light
+				ret_message = 	"V027SET_OUTPUT_00000001_OK!";
+				essai = 1;
+				print("=> POWERING LIGHTS ");
+				while (essai < 3) {
+					Ext.write(sent_message);
+					print("sent: "+sent_message);
+					// -------------------- LIGHT OK ------------------------------------------------
+					time = 0;
+					while (time < 100) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+						time++;
+					wait(50);
+					} // while
+					print("UVP5 LIGHT POWERED");	essai++;			progress = essai/5;				showProgress(progress);
+				}// while
+				// -------------------- START FLASHING -------------------------------------------------
+				sent_message = 	"U024SET_OUTPUT_00000101!";	//	light + HDD
+				ret_message = 	"V027SET_OUTPUT_00000101_OK!";
+				essai = 1;
+				print("=> START LIGHTS for 30s");
+				while (essai < 3) {
+					Ext.write(sent_message);
+					print("sent: "+sent_message);
+					// -------------------- LIGHT Flashing OK ------------------------------------------------
+					time = 0;
+					while (time < 100) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+						time++;
+					wait(50);
+					} // while
+					print("UVP5 LIGHT ON for 30s");	essai++;			progress = essai/5;				showProgress(progress);
+				}// while
+				// ----------------------------- WAIT 30s ------------------------------------------------
+				for (r = 1;r < 31; r++ ) {	wait(1000); showProgress(r/31);		}//
+				// ----------------------------- ARRET ----------------------------------------
+				sent_message = 	"U024SET_OUTPUT_00000000!";	//	light + HDD
+				ret_message = 	"V027SET_OUTPUT_00000000_OK!";
+				essai = 1;
+				print("=> STOP LIGHT and POWER OFF");
+				while (essai < 3) {
+					Ext.write(sent_message);
+					print("sent: "+sent_message);
+					// -------------------- LIGHT OFF ------------------------------------------------
+					time = 0;
+					while (time < 100) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+						time++;
+					wait(50);
+					} // while
+					print("UVP5 LIGHT FLASHING for 30s");	essai++;			progress = essai/5;				showProgress(progress);
+				}// while	
+			} // light test
+			// ----------------- Maintenance Event.log --------------------------
+			else if (op == "Event.log maintenance") {
+				// UVP5 est en mode STBY
+				// ------------- Boucle réception "c:>" ------------
+				c_recept = "nok";
+				while (c_recept == "nok") {
+					// ------------- Arrêt Power ------------
+					aa = showMessage("PLEASE TURN OFF UVP5 power ");
+					for (t=0; t<10; t++) { wait(1000); progress = (10-t)/10; showProgress(progress); showStatus("WAIT : "+progress); 	}//
+					// ------------- Power ON ------------
+					aa = showMessage("PLEASE TURN ON UVP5 power ");
+					// ------------- envoi "q" -----------
+					sent_message = 	"q";	//	light + HDD
+					ret_message = 	"C:>";
+					essai = 1;
+					print("=> Sending ''q'' ");
+					while (essai < 5) {
+						Ext.write(sent_message);
+						print("sent: "+sent_message);
+						time = 0;
+						while (time < 100) {
+							ff = Ext.read();
+							long = minOf(lengthOf(ff),20);				status_message = substring(ff,0,long);				showStatus(status_message);
+							if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  c_recept = "ok";}
+							time++;
+							wait(50);
+						} // while
+					}// while
+					if (c_recept == "nok") { 
+						aa = getBoolean("Pilot module could not get correct response from UVP5. \n \nPress YES to try again.\nPress No to abort maintenance.");
+						if (aa == 0) c_recept = "abort";
+					} // if
+				} // while
+				if (c_recept == "ok") {
+					// -------------- Lecture de la taille du event.log ----------------------
+					sent_message = 	"dir";	//	light + HDD
+					ret_message = 	"event.log";
+					essai = 1;
+					print("=> Sending ''q'' ");
+					while (essai < 5) {
+						Ext.write(sent_message);
+						print("sent: "+sent_message);
+						time = 0;
+						while (time < 100) {
+							ff = Ext.read();
+							ff_v = split(ff,"\n");
+							for (h = 0 ; h < ff_v.length ; h++) {
+								ff = ff_v[h];
+								long = minOf(lengthOf(ff_v),20);		status_message = substring(ff_v,0,long);			showStatus(status_message);
+								if (indexOf(ff_v,ret_message)>=0) {		time = 100000;	essai = 6;  	}
+							}// for
+							time++;
+						} // while
+						essai++;
+						wait(50);
+					}// while
+					if (essai == 6 ) {
+						// ------------ Calcul taille event.log ----------------
+						
+						
+						
+						
+						
+						
+						
+						
+						print("Event.log file size : "+event_size+"Octets");
+						if (event_size > 90000) showMessage("Event.log file size is too large. File should now be deleted.");
+					}// if
+					else {	showMessage("Event.log size could not be read.");	}
+
+					sortie = false;
+					while (sortie == false) {
+						// ------------- Choix effacement / copie -------------
+						list = newArray("Do nothing (else)","DELETE EVENT.LOG file","Get Copy of EVENT.LOG file");
+						Dialog.create("EVENT LOG MAINTENANCE");							
+						Dialog.addMessage("------------------------------------------------------------------");
+						Dialog.addMessage("     SELECT option      ");
+						Dialog.addChoice("       ", list);
+						Dialog.addMessage("------------------------------------------------------------------");
+						Dialog.show();
+						event_choice = Dialog.getChoice();
+						
+						if (event_choice == list[1]) {
+							// ------------- effacement log ------------
+							print("> Deleting Event.log");
+							sent_message = 	"del event.log\n";	
+							Ext.write(sent_message);
+							print("sent: "+sent_message);
+							wait(1000);
+							sortie = true;	
+						}
+						else if (event_choice == list[2]){
+							// ------------- COPIE ---------------------
+							// --------------------- Enregistrement log precedent ----------------
+							if (isOpen("Log")) {		
+								selectWindow("Log");
+								run("Text...",textlog);	
+								wait(100);
+								run("Close");								
+							} // if
+							print("> Recording Event.log");
+							sent_message = 	"type event.log\n";	
+							Ext.write(sent_message);
+							print("sent: "+sent_message);
+							wait(1000);
+							
+							// ------------------------ Sauvegarde event.log -----------------------
+							event_log_file =  pathlog+"\\event_log_"+dateheure+".txt";
+							textlog_file = "save=" + event_log_file;
+							showMessage("Event.log file being read in LOG window. \n \nPress OK when writing is complete (stopped).");
+							run("Text...",textlog_file);	
+							wait(100);
+							run("Close");
+							
+							// ------------- Relecture du fichier LOG ----------------------
+							open(log_file);
+							wait(100);
+							data = getInfo();
+							run("Close");
+							print(data);
+							print("Event.log file saved now in "+event_log_file);
+						}
+						else { sortie = true;		}
+					}// while
+					// ------------ Envoi "app" -------------
+					sent_message = 	"app\n";
+					essai = 1;
+					print("=> Sending ''q'' ");
+					while (essai < 5) {
+						Ext.write(sent_message);
+						print("sent: "+sent_message);
+						wait(7000);	showStatus("Waiting 7 seconds");
+						time = 1;
+						while (time < 501) {
+							ff = Ext.read();
+							ff_v = split(ff,"\n");
+							for (h = 0; h < ff_v.length ; h++ ) {
+								ff = ff_v[h];
+								if (lengthOf(ff) >20)	{	long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,long);	}
+								else {status_message = "No UVP message on com"+comport+"  Check UVP5 is ON or just WAIT !";	}
+								else if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 )	 {	
+									time = 100000; 	
+									message = runMacro("uvp5_show_status_messages.txt",ff);
+									print("Message V092... UVP running now ");	
+								}
+							}
+							time++;		wait(50);	progress = time/501;		showProgress(progress);		showStatus("Checking COM"+comport+" for messages");
+						} // while
+						essai++;
+					}// end	
+				}
+				// -------------------- STANDBY ---------------------------------------------------
+				stby = "failed";
+				test = "failed";
+				essai = 1;
+				sent_message = "U013STBY_PRG!";
+				ret_message = "V012STBY_OK!";
+				print("=> TRYING TO STANDBY UVP5");
+				while (essai < 3) {
+					Ext.write(sent_message);
+					print("sent: "+sent_message);
+					// -------------------- STANDBY OK ------------------------------------------------
+					time = 0;
+					while (time < 200) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5; stby = "passed"; }
+						time++;
+						wait(50);
+					} // while
+					print("UVP STBY_OK messages received");	essai++;			progress = essai/5;				showProgress(progress);
+				}// while
+				
+			}//
+			//-------------------- "READ / PROGRAM sequences" ---------------------------------------------------------------------
+			else if (op == "READ / PROGRAM sequences") {
+				// -------------------- Lecture des séquences en mémoire ----------------------------------------
+				stby = "failed";
+				// V051GET_0000_0001_000000_D_0000000015_D_0000006000!
+				essai = 1;
+				sent_message = "U013READ_SEQ!";
+				ret_message = "V051GET_";
+				n_seq = 0;
+				seq_list = newArray(1000);
+				seq_nb = newArray(1000);
+				seq_message = "SEQUENCES programmed in UVP5 : \n \n";
+				print("=> READING SEQUENCES PROGRAMMED IN UVP5 ");
+				print("sent: "+sent_message);
+				Ext.write(sent_message);
+				// -------------------- OK ------------------------------------------------
+				time = 0;
+				print_seq = true;
+				while (time < 300) {
+					ff = Ext.read();
+					ff_v = split(ff,"\n");
+					for (h = 0 ; h < ff_v.length ; h++) {
+						ff = ff_v[h];
+						if (indexOf(ff,ret_message)>=0) {
+							//	ff = "V051GET_0000_0001_000000_D_0000000015_D_0000006000!"
+							ee = substring(ff,8,lengthOf(ff)-1);
+							if (print_seq == true) { print("ret : "+ee);	print_seq = false;	} 
+							a = replace(ee,"_"," ");
+							a = split(a," ");
+							n_seq_tot = a[1];
+							n_seq_tot = parseInt(n_seq_tot);														
+							t = 0;
+							test = 1;
+							while (t < 100 ) {
+								if (ee == seq_list[t]) { test = 0; t = 1000;	}
+								t++;
+							}
+							if (test == 1 ){	
+								seq_message = seq_message + ee +"\n";
+								seq_list[n_seq] = ee;
+								seq_nb[n_seq] = a[0];
+								n_seq++;
+								stby = "passed";
+								long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,long);	showStatus(status_message);
+							}
+						}
+					}					
+					time++;
+					wait(50);
+				}
+				if (stby == "passed") {		print("ALL UVP SEQUENCE messages received");	}
+				else {				print("Pilot could not read sequence messages from UVP5 pilot board.");	
+					aa = getBoolean("It maybe time now to delete the event.log file. \n \nCheck UVP5 Manual for procedure ! \nPress YES to continue.");
+				}
+
+				// ------------- Nettoyage des vecteurs -------------------------------------------
+				seq_messages_red = 	newArray(n_seq);
+				seq_nb_red = 		newArray(n_seq);
+				for (l=0;l<n_seq;l++) { cc = seq_list[l];	seq_messages_red[l] = cc;	cc = seq_nb[l];		seq_nb_red[l] = cc;	}
+				// ------------- PROCEDURE --------------------------------------------------------
+				Dialog.create("UVP5 SEQUENCE MODULE   ");
+				seq_options = newArray("DO NOT MODIFY","DEPTH sequence","I/O sequence","TIME (unique) sequence","TIME (multiple) sequences");
+				Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+				Dialog.addMessage(" "+n_seq+" sequence programmed");
+				Dialog.addMessage("DEPTH and I/O sequences will be repeated as many time criteria match");
+				Dialog.addMessage(seq_message);
+				Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+				Dialog.addMessage("Unless you choose ''DO NOT MODIFY'', ALL programmed sequences \nwill be DELETED and replaced by the NEW SEQUENCE");
+				Dialog.addMessage("SELECT OPERATION from the list.             ");
+				Dialog.addChoice("      Program ", seq_options);
+				Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+				Dialog.show();
+				seq_op = Dialog.getChoice();
+				if (seq_op == "TIME (multiple) sequences") {		showMessage("NOT YET PROGRAMMED !");	}// 				
+				if (seq_op != "TIME (multiple) sequences" && seq_op != "DO NOT MODIFY") {
+					// -------------- Effacement des séquences SAUF la première -----------------
+					for (l=1;l<n_seq;l++) {
+						seqnb = seq_nb_red[l];
+						sent_message = "U014SUPP_"+seqnb+"!";
+						ret_message = "V017SUPP_"+seqnb+"_OK!";
+						print("sent: "+sent_message);
+						essai = 1;
+						test = "passed";
+						while (essai < 5) {
+							// ------------- Ecriture du message sur le com ---------------------------
+							Ext.write(sent_message);
+							time = 0;						
+							while (time < 10000) {
+								// ----------- Attente reception message --------------------------
+								ff = Ext.read();
+								long = minOf(lengthOf(ff),20);
+								status_message = substring(ff,0,long);
+								showStatus(status_message);
+								if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+								if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+								time++;
+								wait(50);
+							} // while
+							if (test == "passed"){	print("ret: "+sent_message);	}
+							if (test == "failed"){	print("ret: "+ff);	}
+							essai++;
+							progress = essai/5;
+							showProgress(progress);
+						}// while
+					} // for
+					// ---------------------- Création du message ----------------------
+					criteria_short = newArray("D","A","I","H");
+					start_criteria = 	newArray("x","Descent","Ascent","Input/output","Time");
+					stop_criteria = 	newArray("x","Descent","Ascent","Input/output","Time");			
+					start_val 	= "0000000000";
+					stop_val 	= "0000000000";
+					control = 0;
+					if (n_seq > 0) {
+						// ----------- Recupération des paramètres existants dans l'UVP5 ---------------
+						seq_txt = seq_list[0];
+						a = replace(seq_txt,"_"," ");
+						a = split(a," ");
+						modfile = a[2];
+						start_c = a[3];
+						for (b = 0; b < 4;b++) { if (start_c == criteria_short[b]) start_c = start_criteria[b+1];	}
+						start_v = a[4];
+						stop_c = a[5];
+						for (b = 0; b < 4;b++) { if (stop_c == criteria_short[b]) stop_c = stop_criteria[b+1];		}						
+						stop_v = a[6];
+					}
+//					else {	
+						// -------------------- MODFILE list ----------------------
+//						config_list = getFileList(pathconfig);
+//						file_list = newArray(config_list.length);
+//						m = 0;
+//						for (g = 0 ; g < config_list.length ; g++ ) {
+//							file = config_list[g];
+//							if (lengthOf(file) == 10 && endsWith(file,".ini")) {	file_list[m] = substring(file,0,6); 	m++;	} // if
+//						}
+//						mod_list = newArray(m+1);
+//						for (g = 1 ; g < m+1 ; g++ ) { rr = file_list[g-1];	mod_list[g] = rr;	}
+//						modfile = mod_list[1];
+//						start_c = "D";
+//						stop_c = "D";						
+//						start_v = 	"0000000015";
+//						stop_v = 	"0000006000";
+//					} // else
+					// -------------------- MODFILE list ----------------------
+					config_list = getFileList(pathconfig);
+					file_list = newArray(config_list.length);
+					m = 0;
+					for (g = 0 ; g < config_list.length ; g++ ) {
+						file = config_list[g];
+						if (lengthOf(file) == 10 && endsWith(file,".ini")) {	file_list[m] = substring(file,0,6); 	m++;	} // if
+					}
+					mod_list = newArray(m+1);
+					for (g = 1 ; g < m+1 ; g++ ) { rr = file_list[g-1];	mod_list[g] = rr;	}
+					start_criteria[0] = start_c;
+					stop_criteria[0] = stop_c;
+					if (seq_op == "TIME (unique) sequence") {
+						start_criteria[0] = "Time";
+						stop_criteria[0] = "Time";
+					}
+					else if (seq_op == "I/O sequence") {
+						start_v = 	"0000000000";
+						stop_v = 	"0000000000";
+						start_criteria[0] = "Input/output";
+						stop_criteria[0] = "Input/output";
+					}
+					else if (seq_op == "DEPTH sequence") {
+						start_v = 	"0000000015";
+						stop_v = 	"0000006000";
+						start_criteria[0] = "Descent";
+						stop_criteria[0] = "Descent";
+					}
+					while (control == 0){
+						message = "Check values \n \n";
+						mod_list[0] = modfile;
+						Dialog.create("UVP5 SEQUENCE MODULE   ");
+						Dialog.addMessage("---------------------------------------------------------------------------      ");
+						Dialog.addChoice("      Select START Criteria ", start_criteria);
+						Dialog.addMessage("---------------------------------------------------------------------------      ");
+						Dialog.addChoice("      Select STOP Criteria ", stop_criteria);
+						Dialog.addMessage("---------------------------------------------------------------------------      ");
+						Dialog.addChoice("        Select Camera modfile ",mod_list);
+						Dialog.addMessage("---------------------------------------------------------------------------      ");						
+						Dialog.show();
+						start_crit = 	Dialog.getChoice();	
+						stop_crit = 	Dialog.getChoice();
+						modfile = 		Dialog.getChoice();
+						if (start_crit == "Ascent" || start_crit == "Descent") {
+							// ------------ Programmation DEPTH --------------------------------------------------------------------
+							if (stop_crit != "Ascent" && stop_crit != "Descent") {	showMessage("Ending criteria is not based on DEPTH");	}
+								else {	
+								Dialog.create("UVP5 DEPTH SEQUENCE MODULE   ");
+								Dialog.addMessage("---------------------------------------------------------------------------      ");
+								start_mes = "      Enter START "+start_crit+" Depth (m)";
+								stop_mes = "      Enter STOP "+stop_crit+" Depth (m)";
+								Dialog.addNumber(start_mes,start_v);
+								Dialog.addMessage("---------------------------------------------------------------------------      ");
+								Dialog.addNumber(stop_mes,stop_v);
+								Dialog.addMessage("---------------------------------------------------------------------------      ");	
+								Pressure_Pre_Po = parseInt(Pressure_Pre_Po);
+								Dialog.addNumber("       Enter delta Z for camera start (m)",Pressure_Pre_Po);
+								Dialog.addMessage("---------------------------------------------------------------------------      ");
+								Dialog.show();	
+								start_val = 		Dialog.getNumber();
+								stop_val = 		Dialog.getNumber();									
+								Pressure_Pre_Po = 	Dialog.getNumber();
+								Pressure_Pre_Po = toString(Pressure_Pre_Po);
+								start_val = parseInt(start_val);
+								start_val = minOf(start_val,6000);
+								start_val = maxOf(start_val,0);
+								start_val = toString(start_val);
+								stop_val = parseInt(stop_val);
+								stop_val = minOf(stop_val,6000);
+								stop_val = maxOf(stop_val,0);
+								stop_val = toString(stop_val);
+								// --------- Formatage --------------
+								if (lengthOf(start_val) < 2) 		start_val = "000000000"+start_val;
+								else if (lengthOf(start_val) < 3) 	start_val = "00000000"+start_val;
+								else if (lengthOf(start_val) < 4) 	start_val = "0000000"+start_val;
+								else {					start_val = "000000"+start_val;	}
+								if (lengthOf(stop_val) < 2) 		stop_val = "000000000"+stop_val;
+								else if (lengthOf(stop_val) < 3) 	stop_val = "00000000"+stop_val;
+								else if (lengthOf(stop_val) < 4) 	stop_val = "0000000"+stop_val;
+								else {					stop_val = "000000"+stop_val;	}
+								control = 1;
+							}	
+						}
+						else if (start_crit == "Time" || start_crit == "Time") {
+							// ---------------------- Programmation TIME ----------------------------------------
+							aa = getBoolean("TIME selected : \n \nUVP will go to SLEEP mode from now to STARTING TIME. \n \nIt maybe difficult to wake it up. \n \nYOU can also activate the SURVEY mode. \n \nPRESS YES to program \n \nPRESS NO to abort.");
+							if (aa == 1) {
+								start_crit = "Time";
+								start_crit = "Time";
+								start_time = "000000";
+								stop_time = "000000";
+								month= newArray("01","02","03","04","05","06","07","08","09","10","11","12");
+								day = newArray("01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","21","22","23","24","25","26","27","28","29","30","31");
+								criteria = 0;
+								while ( criteria == 0) {
+									Dialog.create("UVP5 TIME (single) SEQUENCE MODULE   ");
+									Dialog.addMessage("---------------------------------------------------------------------------      ");
+									Dialog.addChoice(" STARTING MONTH (MM)" ,month);
+									Dialog.addChoice(" STARTING DAY (DD)" ,day);
+									Dialog.addString(" STARTING TIME (HHMMSS)" ,start_time);
+									Dialog.addMessage("---------------------------------------------------------------------------      ");
+									Dialog.addChoice(" ENDING MONTH (MM)" ,month);
+									Dialog.addChoice(" ENDING DAY (DD)" ,day);
+									Dialog.addString(" ENDING TIME (HHMMSS)" ,stop_time);
+									Dialog.addMessage("---------------------------------------------------------------------------      ");
+									Dialog.show();
+									criteria = 1;
+									start_month = 		Dialog.getChoice();
+									start_day = 		Dialog.getChoice();
+									start_time = 		Dialog.getString();
+									if (lengthOf(start_time) != 6 ) {showMessage("Start time "+start_time+" is wrong !");	criteria = 0;}
+									stop_month = 		Dialog.getChoice();
+									stop_day = 		Dialog.getChoice();
+									stop_time = 		Dialog.getString();
+									if (lengthOf(stop_time) != 6 ) {showMessage("Start time "+stop_time+" is wrong !");	criteria = 0;}
+									start_val = 	start_month+start_day+start_time;
+									stop_val = 	stop_month+stop_day+stop_time;
+								}
+								control = 1;
+							} //
+							if (aa == 0 ) showMessage("TIME programming ABORTED");
+						}// else if T
+						else { control = 1;}
+					} // while control
+					// --------------- Message à envoyer ----------------------------------------------------------------------
+					for (b = 0; b < 4;b++) { 
+						if (start_crit == start_criteria[b+1])	start_crit = criteria_short[b]; 	
+					}
+					for (b = 0; b < 4;b++) { 
+						if (stop_crit == stop_criteria[b+1])	stop_crit = criteria_short[b]; 	
+					}
+					sent_message = "U050SET_SEQ_0000_"+modfile+"_"+start_crit+"_"+start_val+"_"+stop_crit+"_"+stop_val+"!";
+					res = getBoolean("SENT message : \n \n"+sent_message+" \n \nPRESS YES if correct, \nPRESS NO if wrong. ");
+					if (res == 1) {	control = 1;	}
+					
+					// ----------------- ENVOI de la programmation --------------------------------------
+					stby = "failed";
+					essai = 1;
+					ret_message = "V020SET_SEQ_0000_OK!";
+					// V020SET_SEQ_0000_OK!
+					print("sent: "+sent_message);
+					while (essai < 5) {
+						Ext.write(sent_message);
+						// -------------------- OK ------------------------------------------------
+						time = 0;
+						while (time < 500) {
+							ff = Ext.read();
+							long = minOf(lengthOf(ff),20);
+							status_message = substring(ff,0,long);
+							showStatus(status_message);			
+							if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	}
+							if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+							time++;
+							wait(50);
+						} // while
+						//	print(essai);
+						print("ret: "+ff);
+						essai++;
+						progress = essai/5;
+						showProgress(progress);
+					}// while
+					if (stby == "failed") {showMessage("PROGRAMING FAILED");}
+					else {	
+						showMessage("SEQUENCE PROGRAMMED \nUpturn flag being set now !");		
+						long = lengthOf(DeltaP_Upturn_Flag);
+						if (long == 1) zzzz = "000"+DeltaP_Upturn_Flag;
+						if (long == 2) zzzz = "00"+DeltaP_Upturn_Flag;
+						if (long == 3) zzzz = "0"+DeltaP_Upturn_Flag;
+						survey = 0;
+						upturn = Upturn_Flag;
+						if (start_crit == "T") survey = getBoolean("TIME PROGRAM. \n \nPRESS YES to activate SURVEY mode \n \nPRESS NO to let UVP SLEEP. ");
+						if (stop_crit == "I" || stop_crit == "T"){
+							res = getBoolean("ENDING CRITERIA is "+stop_crit+" \n \nPRESS YES to DISABLE UPTURN Flag (recommended), \n \nPRESS NO to ENABLE.");
+							if (res == 1) upturn = "0";
+							else {upturn = "1";}
+						}
+						else if (stop_crit == "D" || stop_crit == "A") {
+							res = getBoolean("ENDING CRITERIA is "+stop_crit+" \n \nPRESS YES to ENABLE UPTURN Flag (recommended), \n \nPRESS NO to DISABLE.");
+							if (res == 1) upturn = "1";
+							else {upturn = "0";}
+						}
+						if (start_crit == "A" || start_crit == "D") {
+							// ---------------- PREPOS (Boot) -------------------
+							long = lengthOf(Pressure_Pre_Po);
+							if (long == 1) pppp = "000"+Pressure_Pre_Po;
+							if (long == 2) pppp = "00"+Pressure_Pre_Po;
+							if (long == 3) pppp = "0"+Pressure_Pre_Po;				
+							sent_message = "U019SET_PPREP_"+pppp+"!";
+							ret_message = "V017SET_PPREP_OK!";
+							print("sent: "+sent_message);
+							essai = 0;
+							test = "failed";
+							while (essai < 5) {
+								Ext.write(sent_message);
+								// -------------------- PREPOS OK ------------------------------------------------
+								time = 0;
+								while (time < 500) {
+									ff = Ext.read();
+									long = minOf(lengthOf(ff),20);
+									status_message = substring(ff,0,long);
+									showStatus(status_message);			
+									if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	}
+									if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+									time++;
+									wait(50);
+								} // while
+								print("ret: "+ff);
+								essai++;
+								progress = essai/5;
+								showProgress(progress);
+							}// while
+							if (stby == "passed") showMessage("PREPOSITIONING SET to "+Pressure_Pre_Po+" (m) ");
+							if (stby == "failed") showMessage("PREPOSITIONING SET FAILED.");	
+						} // depth
+						// ---------------- UPTURN -------------------
+						sent_message = "U020SET_FLAG_"+upturn+"_"+zzzz+"!";
+						ret_message = "V016SET_FLAG_OK!";
+						print("sent: "+sent_message);
+						essai = 0;
+						stby = "failed";
+						while (essai < 5) {
+							Ext.write(sent_message);
+							// -------------------- UPTURN OK ------------------------------------------------
+							time = 0;
+							while (time < 500) {
+								ff = Ext.read();
+								long = minOf(lengthOf(ff),20);
+								status_message = substring(ff,0,long);
+								showStatus(status_message);			
+								if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	}
+								if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+								time++;
+								wait(50);
+							} // while
+							print("ret: "+ff);
+							essai++;
+							progress = essai/5;
+							showProgress(progress);
+						}// while
+						if (stby == "passed") {
+							// --------------------- Impression ----------------------------------
+							if (isOpen("Log")) {		
+								selectWindow("Log");
+								run("Text...",textlog);	
+								wait(100);
+								run("Close");								
+							} // if
+							print("PilotBR= "+PilotBR);
+							print("comport= "+comport);
+							print("databits= "+databits);
+							print("stopbits= "+stopbits);
+							print("parity= "+parity);
+							print("Pressure_Filter_Nb= "+Pressure_Filter_N);
+							print("Presure_Filter_Thres= "+Presure_Filter_Thres);
+							print("Pressure_Pre_Pos= "+Pressure_Pre_Po);
+							print("Pmin= "+Pmin);
+							print("DeltaP_Upturn_Flag= "+DeltaP_Upturn_Flag);
+							print("Upturn_Flag= "+upturn);
+							print("Battery_Threshold= "+Battery_Threshold);
+							print("Temperature_Threshold= "+Temperature_Threshold);
+							print("CNA_Ind= "+CNA_Ind);
+							print("CNA_s= "+CNA_s);
+							print("CNA_o= "+CNA);
+							print("hd_path= "+hd_path);
+							print("fd_path= "+fd_path);
+							print("modfile_path= "+modfile_path);
+	
+							// ------------------------ Sauvegarde -----------------------
+							selectWindow("Log");
+							text =  "save=" + openconfig;
+							run("Text...",text);	
+							wait(100);
+							run("Close");
+							showMessage("UPTURN FLAG SET to "+upturn+" at "+DeltaP_Upturn_Flag+" m ");
+							// ------------- Relecture du fichier LOG ----------------------
+							open(log_file);
+							wait(100);
+							data = getInfo();
+							run("Close");
+							print(data);
+						}
+						if (stby == "failed") showMessage("UPTURN FLAG setting FAILED.");
+						if (start_crit == "Time"){
+							// ----------------- SURVEY ------------------------------------------
+							stby = "failed";						
+							if (survey == 1) {
+								sent_message = "U013SET_SURV!";
+								ret_message = "V016SET_SURV_OK!";
+								print("sent: "+sent_message);
+								essai = 0;
+								while (essai < 5) {
+									Ext.write(sent_message);
+									// -------------------- SURVEY OK ------------------------------------------------
+									time = 0;
+									while (time < 500) {										
+										ff = Ext.read();
+										long = minOf(lengthOf(ff),20);
+										status_message = substring(ff,0,long);
+										showStatus(status_message);			
+										if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; stby = "passed";	print("ret: "+ff+"  passed");}
+										if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  stby = "failed";		print("ret: "+ff+"  failed");}
+										time++;
+										wait(50);										
+									} // while
+									print("ret: "+ff);
+									essai++;			progress = essai/5;		showProgress(progress);
+								}// while
+								//if (stby == "passed") showMessage("SURVEY MODE ENABLED \n \nV092 messages being sent ");
+								//if (stby == "failed") showMessage("SURVEY MODE DISABLED. \n \nUVP5 will turn to SLEEP mode");	
+							}// survey
+						} //start_criteria
+					} // if stop_criteria										
+				} // if seq_op		
+			} // if	read write sequence
+			else if (op == "Set GAIN for ANALOG output") {
+				CNA = parseInt(CNA);
+				cna_test = 0;
+				while (cna_test == 0) {
+					CNA_s = parseInt(CNA_s);
+					max_part = round(img_vol*(5000/0.25 - CNA)/CNA_s);
+					Dialog.create("UVP5 ANALOG OUTPUT ADJUSTMENT MODULE   ");
+					Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------------      ");
+					Dialog.addMessage(" Image volume (L) : "+parseFloat(img_vol));
+					Dialog.addMessage(" Actual GAIN in uvp5_configuration_file.txt : "+CNA_s);
+					Dialog.addMessage(" Corresponding particle maximum concentration at 5 Vdc (#/L) : "+max_part);	
+					Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------------      ");
+					Dialog.addNumber("               Enter new particle maximum concentration (#/L) ",max_part);	
+					Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------------      ");
+					Dialog.addCheckbox(" CREATE corresponding SEABIRD XML sensor file to be imported in the SEABIRD tools ? ",true);	
+					Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------------      ");
+					Dialog.show();
+					max_part = Dialog.getNumber();
+					sbe_file = Dialog.getCheckbox();
+					max_part = parseInt(max_part);
+					CNA_s = (20000/max_part) * img_vol - CNA;
+					CNA_s = round(CNA_s);	
+					max_part = round(img_vol*(5000/0.25 - CNA)/CNA_s);
+					// ------------- Arrondi --------------------------------------------------	
+					CNA_s = toString(CNA_s);
+					cna_test = getBoolean("Calculated gain : "+CNA_s+"\nAssociated particle maximum concentration : "+max_part+"\nHigher concentrations will only saturate the output at 5 Volts. \n \nPress YES to send to UVP5 \nPress NO to change maximum concentration");
+				} // while				
+				CNA = toString(CNA);
+				// ------------- Enregistrement du LOG --------------------------------
+				if (isOpen("Log")) {	selectWindow("Log");	run("Text...",textlog);		wait(100);	run("Close");		} // if
+				// ------------- Fichier XML pour SeaBird ---------------------------------
+				if (sbe_file == true) {
+					A1 = max_part / 5;
+					Offset_analog = 0.0145;
+					A0 = A1 * Offset_analog;
+					A2 = 0;
+					A3 = 0;
+					print("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+					print("<UserPolynomialSensor SensorID=\"61\" SB_ConfigCTD_FileVersion=\"7.23.0.1\" >");
+					print("  <SerialNumber>"+uvp_sn_txt+"</SerialNumber>");
+					print("  <CalibrationDate>YYYYMMDD</CalibrationDate>");
+					print("  <SensorName>UVP5</SensorName>");
+					print("  <A0>"+A0+"</A0>");
+					print("  <A1>"+A1+"</A1>");
+					print("  <A2>"+A2+"</A2>");
+					print("  <A3>"+A3+"</A3>");
+					print("</UserPolynomialSensor>");
+					// ------------------ Sauvegarde -----------------------
+					selectWindow("Log");
+					text =  "save=" + pathconfig+"\\uvp5_"+uvp_sn_txt+"SBE_configuration_file_"+dateheure+".XML";
+					run("Text...",text);	
+					wait(100);
+					run("Close");					
+					showMessage("SEABIRD XML configuration file \n \n''uvp5_"+uvp_sn_txt+"SBE_configuration_file_"+dateheure+".XML'' \n \nsaved in : \n"+pathconfig);
+				}// if
+				
+				// ------------- Ecriture du nouveau fichier de configuration -------------
+				if (isOpen("Log")) {	selectWindow("Log");	run("Close");		} // if
+				print("PilotBR= "+PilotBR);
+				print("comport= "+comport);
+				print("databits= "+databits);
+				print("stopbits= "+stopbits);
+				print("parity= "+parity);
+				print("Pressure_Filter_Nb= "+Pressure_Filter_N);
+				print("Presure_Filter_Thres= "+Presure_Filter_Thres);
+				print("Pressure_Pre_Pos= "+Pressure_Pre_Po);
+				print("Pmin= "+Pmin);
+				print("DeltaP_Upturn_Flag= "+DeltaP_Upturn_Flag);
+				print("Upturn_Flag= "+Upturn_Flag);
+				print("Battery_Threshold= "+Battery_Threshold);
+				print("Temperature_Threshold= "+Temperature_Threshold);
+				print("CNA_Ind= "+CNA_Ind);
+				print("CNA_s= "+CNA_s);
+				print("CNA_o= "+CNA);
+				print("hd_path= "+hd_path);
+				print("fd_path= "+fd_path);
+				print("modfile_path= "+modfile_path);
+	
+				// ------------------------ Sauvegarde -----------------------
+				selectWindow("Log");
+				text =  "save=" + pathconfig+"\\uvp5_configuration_file.txt";
+				run("Text...",text);	
+				wait(100);				
+				// ------------------------ Sauvegarde racine -----------------------
+				selectWindow("Log");
+				text =  "save=" + chem+"\\uvp5_configuration_file.txt";
+				run("Text...",text);	
+				wait(100);
+				run("Close");
+								
+				// ------------- Relecture du fichier LOG ----------------------
+				open(log_file);		wait(100);	data = getInfo();	run("Close");		print(data);
+				
+				// ------------- Envoi de la valeur à l'UVP5 ------------------------------
+				long = lengthOf(CNA_s);
+				ssss = CNA_s;
+				print(">  New GAIN "+ ssss +" sent ");
+				if (long == 1) ssss = "000"+CNA_s;
+				if (long == 2) ssss = "00"+CNA_s;
+				if (long == 3) ssss = "0"+CNA_s;			
+				long = lengthOf(CNA);
+				oooo = CNA;
+				if (long == 1) oooo = "000"+CNA;
+				if (long == 2) oooo = "00"+CNA;
+				if (long == 3) oooo = "0"+CNA;						
+				sent_message = "U024SET_CNA_"+CNA_Ind+"_"+ssss+"_"+oooo+"!";
+				ret_message = "V027SET_CNA_"+CNA_Ind+"_"+ssss+"_"+oooo+"_OK!";
+				// --------------- Boucle d'envoi des messages --------------------
+				print("sent: "+sent_message);
+				essai = 1;
+				test = "passed";
+				while (essai < 5) {
+					// ------------- Ecriture du message sur le com ---------------------------
+					Ext.write(sent_message);
+					time = 0;						
+					while (time < 500) {
+						// ----------- Attente reception message --------------------------
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+						if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+						time++;
+						wait(50);
+					} // while
+					if (test == "failed"){	print("ret: "+sent_message);	}
+					if (test == "passed"){	print("ret: "+ff);	}
+					essai++;		progress = essai/5;			showProgress(progress);
+				}// while
+			}// if analog output
+
+			else if (op =="Synchronize UVP5 time with Computer time") {
+				// -------------------- Lecture HEURE PC ------------------------------------------
+				dateheuremmss =	runMacro("uvp5_get_time");
+				YYYY = substring(dateheuremmss,0,4);
+				MM= substring(dateheuremmss,4,6);
+				DD= substring(dateheuremmss,6,8);
+				HH= substring(dateheuremmss,9,11);
+				mm= substring(dateheuremmss,11,13);
+				SS= substring(dateheuremmss,13,15);
+				// ------------- PROCEDURE --------------------------------------------------------
+				Dialog.create("UVP5 TIME SYNCHRONISTATION MODULE   ");
+				Dialog.addMessage("COMPUTER TIME :   "+YYYY+"/"+MM+"/"+DD+" "+HH+":"+mm+":"+SS);
+				Dialog.addMessage("- Check that COMPUTER time is in UTC \n \n- Press YES");
+				Dialog.show();
+				essai = 1;
+				while (essai < 5) {
+					// -------------------- Lecture HEURE PC ------------------------------------------
+					dateheuremmss =	runMacro("uvp5_get_time");
+					YYYY = substring(dateheuremmss,0,4);
+					MM= substring(dateheuremmss,4,6);
+					DD= substring(dateheuremmss,6,8);
+					HH= substring(dateheuremmss,9,11);
+					mm= substring(dateheuremmss,11,13);
+					SS= substring(dateheuremmss,13,15);
+
+					// -------------------- ENVOI HEURE PC --------------------------------------------
+					// S033SET_TIME_YYYY_MM_DD_hh_mm_ss!
+					sent_message = "U033SET_TIME_"+YYYY+"_"+MM+"_"+DD+"_"+HH+"_"+mm+"_"+SS+"!";
+					ret_message = "V016SET_TIME_OK!";
+					print("=> SYNCHRONISING UVP5 TIME ON COMPUTER TIME");
+					print("sent: "+sent_message);
+					Ext.write(sent_message);
+					// -------------------- HEURE OK --------------------------------------------------
+					time = 0;
+					test = "failed";
+					while (time < 100) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) time = 100000;	essai = 5;	test = "passed";
+						if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+						time++;
+						wait(50);
+					} // while
+					if (test == "passed"){	print("ret: "+sent_message);	}
+					if (test == "failed"){	print("ret: "+ff);	}
+					essai++;		progress = essai/5;			showProgress(progress);
+				}// while
+				res = getBoolean("TIME ALREADY SET to : \n \n"+YYYY+"/"+MM+"/"+DD+" "+HH+":"+mm+":"+SS+"\n \nPRESS YES if OK \n \nPRESS NO to set time manually.");
+				if (res == 0) {
+					Dialog.create("UVP5 TIME Synchronisation MODULE   ");
+					Dialog.addMessage("---------------------------------------------------------------------------      ");
+					Dialog.addString(" YEAR (YYYY)" ,YYYY);
+					Dialog.addString(" MONTH (MM)" ,MM);
+					Dialog.addString(" DAY (DD)" ,DD);
+					Dialog.addString(" HOUR (HH)" ,HH);	
+					Dialog.addString(" MINUTES (mm)" ,mm);
+					Dialog.addString(" SECONDS (DD)" ,"00");						
+					Dialog.addMessage("---------------------------------------------------------------------------      ");
+					Dialog.addMessage("PRESS OK to send TIME to UVP5");						
+					Dialog.addMessage("---------------------------------------------------------------------------      ");
+					Dialog.show();
+					YYYY = Dialog.getString();
+					MM = Dialog.getString();
+					DD = Dialog.getString();
+					HH = Dialog.getString();
+					mm = Dialog.getString();
+					SS = Dialog.getString();
+					sent_message = "U033SET_TIME_"+YYYY+"_"+MM+"_"+DD+"_"+HH+"_"+mm+"_"+SS+"!";
+					ret_message = "V016SET_TIME_OK!";
+					print("sent: "+sent_message);
+					Ext.write(sent_message);
+					// -------------------- HEURE OK --------------------------------------------------
+					time = 0;
+					test = "failed";
+					while (time < 10000) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) time = 100000;	essai = 5;	test = "passed";
+						if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+						time++;
+						wait(50);
+					} // while
+					if (test == "passed"){	print("ret: "+sent_message);	}
+					if (test == "failed"){	print("ret: "+ff);	}
+					essai++;		progress = essai/5;			showProgress(progress);					
+				} // if saisie manuelle				
+			} // if time
+			else if (op =="SEND configuration to pilot board") {
+				// ------------- PROCEDURE --------------------------------------------------------
+				message = "CHECK configuration file settings BELOW    \n \n";
+				message = message+"PilotBR= "+PilotBR+"\n";
+				message = message+"comport= "+comport+"\n";
+				message = message+"databits= "+databits+"\n";
+				message = message+"stopbits= "+stopbits+"\n";
+				message = message+"parity= "+parity+"\n";
+				message = message+"Pressure_Filter_Nb= "+Pressure_Filter_N+"\n";
+				message = message+"Presure_Filter_Thres= "+Presure_Filter_Thres+"\n";
+				message = message+"Pressure_Pre_Pos= "+Pressure_Pre_Po+"\n";
+				message = message+"Pmin= "+Pmin+"\n";
+				message = message+"DeltaP_Upturn_Flag= "+DeltaP_Upturn_Flag+"\n";
+				message = message+"Upturn_Flag= "+Upturn_Flag+"\n";
+				message = message+"Battery_Threshold= "+Battery_Threshold+"\n";
+				message = message+"Temperature_Threshold= "+Temperature_Threshold+"\n";
+				message = message+"CNA_Ind= "+CNA_Ind+"\n";
+				message = message+"CNA_s= "+CNA_s+"\n";
+				message = message+"CNA_o= "+CNA+"\n";
+				message = message+"hd_path= "+hd_path+"\n";
+				message = message+"fd_path= "+fd_path+"\n";
+				message = message+"modfile_path= "+modfile_path+"\n";
+				config_data = split(config_ret," ");
+				message = message+"\n \nRESTART UVP5 and PILOT module if any Baud rate changed   \n \n";	
+				res = getBoolean(message+"Settings will be sent to UVP5. \n \nCheck that they are compatible with the programmed sequence. \n \nPRESS YES TO CONTINUE \n \nPRESS NO to ABORT and check configurations");
+				if (res == 1) {
+				// ------------------- CREATION des MESSAGES ---------------------				
+				config_sent_messages = newArray(8);
+				config_received_messages = newArray(8);
+				
+				va_set_message = "U014SVA_"+Battery_Threshold+"!";
+				va_set_ok = "V017SVA_"+Battery_Threshold+"_OK!";
+				config_sent_messages[0] = va_set_message;
+				config_received_messages[0] = va_set_ok;				
+						
+				long = lengthOf(CNA_s);
+				if (long == 1) ssss = "000"+CNA_s;
+				if (long == 2) ssss = "00"+CNA_s;
+				if (long == 3) ssss = "0"+CNA_s;			
+				long = lengthOf(CNA);
+				if (long == 1) oooo = "000"+CNA;
+				if (long == 2) oooo = "00"+CNA;
+				if (long == 3) oooo = "0"+CNA;						
+				cna_set_message = "U024SET_CNA_"+CNA_Ind+"_"+ssss+"_"+oooo+"!";
+				cna_set_ok = "V027SET_CNA_"+CNA_Ind+"_"+ssss+"_"+oooo+"_OK!";
+				config_sent_messages[1] = cna_set_message;
+				config_received_messages[1] = cna_set_ok;
+				
+				long = lengthOf(Temperature_Threshold);
+				if (long == 1) ttt = "00"+Temperature_Threshold;
+				if (long == 2) ttt = "0"+Temperature_Threshold;
+				tt_set_message = "U012STT_"+ttt+"!";
+				tt_set_ok = "V015STT_"+ttt+"_OK!";
+				config_sent_messages[2] = tt_set_message;
+				config_received_messages[2] = tt_set_ok;
+
+				long = lengthOf(DeltaP_Upturn_Flag);
+				if (long == 1) zzzz = "000"+DeltaP_Upturn_Flag;
+				if (long == 2) zzzz = "00"+DeltaP_Upturn_Flag;
+				if (long == 3) zzzz = "0"+DeltaP_Upturn_Flag;
+				flag_set_message = "U020SET_FLAG_"+Upturn_Flag+"_"+zzzz+"!";
+				flag_set_ok = "V016SET_FLAG_OK!";
+				config_sent_messages[3] = flag_set_message;
+				config_received_messages[3] = flag_set_ok;
+
+				long = lengthOf(PilotBR);
+				if (long == 3) qqqqqq = "000"+PilotBR;
+				if (long == 4) qqqqqq = "00"+PilotBR;
+				if (long == 5) qqqqqq = "0"+PilotBR;
+				baud_message = 	"U016BAUD_"+qqqqqq+"!";
+				baud_ok = 	"V019BAUD_"+qqqqqq+"_OK!";
+				config_sent_messages[4] = baud_message;
+				config_received_messages[4] = baud_ok;
+				
+				long = lengthOf(Pressure_Filter_N);
+				if (long == 1) nnnn = "000"+Pressure_Filter_N;
+				if (long == 2) nnnn = "00"+Pressure_Filter_N;
+				if (long == 3) nnnn = "0"+Pressure_Filter_N;			
+				long = lengthOf(Presure_Filter_Thres);
+				if (long == 1) ssss = "000"+Presure_Filter_Thres;
+				if (long == 2) ssss = "00"+Presure_Filter_Thres;
+				if (long == 3) ssss = "0"+Presure_Filter_Thres;				
+				pfilt_set_message = "U024SET_PFILT_"+nnnn+"_"+ssss+"!";
+				pfilt_set_ok = "V017SET_PFILT_OK!";
+				config_sent_messages[5] = pfilt_set_message;
+				config_received_messages[5] = pfilt_set_ok;
+
+				long = lengthOf(Pressure_Pre_Po);
+				if (long == 1) pppp = "000"+Pressure_Pre_Po;
+				if (long == 2) pppp = "00"+Pressure_Pre_Po;
+				if (long == 3) pppp = "0"+Pressure_Pre_Po;				
+				pprep_set_message = "U019SET_PPREP_"+pppp+"!";
+				pprep_set_ok = "V017SET_PPREP_OK!";
+				config_sent_messages[6] = pprep_set_message;
+				config_received_messages[6] = pprep_set_ok;
+				
+				long = lengthOf(Pmin);
+				if (long == 1) zzzz = "000"+Pmin;
+				if (long == 2) zzzz = "00"+Pmin;
+				if (long == 3) zzzz = "0"+Pmin;				
+				pmin_set_message = "U018SET_PMIN_"+zzzz+"!";	
+				pmin_set_ok = "V016SET_PMIN_OK!";	
+				config_sent_messages[7] = pmin_set_message;
+				config_received_messages[7] = pmin_set_ok;
+				// --------------- Boucle d'envoi des messages --------------------
+				for (t = 0;t<config_sent_messages.length;t++) {
+					// ------------ 4 essais -----------------
+					sent_message = 	config_sent_messages[t];
+					ret_message = 	config_received_messages[t];
+					print("sent: "+sent_message);
+					essai = 1;
+					test = "passed";
+					while (essai < 5) {
+						// ------------- Ecriture du message sur le com ---------------------------
+						Ext.write(sent_message);
+						time = 0;						
+						while (time < 10000) {
+							// ----------- Attente reception message --------------------------
+							ff = Ext.read();
+							long = minOf(lengthOf(ff),20);
+							status_message = substring(ff,0,long);
+							showStatus(status_message);
+							if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5;  }
+							if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	essai = 5;  test = "failed";	}
+							time++;
+							wait(50);
+						} // while
+						if (test == "passed"){	print("ret: "+sent_message);	}
+						if (test == "failed"){	print("ret: "+ff);	}
+						essai++;		progress = essai/5;			showProgress(progress);
+					}// while*
+					progress = t/config_sent_messages.length;	
+					showProgress(progress);
+				} // for
+				print("=>  ALL configuration messages sent ");
+				}// res
+			} // else if configuration
+			
+			// ------------ 4 essais -----------------
+			sent_message = 	"U012RUN_UVP!";
+			ret_message = 	"V015RUN_UVP_OK!";
+			test = "failed";
+			essai = 1;
+			while (essai < 5) {
+				Ext.write(sent_message);
+				// -------------------- RUN OK ------------------------------------------------
+				time = 0;
+				while (time < 10000) {
+					ff = Ext.read();
+					long = minOf(lengthOf(ff),20);
+					status_message = substring(ff,0,long);
+					showStatus(status_message);
+					if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5; test = "passed"; }
+					time++;
+					wait(50);
+				} // while
+				print("UVP RUN_OK messages received");
+				essai++;
+			progress = essai/5;
+			showProgress(progress);
+			}// while
+		} // 
+		//-------------------- "TEST & MONITOR COM PORT" ---------------------------------------------------------------------
+		else if (op =="TEST & MONITOR COM PORT") {
+			// ----------- Arrêt bouton droit souris -----------------------
+			stop_button = false;	
+			print("=> CLIC ON IMAGEJ TO ACTIVATE AND PRESS SPACE BAR to STOP");
+			showMessage("COM MONITORING INFORMATION","Activate ImageJ (click in ImageJ menu) and Press SPACE BAR to STOP monitoring");
+			while (stop_button == false) {
+				ff = Ext.read();
+				ff_v = split(ff,"\n");
+				for (h = 0; h < ff_v.length ; h++ ) {
+					ff = ff_v[h];
+					// -------------- Affichage messages UVP5 -------------------------
+					if (indexOf(ff,"V092")>=0 || indexOf(ff,"C110")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}
+					else if (startsWith(ff,"V") || startsWith(ff,"U"))	{ print(ff);	} // 
+					else {		long = minOf(lengthOf(ff),20);		status_message = substring(ff,0,long);			showStatus(status_message);	}
+				}				
+				time = 0;
+				while (time < 20) {
+					keyd = isKeyDown("space"   );
+					if (keyd == 1 ) stop_button = true;
+					wait(50);
+					time++;
+				}
+				showStatus("No message on COM"+comport);
+			} // while
+		} // else if
+		//-------------------- "EDIT Pilot board Configuration file" ---------------------------------------------------------------------
+		else if (op == "EDIT Pilot board Configuration file") {
+			if (isOpen("Log")) {	
+				dateheure =	runMacro("Zooscan_get_time_5");
+				selectWindow("Log");				 
+				run("Text...",textlog);	
+				wait(100);
+				run("Close");	
+			} // if
+//			ret = runMacro("uvp5_edit_configuration",pathconfig+" "+path+" edit "+ports);
+			ret = runMacro("uvp5_edit_configuration",pathconfig+" "+path+" edit "+ports+" false "+uvp_sn_txt);			
+			// ---------- COPIE dans Zooprocess -------------------
+			open(openconfig);
+			data_config = getInfo();
+			run("Close");
+			print(data_config);
+			selectWindow("Log");
+			text =  "save=" + chem+"\\uvp5_configuration_file.txt";
+			run("Text...",text);	
+			wait(100);
+			run("Close");	
+
+			// ------------- Relecture du fichier LOG ----------------------
+			open(log_file);
+			wait(100);
+			data = getInfo();
+			run("Close");
+			print(data);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			com = "passed";
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       ");  	print("Error message",op+" process aborted.                       "); 	} // if
+			// ------- Lecture du fichier de configuration du module de pilotage ------------
+			config_ret = runMacro("uvp5_read_config",pathconfig);
+			config_data = split(config_ret," ");
+			PilotBR= config_data[0];
+			comport= config_data[1];
+			databits= config_data[2];
+			stopbits= config_data[3];
+			parity= config_data[4];
+			Pressure_Filter_N= config_data[5];
+			Presure_Filter_Thres= config_data[6];
+			Pressure_Pre_Po= config_data[7];
+			Pmin= config_data[8];
+			DeltaP_Upturn_Flag= config_data[9];
+			Upturn_Flag= config_data[10];
+			Battery_Threshold= config_data[11];
+			Temperature_Threshold= config_data[12];
+			CNA_Ind= config_data[13];
+			CNA_s= config_data[14];
+			CNA= config_data[15];
+			hd_path = config_data[16];
+			fd_path = config_data[17];
+			modfile_path = config_data[18];
+		} // else if
+		// -------------------------- EDIT ACQUISITION FILES -----------------------------------------------
+		else if (op == "EDIT ACQUISITION files" ) {
+			if (isOpen("Log")) {	
+				dateheure =	runMacro("Zooscan_get_time_5");
+				selectWindow("Log");
+				run("Text...",textlog);
+				run("Close");		
+			} // if		
+			ret = runMacro("uvp5_edit_acquisition_file.txt",pathconfig+" edit "+uvp_type+" "+uvp_sn_txt);
+			// ------------- Relecture du fichier LOG ----------------------
+			open(log_file);
+			wait(100);
+			data = getInfo();
+			run("Close");
+			print(data);
+		}
+		// -------------------------- EDIT PROFILEUR.INI FILE ----------------------------------------------
+		else if (op == "EDIT ProfileurVideo ini file") {	ret = runMacro("uvp5_edit_profileur_ini_file.txt",pathconfig+" edit "+uvp_sn_txt+" "+chem);	}
+		// ------------------- "RUN UVP5" ----------------------------------------------------------------------------------
+		else if ( op == "RUN UVP5" ){
+			res = getBoolean("DO YOU really want to RUN UVP ? \n \nAre you sure that UVP5 is in STBY mode ? \n \nPRESS YES to proceed \n \nPRESS NO to abort.");
+			if (res == 1) {
+				sent_message = 	"U012RUN_UVP!";
+				ret_message = 	"V015RUN_UVP_OK!";
+				test = "failed";
+				essai = 1;
+				while (essai < 5) {
+					Ext.write(sent_message);
+					// -------------------- RUN OK ------------------------------------------------
+					time = 0;
+					while (time < 10000) {
+						ff = Ext.read();
+						long = minOf(lengthOf(ff),20);
+						status_message = substring(ff,0,long);
+						showStatus(status_message);
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	essai = 5; test = "passed"; }
+						time++;
+						wait(50);
+					} // while
+					print("UVP RUN_OK messages received");
+					essai++;		progress = essai/5;		showProgress(progress);
+				}// while
+			} // res
+		}
+		//-------------------- "WAKE UP sleeping UVP5" ---------------------------------------------------------------------
+		else if (op =="WAKE UP sleeping UVP5") {
+			Ext.close();text1 = "COM"+comport;
+			wait(500);
+			text2 = "DATABITS_"+databits+" STOPBITS_"+stopbits+" PARITY_"+parity;
+			Ext.open(text1,PilotBR,text2);
+			stby = "failed";
+			essai = 0;
+			sent_message = "U013STBY_PRG!U013STBY_PRG!U013STBY_PRG!U013STBY_PRG!U013STBY_PRG!U013STBY_PRG!";
+			ret_message = "V012STBY_OK!";
+			while (essai < 5) {
+				showProgress(progress);
+				Ext.write(sent_message);
+				wait(essai * 150);
+				Ext.write(sent_message);
+				wait(essai * 300);
+				Ext.write(sent_message);
+				print("sent: "+sent_message);
+				// -------------------- STANDBY OK ------------------------------------------------
+				time = 0;
+				while (time < 100) {
+					ff = Ext.read();
+					if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; com = "passed"; stby = "passed";	}
+					else {	ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							long = minOf(lengthOf(ff),20);
+							status_message = substring(ff,0,long);
+							showStatus(status_message);
+							if (indexOf(ff,ret_message)>=0 ) {time = 100000;	essai = 5; com = "passed"; stby = "passed";	}
+						}// for
+					}
+					time++;		wait(100);
+				} // while
+				essai++;		progress = essai/5;		showProgress(progress); 	showStatus("Trying to standby UVP5");
+			}// while	
+			if (stby == "passed") {
+				showMessage("UVP awake \n \nDO NOT FORGET that UVP5 is now in STANDBY mode !     "); 
+				print("> UVP awake now ");
+				print("> UVP in STANDBY MODE ! ");
+			}
+			else {showMessage("UVP5 could not exit sleep mode \n \nCLOSE IMAGEJ and try using MOTOCROSS !");	print("> UVP still sleeping "); 	port_status = "ok";	}
+		}
+
+		//-------------------- "EMERGENCY STOP" ---------------------------------------------------------------------
+		else if (op == "EMERGENCY STOP") {
+			// ------------- Vérification réception C110 -------------------------
+			com = "failed";
+			time = 0;
+			while (time < 500) {
+				ff = Ext.read();ff_v = split(ff,"\n");
+				for (h = 0; h < ff_v.length ; h++ ) {
+					ff = ff_v[h];
+					// -------------- Affichage messages UVP5 -------------------------
+					if (indexOf(ff,"V092")>=0 || indexOf(ff,"C110")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}
+					else {	status_message = "No UVP message on com"+comport+"  Check UVP5 is ON";	showStatus(message);					}
+					if (indexOf(ff,"C110")>=0  && lengthOf(ff) >20 ) {	time = 100000; 	com = "passed";	print("Message C110... UVP recording now ");	} 
+				} // for
+				time++;
+				wait(50);
+			} // while
+			if (com == "failed") showMessage("CAMERA NOT SENDING ''C110...'' messages. Press YES to end !");
+			else {
+				// ------------- Procédure ARRET ------------------------------------
+				stby = "failed";
+				essai = 1;
+				sent_message = "U013STOP_ACQ!";
+				ret_message = "S014STOP_ACQU!";
+				print("sent: "+sent_message);
+				while (essai < 5) {
+					Ext.write(sent_message);
+					// -------------------- STANDBY OK ------------------------------------------------
+					time = 0;
+					while (time < 2000) {
+						ff = Ext.read();
+						ff_v = split(ff,"\n");
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							// ------------ Messages reçus ------------------------
+							if (indexOf(ff,"V092")>=0 || indexOf(ff,"C110")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);	}
+							else {	long = minOf(lengthOf(ff),20);	status_message = substring(ff,0,long);	showStatus(status_message);	}		
+							if (indexOf(ff,ret_message)>=0 || indexOf(ff,"C016EXITSOFT_OK!")>=0 ) {time = 100000;	essai = 5; stby = "passed";	print("ret: "+ret_message);	}
+						} // for
+						time++;
+						wait(50);
+					} // while
+					essai++;	progress = essai/5;			showProgress(progress);
+				}// while
+				if (stby == "passed") { print("> Acquisition stopped. Camera & lights OFF."); showMessage("Acquisition stopped ");	}//if
+				else { showMessage("CAMERA could NOT be stopped ");	}
+			} //else
+		}
+		
+		//-------------------- "START ACQUISITION (manual)" ---------------------------------------------------------------------
+		else if (op =="START ACQUISITION (manual)") {
+			res = getBoolean("UVP5 camera and lights will be started to acquire data or check lights on deck. \n \nUVP5 should be powered on its battery via the power shunt or using the 5m long power extend.\n \nPress YES to CONTINUE \n \nPRESS NO to ABORT");
+			if (res == 1) {
+				// -------------------- MODFILE list ----------------------
+				config_list = getFileList(pathconfig);
+				file_list = newArray(config_list.length);
+				m = 0;
+				for (g = 0 ; g < config_list.length ; g++ ) {
+					file = config_list[g];
+					if (lengthOf(file) == 10 && endsWith(file,".ini")) {	file_list[m] = file; 	m++;	} // if
+				}
+				mod_list = newArray(m);
+				for (g = 0 ; g < m ; g++ ) { rr = file_list[g];	mod_list[g] = rr;	}
+				Dialog.create("UVP5 START ACQUISITION MODULE   ");
+				Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");
+				Dialog.addMessage("The selected modfile must exist in the CAMERA LOVCAM Modfile directory.");             
+				Dialog.addChoice("        SELECT Camera acquisition file ",mod_list);
+				Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");	
+				Dialog.addMessage("CAMERA START will take "+starting_time+"sec. \n \nCAMERA STOP will take "+stop_time+ "sec.")
+				Dialog.addMessage("DO NOT SHUT DOWN UVP5 POWER WHILE CAMERA is RECORDING !      ");	 		
+				Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");	
+				Dialog.addMessage(" PRESS SPACE BAR during ACQUISITION to STOP caméra using normal procedure. ");
+				Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");	
+				Dialog.addCheckbox("PLOT profile",true);
+				Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");					
+				Dialog.show();
+				modfile = 		Dialog.getChoice();
+				plot_profile = 		Dialog.getCheckbox();
+				// 1) ------------------ PRE_ACQ ------------------------------
+				sent_message = "U013PRE_ACQU!";
+				ret_message = "C016PRE_ACQU_OK!";
+				print("=>  Preparing UVP5 for Acquisition");	print("sent: "+sent_message);
+				test = "passed";
+				// ------------- Ecriture du message sur le com ---------------------------
+				Ext.write(sent_message);
+				time = 0;						
+				while (time < 3600) {
+					// ----------- Attente reception message --------------------------
+					ff = Ext.read();	
+					ff_v = split(ff,"\n");
+					for (h = 0; h < ff_v.length ; h++ ) {
+						ff = ff_v[h];
+						// -------------- Affichage messages UVP5 -------------------------
+						if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	message = runMacro("uvp5_show_status_messages.txt",ff);		showStatus(message);	}
+						else {		long = minOf(lengthOf(ff),20);		status_message = substring(ff,0,long);		if (status_message != "V012STBY_OK!") {	showStatus(status_message);	}}
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	test = "passed";}
+						if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	 test = "failed";	}
+					} // for
+					time++;		wait(50);		progress = time/3600;			showProgress(progress);
+				} // while
+				print("ret: "+ff);
+
+				// --------------------------- PHASE ACQUISITION -----------------------------------
+				showMessage("ACQUISITION will start when you press OK   \n \nACTIVATE ImageJ (click in ImageJ window) and PRESS SPACE BAR when you want to STOP ACQUISITION");
+				print("-----------------------------------------------------------------------------------------------------------------");
+				print("ACTIVATE ImageJ (click in ImageJ window) and PRESS SPACE bar to STOP recording");
+				print("-----------------------------------------------------------------------------------------------------------------");
+				// 2) ------------------ START ACQU ---------------------------------------------	
+				long = lengthOf(modfile);
+				modfile = substring(modfile,0,long-4);
+				sent_message = "U020STARTACQ_"+modfile+"!";
+				ret_message = "C016STARTACQ_OK!";
+				print("sent: "+sent_message);
+				test = "passed";
+				// ------------- Ecriture du message sur le com ---------------------------
+				Ext.write(sent_message);
+				time = 0;
+				stop_acq = "false";
+				while (time < 400) {
+					// ----------- Attente reception message --------------------------
+					ff = Ext.read();
+					ff_v = split(ff,"\n");
+					for (h = 0; h < ff_v.length ; h++ ) {
+						ff = ff_v[h];
+						// -------------- Affichage messages UVP5 -------------------------
+						if (indexOf(ff,"MSGERROR")>=0 || indexOf(ff,"V025CAM_ERROR_START")>=0) {
+							showStatus(ff);
+							time = 100000;	
+							stop_acq = "true";	
+							showMessage("Acquisition being stopped due to camera error message.");	
+							print("=>  UVP5 camera being stopped");
+						} // if
+						if (indexOf(ff,ret_message)>=0) {	showStatus(ff); print("> Acquisition started");			time = 100000;			}//
+					} // for
+					time++;			wait(50);
+				} // while}
+				print("ret: "+ff);
+				// ----------------------Acquisition et display C110 ----------------------------------------
+				if (stop_acq == "false") {
+					// 3) ------------------------- ARRET MANUEL si SPACE BAR -------------------------------
+					res1 = 0;
+					stop_button = false;
+					if (plot_profile == true) {
+						setBatchMode(false);
+						print("-----------------------------------------------------------------------------------------------------------------");
+						print("=> CLOSE graph image to change scales (do not save)");
+						print("=> PLOT data are updated every second");
+						print("=> PRESS SPACE bar to END");
+						print("-----------------------------------------------------------------------------------------------------------------");
+					} // if
+					lpm_nb = 	newArray(100000);
+					lpm_esd = 	newArray(100000);
+					lpm_grey = 	newArray(100000);
+					lpm_depth =  	newArray(100000);
+					index_data = 0;
+					index_data = 0;
+					v092 = false;
+					zmax = 6000;
+					tmax = 10;
+					maxixab = 2000;
+					maxixsize = 200;
+					maxixgrey = 30;
+					graphtype = "time";
+					time_max = tmax;
+					depth_max = zmax;
+					while (stop_button == false) {
+						if (plot_profile == true && isOpen("UVP5 profile") == false) {
+							// -------------------- Creation de l'image VIDE ------------------------
+							texte = uvp_sn_txt+ " "+path+" "+depth_max+" "+time_max+" "+maxixab+" "+maxixsize+" "+maxixgrey+" "+graphtype;
+							message = runMacro("Zooprocess_uvp5_uplink_graph.txt",texte);
+							param_plot = split(message," ");
+							zmax = 		parseInt(param_plot[2]);
+							tmax = 		parseInt(param_plot[3]);
+							maxixab = 	parseInt(param_plot[4]);
+							maxixsize = 	parseInt(param_plot[5]);
+							maxixgrey = 	parseInt(param_plot[6]);
+							graphtype = 	param_plot[7];
+							plot_larg = 	parseInt(param_plot[8]);
+							plot_haut =	parseInt(param_plot[9]);
+							x_offset = 	parseInt(param_plot[10]);
+							y_offset = 	parseInt(param_plot[11]);
+							// -------------------- Heure fin ----------------------
+							dateheuremmss =	runMacro("uvp5_get_time");
+							print("Start time "+dateheuremmss+"  Index "+index_data);
+							// ------------ Ajout des anciens points dans l'image VIDE -------
+							selectImage("UVP5 profile");
+							// --------- NB -----------------------								
+							setColor(255, 0, 0);
+							run("Colors...", "foreground=red background=white selection=red");
+							for (k = 0; k < index_data ; k++) {
+								x= x_offset + plot_larg * lpm_nb[k]/maxixab;	
+								if (graphtype == "depth") 	{	y= y_offset + plot_haut * lpm_depth[k]/zmax;	}
+								else if (graphtype == "time") 	{	y= y_offset + plot_haut * (k/60)/tmax;		}
+								y= minOf(y,y_offset + plot_haut);
+								makeLine(x,y,x,y);
+								run("Fill");
+							}// for
+							// --------- GREY -----------------------
+							setColor(0, 0, 255);
+							run("Colors...", "foreground=blue background=white selection=red");
+							for (k = 0; k < index_data ; k++) {
+								x= x_offset + plot_larg * lpm_grey[k]/maxixgrey;	
+								if (graphtype == "depth") 	{	y= y_offset + plot_haut * lpm_depth[k]/zmax;	}
+								else if (graphtype == "time") 	{	y= y_offset + plot_haut * (k/60)/tmax;		}
+								y= minOf(y,y_offset + plot_haut);
+								makeLine(x,y,x,y);
+								run("Fill");
+							}// for								
+							// --------- ESD -----------------------
+							setColor(0, 255,0);
+							run("Colors...", "foreground=green background=white selection=red");
+							for (k = 0; k < index_data ; k++) {
+								x= x_offset + plot_larg * lpm_esd[k]/maxixsize;		
+								if (graphtype == "depth") 	{	y= y_offset + plot_haut * lpm_depth[k]/zmax;	}
+								else if (graphtype == "time") 	{	y= y_offset + plot_haut * (k/60)/tmax;		}
+								y= minOf(y,y_offset + plot_haut);
+								makeLine(x,y,x,y);
+								run("Fill");
+							}// for
+							updateDisplay();
+						} // if
+						// -------------------------- LECTURE du PORT SERIE ------------------
+						
+						ff = Ext.read();
+						ff_v = split(ff,"\n");						
+						time = 0;
+						// ------------------ Messages -------------------------------------------	
+						for (h = 0; h < ff_v.length ; h++ ) {
+							ff = ff_v[h];
+							if (indexOf(ff,"C110") >=0 && lengthOf(ff)>=105 && indexOf(ff,"aaa") < 1 ) {		
+								// -------------- Décodage DATA ----------------------
+								flag = runMacro("uvp5_get_data_from_c110.txt",ff);
+								data_to_plot = split(flag," ");
+								if (data_to_plot.length > 6) {
+									angle_tp = 	parseInt(data_to_plot[0]);
+									temp_tp = 	parseInt(data_to_plot[1]);
+									voltage_tp = 	parseInt(data_to_plot[2]);
+									depth_tp = 	parseInt(data_to_plot[3]);
+									data_nb_tp = 	parseInt(data_to_plot[4]);
+									data_size_tp = 	parseInt(data_to_plot[5]);
+									data_grey_tp = 	parseInt(data_to_plot[6]);
+									fd_space_tp = 	parseInt(data_to_plot[7]);
+									// --------------- UNITES  ---------------
+									nb_per_litre = data_nb_tp/img_vol;
+									lpm_esd_raw = aa_calib * pow(data_size_tp,exp_calib);
+									lpm_esd_um = 	1000*2* pow(lpm_esd_raw/3.1416,0.5);
+									conc = floor(nb_per_litre);
+									esd = floor(lpm_esd_um);
+									message  = "ACQ : "+angle_tp+"°   "+temp_tp+"°C   "+voltage_tp+"V   "+depth_tp+"m   "+conc+"#/L  "+esd+"µm";;
+													
+									// --------------- Vecteurs ---------------------------
+									lpm_nb[index_data] = 	nb_per_litre;
+									lpm_esd[index_data] =	lpm_esd_um;
+									lpm_grey[index_data] =	data_grey_tp;
+									lpm_depth[index_data] = depth_tp;
+									time_max = maxOf(time_max,index_data/60);
+									depth_max = maxOf(depth_tp,depth_max);
+									index_data++;	//  = index_data + 10 ;	
+//									print("PROC: "+nb_per_litre+"  "+lpm_esd_um+"  "+data_grey_tp+" "+index_data);
+								}
+								if (isOpen("UVP5 profile") && data_to_plot.length > 6 && indexOf(ff,"aaa") < 1) {
+									// -------------- Ajout des points -------------
+									if (graphtype == "depth") 	{	y_ratio = depth_tp/zmax;	}
+									else if (graphtype == "time") 	{	y_ratio = (index_data/60)/tmax;	}
+									y_ratio = minOf(y_ratio,1);
+									y= y_offset + plot_haut * y_ratio;
+									selectImage("UVP5 profile");
+									// --------- NB -----------------------
+									x= x_offset + plot_larg * nb_per_litre/maxixab;
+									setColor(255, 0, 0);
+									run("Colors...", "foreground=red background=white selection=red");
+									makeLine(x,y,x,y);
+									run("Fill");
+									// --------- GREY -----------------------
+									x= x_offset + plot_larg * data_grey_tp/maxixgrey;
+									setColor(0, 0, 255);
+									run("Colors...", "foreground=blue background=white selection=red");
+									makeLine(x,y,x,y);
+									run("Fill");
+									// --------- ESD -----------------------
+									x= x_offset + plot_larg * lpm_esd_um/maxixsize;
+									setColor(0, 255, 0);
+									run("Colors...", "foreground=green background=white selection=red");
+									makeLine(x,y,x,y);
+									run("Fill");
+									updateDisplay();
+								}//
+								// -------------- Donnees dans status ----------------
+								showStatus(message);
+							} // if
+							else if ((startsWith(ff,"V") || startsWith(ff,"U")) && lengthOf(ff) < 30)	{ print(ff);	showStatus(ff);} // 
+							if (indexOf(ff,"V092")>=0  && lengthOf(ff) >=80 ) {	
+								message = runMacro("uvp5_show_status_messages.txt",ff);	
+								showStatus(message);
+								if (v092 == false)	{ print("=> V092 message received.");	v092 = true;	}//if
+							}						
+						} // for
+						// ------------------ TEMPO une seconde ------------------------------
+						while (time < 20) {		
+							keyd = isKeyDown("space"   );
+							if (keyd == 1 ) {
+								wait(200);
+								res1 = getBoolean("Do you want to stop acquisition ? \n \nPRESS YES to stop \n \nPRESS NO to keep recording.");
+								if (res1 == 1)	{	
+									stop_button = true;					
+									// -------------------- Heure fin ----------------------
+									dateheuremmss =	runMacro("uvp5_get_time");
+									print("Stop time "+dateheuremmss+"  Index "+index_data);
+								}
+							}//
+							wait(50);			time++;		
+						}// while time
+
+					} // while stop button
+					wait(50);
+				} // is stopacq
+				// ----------------------- ARRET ------------------------------------------
+				sent_message = "U013STOP_ACQ!";
+				ret_message = "V027SET_OUTPUT_00000000_OK!";
+				// ------------- Ecriture du message sur le com ---------------------------
+				showStatus("CAMERA being stopped");
+				showMessage("UVP5 camera being stopped");
+				print("=>  UVP5 camera being stopped");
+				Ext.write(sent_message);
+				// ----------- Attente reception message arrêt --------------------------
+				time = 0;						
+				while (time < 1200) {					
+					ff = Ext.read();
+					ff_v = split(ff,"\n");
+					for (h = 0; h < ff_v.length ; h++ ) {
+						ff = ff_v[h];
+						// -------------- Affichage messages UVP5 -------------------------
+						if (indexOf(ff,"V092")>=0 || indexOf(ff,"C110")>=0) {	message = runMacro("uvp5_show_status_messages.txt",ff);	showStatus(message);		}						
+						if (indexOf(ff,ret_message)>=0) {time = 100000;	test = "passed";}
+						if (indexOf(ff,"MSGERROR")>=0) {time = 100000;	 test = "failed";	}
+					} // for
+					time++;		wait(50);	progress = time/1200;			showProgress(progress);
+				} // while
+				if (test == "passed"){	print("ret: "+sent_message);	}
+				if (test == "failed"){	print("ret: "+ff);	}
+				showMessage("ACQUISITION SEQUENCE", " ----------- NORMAL END of ACQUISITION -----------");
+				showStatus("Acquisition ended by operator");
+			} // if res		
+		} // else if light test
+	}
+	// ------------------------- Sauvegarde de l'image --------------------------------------------
+	if (isOpen("UVP5 profile")) {
+		aa = getBoolean("DO YOU WANT TO SAVE THE IMAGE OF THE PROFILE ? (do not press CANCEL)");
+		if (aa == true) {
+			selectImage("UVP5 profile");
+			texte = pathresults +  "\\Real_time_plot_"+dateheuremmss;
+			saveAs("jpg", pathresults+"\\Real_time_plot_"+dateheuremmss+".jpg"); 
+			showMessage("Real_time_plot_"+dateheuremmss+".jpg saved in \n \n"+pathresults);
+		}
+	}
+	// --------------------- Fermeture COM ----------------
+	if (work_option == "UVP5 connected, complete tool list") {
+		active = Ext.alive();			// returns "0" or "1"
+		if (active == 1 || active == "1"){	Ext.close();	print("> COM"+comport+" CLOSED NOW");	}//if
+	} // if
+	setBatchMode(true);
+	// -------------- ACTIVATION de la liste des menus ------------
+	op = " ";
+}  // while exit_module = 0
+	
+// ---------------- FERMETURE ------------------------------------
+//	Ext.close();
+print("> COM"+comport+" CLOSED");
+print("-----------------------------------------------------------------------------------------------------------------");
+print("PILOT MODULE CLOSED");
+print("-----------------------------------------------------------------------------------------------------------------");
+if (isOpen("Log")) {			
+	dateheure =	runMacro("Zooscan_get_time_5");
+	selectWindow("Log");
+	run("Text...",textlog);
+	wait(100);
+} // if
+
+// ------------------- FIN --------------------------
+return args;

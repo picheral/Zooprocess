@@ -1,0 +1,173 @@
+// ------------------------ UVP5_random_selection.txt ----------------------
+
+requires("1.37v");
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+setBatchMode(1);
+
+if (isOpen("Log")) run("Close");
+print("-- UVP5_random_selection.txt --");
+
+dateheure =	runMacro("Zooscan_get_time_5");
+
+// ------------- Choix du repertoire ------------------------------------
+dirroot = getDirectory("Select Root PREDICTION directory ");
+
+// ------------- Choix du repertoire ------------------------------------
+dirprediction = getDirectory("Select training (contains Id folders) ");
+
+// ------------- Nombre de vignettes maximum a garder ------------------------------
+nbvig = getNumber("Number of vignettes to randomly select ? ",20);
+nbvig = nbvig+1;
+
+// ------------- Liste des sous repertoires des Id et des PID --------------------------
+
+print("====== Id FOLDERS ====================");
+j= 0;
+filelist  = getFileList(dirprediction);
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	if (endsWith(rr,"/")) { list[j] = rr;  j++;  	print(rr);	} // if
+} // for
+// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+listid = newArray(j);
+for (i=0; i<listid.length ; i++) {	rr = list[i];		listid[i] = rr;	} // for
+
+// ------------- Liste des fichiers PID --------------------------
+print("====== PID FILES ======================");
+k= 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	if (endsWith(rr,".pid")) { list[k] = rr;  k++;  	print(rr);	} // if
+} // for
+// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+listpid = newArray(j);
+for (i=0; i<listpid.length ; i++) {	rr = list[i];		listpid[i] = rr;	} // for
+
+
+// ---------------------- SSI Id et PID ! ---------------------------------------------
+if (j > 0 && k > 0 ) {
+	// -------------------- Creation du repertoire de destination -----------------------------------
+	newdir = 		dirroot+"\\"+dateheure+"_"+nbvig+"_random\\";
+	File.makeDirectory(newdir);
+	//	getBoolean(newdir);
+
+	// -------------------- Boucle sur les fichiers des PID -----------------------------------------
+	for (m=0; m<k;m++) {
+		pidfile = listpid[m];
+		// --------------- Sauvegarde ------------------------
+		textsave = "save=" + newdir+"\\"+pidfile;
+		print("Hello");		 
+		run("Close");
+		//	showMessage(dirprediction+"\\"+pidfile);
+		open(dirprediction+"\\"+pidfile);
+		wait(100);
+		data = getInfo();
+		run("Close");
+		data = split(data,"\n");
+		for (b=0; b<k;b++) {		print(data[b]);		} // for
+		run("Text...",textsave);	
+		run("Close");
+	} // for
+	
+	// -------------------- Boucle sur les repertoires des Id -----------------------------------------
+	nbvigid = newArray(j);
+	if (isOpen("Log")) run("Close");	
+	print("-- UVP5_random_selection.txt --");
+	print(dirprediction);
+	for (m=0; m<j ; m++)	{
+		vigfolder = dirprediction+"\\"+listid[m]+"\\";
+		//	print(vigfolder);
+		
+		// ---------------- Existence du repertoire de destination ---------------------
+		savefolder =newdir+"\\"+listid[m]+"\\";
+		if (File.exists(savefolder) == false )	File.makeDirectory(savefolder);
+
+		// ---------------- Que les fichiers ".jpg" -----------------------------------------------
+		h= 0;
+		filelist  = getFileList(vigfolder);
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			rr = filelist[i]; 
+			if (endsWith(rr,".jpg")) { list[h] = rr;  h++;  	} // if
+		} // if
+		// ---------------------Purger les fichiers vides de la liste et RANDOM -------------------------------------
+		listvig = newArray(h);
+		for (i=0; i<listvig.length ; i++) {	rr = list[i];		listvig[i] = rr+";"+random;	} // for
+		nbvigid[m] = h;
+		ident = listid[m];
+		print(ident+" = "+h);
+		// ----------------- TRI --------------------------------------------------------
+			sortedligne = 	newArray(h);
+			listp = 		minOf(nbvig,h); 
+			aff = 		newArray(listp);
+			index = 0;
+			while (index < h) {
+				showStatus("SORTING FILE,   index = "+index+" / "+h+",  WAIT !");
+				minval = 100000000000;
+				for (u=0; u<h ; u++) {
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					minval = minOf(data,minval);
+				} // for
+				for (u=0; u<h ; u++) {
+					//---------------Trouvons tous les champs de cette valeur----------------
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					if (data == minval ) {
+						sorted = listvig[u];
+						sortedligne[index] = sorted;
+						//	print(sorted);
+						index++;
+						ligne = "10000000000";
+						for (t=0;t<long-2;t++) {ligne = ligne + " 10000000000";	} // for
+						ligne = ligne + " 10";
+						listvig[u] = 	ligne;			
+					} // if
+				} // for
+			} // while
+			//-------------Inversement de l'ordre---------------------
+			for (u=0; u<listp; u++) { ind = h-u-1;	Aff = sortedligne[ind];	aff[u] = Aff;		} // for
+
+		// --------------- Boucle sur les vignettes ------------------------------------------------
+		for (g=1; g<listp ; g++) {
+			ligne = split(aff[g],"\;");
+			// -------------- Creation du nom de la vignette a lire ---------------------
+			nomvig = ligne[0];
+			openvig = vigfolder+"\\"+nomvig;
+
+			// ---------------- Traitement vignette ----------------------------------
+			//	print(openvig);
+			if (File.exists(openvig)) {	
+				open(openvig);	
+				textsave = newdir+"\\"+listid[m]+"\\"+nomvig;
+				saveAs("Jpeg",textsave);
+				close();
+			} // if
+		} // for vignette
+	} // for
+
+} // if j k
+
+// ----------------- Resume -------------------------
+if (isOpen("Log")) run("Close");	
+print("-- UVP5_random_selection.txt --");
+print(dirprediction);
+for (m=0; m<j ; m++)	{
+	//	print(listid[m]+" : "+nbvigid);
+} // for
+
+// ----------------- END -------------------------------
+setBatchMode(0);
+showMessage("NORMAL END of UVP5_random_selection.txt");

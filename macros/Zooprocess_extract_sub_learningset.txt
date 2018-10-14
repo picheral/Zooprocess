@@ -1,0 +1,275 @@
+// ------------------------ Zooprocess_extract_sub_learningset.txt ----------------------
+version = "7.17";
+date = "2014/01/17";
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+instrum = 	arg[2];
+chemtemp = 	arg[3];
+
+lon = lengthOf(projfolder);
+loninst = lengthOf(instrum);
+zoosc = indexOf(projfolder,instrum);
+proj = substring(projfolder,zoosc+loninst+1,lon);
+chemsorted = 	projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+pathlearn = projfolder+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+
+requires("1.41o");
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+setBatchMode(1);
+
+if (isOpen("Log") == true ) run("Close");
+print("-- Learning_Set_random_selection.txt --");
+
+dateheure =	runMacro("Zooscan_get_time_5");
+// getBoolean("PROCESS INFORMATION \n \nCreate a sub learnigset from sorted vignettes. \nA user defined number of vignettes from each id folder is randomly copied into the new Learningset folders. \n \nThe ''source'' folder must contain the PID files of all vignettes. \n \nPress YES to continue !");
+
+// ------------- Choix du repertoire ------------------------------------
+//	dirprediction = getDirectory("Select SOURCE folder (Sorted vignettes folders) ");
+
+// ------------- Choix du repertoire ------------------------------------
+//	dirroot = getDirectory("Select DESTINATION folder to save the new Learningset ");
+
+// ------------- Choix du repertoire ------------------------------------
+	Dialog.create("Create Learning set from sorted vignettes            version "+version);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project  :  "+proj);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addCheckbox("          Use default project architecture ?       ",true);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	sort = 		Dialog.getCheckbox();
+if (sort == false) {	
+	dirprediction = getDirectory("Select directory containing ''*dat1.txt'' files");	
+	dirroot = getDirectory("Select DESTINATION folder to save the new Learningset ");
+} // if
+else {
+	sorted = getFileList(chemsorted);
+	if (sorted.length >=1) {
+		filelist = newArray(sorted.length);
+		j = 0;
+		for (i=0; i<sorted.length ; i++) {	  
+			rr = sorted[i]; 
+			identlong = 	lengthOf(rr);
+			if (endsWith(rr,"/"))	 {	rr = 	substring(rr,0,identlong-1);	filelist[i] = rr;		j++;	} // if
+			if (j>=1) { listaff  = newArray(j); 
+				for (k = 0;k<j;k++) { rr = filelist[k]; 	listaff[k] = rr;	} // for
+			} // if
+			else { 
+				getBoolean("No validated folders in "+chemsorted+" Press Cancel to abort ! ");
+			} // else
+		} // for
+	} // if
+	else { 
+		getBoolean("No validated folders in "+chemsorted+" Press Cancel to abort ! ");
+	} // else
+
+//	folderselect = true;
+	if (j>= 2) {
+		Dialog.create("Create Learning set from sorted vignettes            version "+version);
+		Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage( "Project  :  "+proj);
+		Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addChoice("                  Select ''sorted vignettes'' folder       ",listaff);
+		Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.show();
+		chemsort = 		Dialog.getChoice();
+	} // if
+	else {
+		chemsort = listaff[0];
+	} // else
+	chemsorted = projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\"+chemsort+"\\";
+	dirprediction = chemsorted;
+	dirroot = 	pathlearn;
+} // else
+
+// ------------- Nombre de vignettes maximum a garder ------------------------------
+nbvig1 = getNumber("Number of vignettes to randomly select ? ",20);
+nbvig = nbvig1+1;
+
+// ------------- Liste des sous repertoires des Id et des PID --------------------------
+
+print("====== Id FOLDERS ====================");
+j= 0;
+filelist  = getFileList(dirprediction);
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	if (endsWith(rr,"/")) { list[j] = rr;  j++;  	print(rr);	} // if
+} // for
+// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+listid = newArray(j);
+for (i=0; i<listid.length ; i++) {	rr = list[i];		listid[i] = rr;	} // for
+
+// ------------- Liste des fichiers dat1.PID --------------------------
+print("====== PID FILES ======================");
+k= 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	if (endsWith(rr,"dat1.pid")) { list[k] = rr;  k++;  	print(rr);	} // if
+} // for
+// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+listpid = newArray(k);
+for (i=0; i<listpid.length ; i++) {	rr = list[i];		listpid[i] = rr;		} // for
+
+
+// ---------------------- SSI Id et PID ! ---------------------------------------------
+if (j > 0 && k > 0 ) {
+	// -------------------- Creation du repertoire de destination -----------------------------------
+	newdir = 		dirroot+"\\"+dateheure+"_random_"+nbvig1+"\\";
+	File.makeDirectory(newdir);
+	//	getBoolean(newdir);
+
+	// -------------------- Boucle sur les fichiers des PID -----------------------------------------
+	for (m=0; m<k;m++) {
+		pidfile = listpid[m];
+//		showMessage(pidfile);
+		// --------------- Sauvegarde ------------------------
+		textsave = "save=" + newdir+"\\"+pidfile;
+//		showMessage(textsave);
+		//-------------------Impression dans le LOG---------------------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		//	showMessage(dirprediction+"\\"+pidfile);
+		open(dirprediction+"\\"+pidfile);
+		wait(500);
+		data = getInfo();
+		wait(100);
+		run("Close");
+		data = split(data,"\n");
+		for (b=0; b<data.length;b++) {		print(data[b]);		} // for
+		selectWindow("Log");
+		run("Text...",textsave);	
+		run("Close");
+	} // for
+	
+	// -------------------- Boucle sur les repertoires des Id -----------------------------------------
+	nbvigid = newArray(j);
+	if (isOpen("Log")) run("Close");	
+	print("-- UVP5_random_selection.txt --");
+	print(dirprediction);
+	for (m=0; m<j ; m++)	{
+		vigfolder = dirprediction+"\\"+listid[m]+"\\";
+		//	print(vigfolder);
+		
+		// ---------------- Existence du repertoire de destination ---------------------
+		savefolder =newdir+"\\"+listid[m]+"\\";
+		if (File.exists(savefolder) == false )	File.makeDirectory(savefolder);
+
+		// ---------------- Que les fichiers ".jpg" -----------------------------------------------
+		h= 0;
+		filelist  = getFileList(vigfolder);
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			rr = filelist[i]; 
+			if (endsWith(rr,".jpg")) { list[h] = rr;  h++;  	} // if
+		} // if
+		// ---------------------Purger les fichiers vides de la liste et RANDOM -------------------------------------
+		listvig = newArray(h);
+		for (i=0; i<listvig.length ; i++) {	rr = list[i];		listvig[i] = rr+";"+random;	} // for
+		nbvigid[m] = h;
+		ident = listid[m];
+		print(ident+" = "+h);
+		// ----------------- TRI --------------------------------------------------------
+		if (nbvig <= h) {
+			sortedligne = 	newArray(h);
+			listp = 		minOf(nbvig,h); 
+			aff = 		newArray(listp);
+			index = 0;
+			while (index < h) {
+				showStatus("SORTING thumbs randomly,   index = "+index+" / "+h+",  WAIT !");
+				minval = 100000000000;
+				for (u=0; u<h ; u++) {
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					minval = minOf(data,minval);
+				} // for
+				for (u=0; u<h ; u++) {
+					//---------------Trouvons tous les champs de cette valeur----------------
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					if (data == minval ) {
+						sorted = listvig[u];
+						sortedligne[index] = sorted;
+						//	print(sorted);
+						index++;
+						ligne = "10000000000";
+						for (t=0;t<long-2;t++) {ligne = ligne + " 10000000000";	} // for
+						ligne = ligne + " 10";
+						listvig[u] = 	ligne;			
+					} // if
+				} // for
+			} // while
+			//-------------Inversement de l'ordre---------------------
+			for (u=0; u<listp; u++) { 
+				ind = h-u-1;
+				Aff = sortedligne[ind];	
+				aff[u] = Aff;		
+			} // for
+
+
+			// --------------- Boucle sur les vignettes ------------------------------------------------
+			for (g=1; g<listp ; g++) {
+				ligne = split(aff[g],"\;");
+				// -------------- Creation du nom de la vignette a lire ---------------------
+				nomvig = ligne[0];
+				openvig = vigfolder+"\\"+nomvig;
+				// ---------------- Traitement vignette ----------------------------------
+				//	print(openvig);
+				if (File.exists(openvig)) {	
+					open(openvig);	
+					textsave = newdir+"\\"+listid[m]+"\\"+nomvig;
+					saveAs("Jpeg",textsave);
+					close();
+				} // if
+			} // for vignette
+		} // if
+		else {
+			// --------------- Boucle sur les vignettes ------------------------------------------------
+			for (g=0; g<h ; g++) {
+				// -------------- Creation du nom de la vignette a lire ---------------------
+				nomvig = list[g];
+				openvig = vigfolder+"\\"+nomvig;
+//	showMessage(openvig);
+
+				// ---------------- Traitement vignette ----------------------------------
+				//	print(openvig);
+				if (File.exists(openvig)) {	
+					open(openvig);	
+					textsave = newdir+"\\"+listid[m]+"\\"+nomvig;
+					saveAs("Jpeg",textsave);
+					close();
+				} // if
+			} // for vignette
+		} // else
+	} // for
+} // if j k
+//----------------- Sauvegarde du catalogue --------
+textsave = "save=" + newdir+"\\list_rep.txt";
+run("Text...",textsave);	
+
+// ----------------- Resume -------------------------
+if (isOpen("Log")== true) run("Close");	
+//	print("-- UVP5_random_selection.txt --");
+//	print(dirprediction);
+for (m=0; m<j ; m++)	{
+	//	print(listid[m]+" : "+nbvigid);
+} // for
+
+// ----------------- END -------------------------------
+setBatchMode(0);
+showMessage("NORMAL END ");
+ret = "OK";
+return ret;

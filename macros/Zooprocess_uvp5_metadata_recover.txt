@@ -1,0 +1,104 @@
+// ------------------------- Zooprocess_uvp5_metadata_recover --------------------
+version = "7.00";
+date = "2010/04/26";
+
+arg = getArgument(); 
+array = split(arg," ");
+instrum = 	array[0];
+option= 	array[1];
+path= 		array[2]; 	
+
+maxgg = 100000;
+
+	// ----------------- Metafile pour UVP5 --------------------------------	
+	filelist  = 	getFileList(path+"\\meta\\");
+
+	//--------------- Selection des fichiers  -------------------
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],".txt");
+		ctrl1 = startsWith(filelist[i],"uvp5_header_");
+		if (ctrl == 1 && ctrl1 == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { configpres = 0;
+		getBoolean("No metadata file in the selected project. \nPress YES to create a file and add a profile !          ");
+		option = "create";
+	} //
+	else if (j==1) { configpres = 0;
+		metafile  = list[0];
+	} //
+	else { 	configpres = 1;
+		// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		Dialog.create("METADATA FILE          version : "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		Dialog.addMessage("Project :  "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		message = "SELECT Metadata FILE to PROCESS             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		metafile = Dialog.getChoice();
+	} // else
+
+	long = lengthOf(path);
+	Cruise  = substring(path,9,long);
+
+	print("A purger");	selectWindow("Log");	run('Close');
+
+	// ----------------------------- ADD EDIT ----------------------------------
+	open(path+"\\meta\\"+metafile);
+	wait(100);
+	metadata = getInfo();
+	run('Close');
+	array = split(metadata,"\n");
+	liste = 			newArray(array.length);
+	cruise = 		newArray(array.length);
+	ship = 			newArray(array.length);
+	filename = 		newArray(array.length);
+	stationname =		newArray(array.length);
+
+
+	// ------------------ Boucle sur les profils -------------------------------
+	if (option ==  "recover") {
+		for (i=1; i<array.length ; i++) { 
+
+
+			// ----------------- Nom de fichier ---------------------------------------
+			ligne = replace(array[i],";"," ");
+			ligne = split(ligne,"\ ");
+
+			Cruise = 	ligne[0];
+			Ship = 		ligne[1];
+			Filename = 	ligne[2];
+			Stationname =	ligne[3];
+
+			// ----------------- Impression de la premiere lignes -----------------
+			if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+			print(array[0]);	
+
+			// ----------------- Impression de la ligne du profil -------------------	
+			print(array[i]);	
+
+			// ---------------- Creation repertoire profil -------------------------------------------------
+			pathprofile = path+"\\work\\"+Stationname+"\\";
+			File.makeDirectory(pathprofile);
+
+			// ---------------- Sauvegarde fichier individuel dans repertoire profil ---------------
+			sauve = "save=" + pathprofile+Stationname+"_meta.txt";
+//			getBoolean(sauve);
+			selectWindow("Log");
+			run("Text...",sauve);
+			run('Close');
+
+		} // for
+	}// if
+
+
+
+// ---------------- FIN --------------------------------------------
+ret = Filename;
+return ret;

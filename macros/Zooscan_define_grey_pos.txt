@@ -1,0 +1,128 @@
+open("E:\\Zooscan\\Zooscan_calib\\20060203_1119_calibration.tif");
+largeur = getWidth();
+hauteur= getHeight();
+resolution=300;
+
+print("largeur= ",largeur);
+print("hauteur= ",hauteur);
+
+y = hauteur/4;
+
+meandat = newArray(500);
+meanpos = newArray(500);
+i= 0;
+
+//------------mesures------------------------
+while (y < hauteur*0.75) {
+	makeRectangle(largeur-300, y, 300, hauteur*0.001);	
+	getStatistics(area, mean, min, max, std);
+	//print("y= ",y," mean= ",mean);
+	//wait(200);
+	meandat[i]=mean;
+	meanpos[i]=y;
+	i++;
+	y = y+hauteur*0.001;
+} // while
+
+//-----------------determination de la position Y--------------
+min=255;
+for (j=0;j<meandat.length;j++) { 
+	mean = meandat[j];
+	min=minOf(mean,min);
+} // for
+
+for (j=0;j<meandat.length;j++) { 
+	mean = meandat[j];
+	if (mean==min) { 
+		posy = meanpos[j];
+	} // if
+} // for
+
+print("posy= ",posy);
+makeRectangle(largeur-300, posy, 300, hauteur*0.001);
+
+//---------------Position en X---------------------------------------
+grey = 0;
+k = largeur-300;
+while (k< largeur) { 
+	grey = getPixel(k,posy);
+	// print(grey);
+	if (grey < 200) { 
+		bord = k;
+		k=largeur;
+	} // if
+	k++;
+} //for
+
+posx = largeur - (largeur-bord)/2;
+Ray= 40;
+makeOval(posx-Ray/2,posy-Ray/2,Ray,Ray);
+
+posinchy = posy/resolution;
+print("posinchx= ",posinchy);
+posinchx = posx/resolution;
+print("XOfsetDO= ",11.7-posinchx);
+
+//------------------Update config file (BIOTOM)-------------------------------------
+// Effacement de la fenetre LOG
+print("A purger");
+selectWindow("Log");
+run("Close");
+// Test sur l'existence du repertoire des fichiers de config
+chemconfig = chem + "Zooscan_config\\";
+confrep = File.exists(chemconfig);
+if (confrep==0) { // Le repertoire du fichier de config n'est pas bon
+	showMessage("Error message : "+chemconfig+" folder doesn't exist, automatic CONFIG update aborted  ");  }
+else { 	print("CONFIG exits");
+	//-------------- Choix du fichier CONFIG dans _config
+	filelist  = getFileList(chemconfig);
+	// Selection des fichiers dont le nom comporte le mot "config";
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"config");
+		if (ctrl>0) 	{rr = filelist[i];
+			list[j] = rr;
+			// print(list[j]);
+			j = j + 1;		}
+		else ;}	
+	// Purger les fichiers vides de la liste !
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];
+		listaff[i] = rr;	}
+	Dialog.create("CONFIG FILE menu");
+	message = "SELECT PROCESS CONFIG FILE to UPDATE in " + chemconfig ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("Configuration file", listaff);
+	Dialog.show();
+	configfile = Dialog.getChoice();
+	openconfig = chemconfig +configfile;
+	open(openconfig);
+	config = getInfo();
+	array = split(config,"\n");
+	update = 0;
+	for (i=0; i<array.length; i++)	{ 
+		champ = array[i];
+		//-------------------------------doxabspos_inch----------------
+		pos = indexOf(champ,"doxabspos_inch");
+		if (pos>=0 ) { // remplacer par l'info 
+			print("doxabspos_inch= ",posinchx);
+			update++;
+		} // if	
+		//-------------------------------doyabspos_inch----------------
+		pos = indexOf(champ,"doyabspos_inch");
+		if (pos>=0 ) { // remplacer par l'info 
+			print("doyabspos_inch= ",posinchy);
+			update++;
+		} // if	
+		else { print(champ); 
+		} // else
+	} // for
+showMessage("Updated values= "+update);
+// Sauvegarde du LOG...
+selectWindow("Log");
+sauve = "save=" + chemconfig + configfile;
+run("Text...",sauve);
+
+
+selectWindow("20060203_1119_calibration.tif");
+// run('Close');

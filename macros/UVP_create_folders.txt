@@ -1,0 +1,32 @@
+// ------------- Zooscan_create_folders ----------------------------
+date = "2009/09/17";
+version = "6.14";
+
+// ------------- Choix du repertoire ------------------------------------
+chemsorted = getDirectory("Select folder where you will create the sub-folders");
+
+
+// -------------- Creation des repertoires -----------------------------
+File.makeDirectory(chemsorted+"\\"+"app_house");
+File.makeDirectory(chemsorted+"\\"+"app_body");
+File.makeDirectory(chemsorted+"\\"+"duplicates");
+File.makeDirectory(chemsorted+"\\"+"det_agg_hetero");
+File.makeDirectory(chemsorted+"\\"+"det_filaments");
+File.makeDirectory(chemsorted+"\\"+"det_large_agg");
+File.makeDirectory(chemsorted+"\\"+"diat_like");
+File.makeDirectory(chemsorted+"\\"+"gel_other");
+File.makeDirectory(chemsorted+"\\"+"other");
+File.makeDirectory(chemsorted+"\\"+"to_check");
+File.makeDirectory(chemsorted+"\\"+"sarco");
+File.makeDirectory(chemsorted+"\\"+"chaetognathes");
+File.makeDirectory(chemsorted+"\\"+"gel_ctenophores");
+File.makeDirectory(chemsorted+"\\"+"gel_medusae");
+File.makeDirectory(chemsorted+"\\"+"copepoda");
+File.makeDirectory(chemsorted+"\\"+"cop_like");
+File.makeDirectory(chemsorted+"\\"+"feces_like");
+
+
+
+// -------------- FIN ------------------
+showMessage("All folders created in "+chemsorted);
+

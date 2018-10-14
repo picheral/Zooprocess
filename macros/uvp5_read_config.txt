@@ -1,0 +1,30 @@
+// ----------- uvp5_read_config --------------
+version =	 "7.14";
+date =	 "2012/11/15";
+
+args = getArgument();
+arg = split(args," ");
+pathconfig = arg[0];
+
+openconfig = pathconfig+"\\uvp5_configuration_file.txt";
+config_data = "nok";
+//	aa = getBoolean(openconfig);
+if (File.exists(openconfig)) {
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	config_data = newArray(conf.length);
+	data = split(conf[0]," ");
+	val = data[1];
+	config_data = val;
+	for (i=1;i<conf.length;i++){
+		data = split(conf[i]," ");
+		val = data[1];
+		config_data = config_data+" "+val;	
+	} // for
+}
+//	else {showMessage(openconfig+" does not exist. \n \nRESTART application");}
+// ------------ FIN -----------------
+return config_data;

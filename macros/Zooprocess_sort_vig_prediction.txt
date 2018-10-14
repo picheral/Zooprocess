@@ -1,0 +1,379 @@
+// ------------------------------ Zooprocess_sort_vig_prediction ----------------------------
+version = "7.20";
+date = "2015/02/24";
+
+requires("1.37v");
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+
+print("A purger");	selectWindow("Log");		run("Close");
+print("-- Zooprocess_sort_vig_prediction --");
+
+arg = getArgument(); 
+array = split(arg," ");
+path= 		array[0]; 
+instrum= 	array[1]; 
+chemconfig = 	path+"\\config\\";
+
+// ------------- Creation repertoire ------------------------------------
+pathsort = path+"\\PID_process\\sorted_vignettes\\";
+if (File.exists(pathsort) == 0) File.makeDirectory(pathsort);
+
+pathdat1ext = path+"\\PID_process\\pid_results\\dat1_extracted\\";
+if (File.exists(pathdat1ext) == 0) File.makeDirectory(pathdat1ext);
+
+// ------------- Predicted OR Validated files -------------------------
+optiondirs = newArray("Use NEW PREDICTION Files from ''prediction'' folder","Use PREDICTION files from ''pid_results'' folder","Use VALIDATED files from ''dat1_validated'' folder");
+Dialog.create("SORTING VIGNETTES TOOL          version : "+version);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("Project folder :       "+path);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addChoice("       ", optiondirs);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.show();
+optiondir = 		Dialog.getChoice();
+// ------------- Choix du repertoire ------------------------------------
+//	dirprediction = getDirectory("Select directory containing ''*dat1.txt'' files");
+if (optiondir == optiondirs[0]) 	dirprediction =  path+"\\PID_process\\prediction\\";			method = "From PREDICTION";
+if (optiondir == optiondirs[1]) 	dirprediction =  path+"\\PID_process\\pid_results\\";			method = "From PREDICTION";
+if (optiondir == optiondirs[2]) 	dirprediction =  path+"\\PID_process\\pid_results\\dat1_validated\\";	method = "From VALIDATION";
+
+// ------------ Liste des fichiers ------------------------------
+filelist  = 	getFileList(dirprediction);
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = endsWith(filelist[i],"dat1.txt");
+	if (ctrl == 1 )	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for
+if (j==0) { configpres = 0;
+	getBoolean("No prediction file in the prediction folder. \nPress Cancel to abort !       ");
+} //
+else {
+	// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	if (j == 1) predfile = listaff[0];
+} // else
+
+// -------------- Un ou plusieurs fichiers ? --------------------------------------------
+options = newArray("Select ONE file only","Process ALL files in the selected folder");
+Dialog.create("SORTING VIGNETTES TOOL          version : "+version);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("Project folder :       "+path);
+Dialog.addMessage("Prediction folder :  "+dirprediction);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+if (j>1) {
+	message = "Select option.             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", options);
+} //
+Dialog.addCheckbox("Sort vignettes per sample    ",true); 
+Dialog.addCheckbox("Size selection (based on ESD computed from ''area'') ?", false);
+if (method == "From PREDICTION") {
+	Dialog.addMessage("*.dat1.txt extracted files will be renamed *dat1.ext ");
+} // if
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+if (optiondir == optiondirs[0] || optiondir == optiondirs[1]) {
+	Dialog.addCheckbox("Add detailled folders for validation using list in macro or config folder ?       ",true);
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+} // if
+Dialog.show();
+if (j>1) {	option = 		Dialog.getChoice();	} // if
+else { 		option = options[0];				}// else
+sortsample = 		Dialog.getCheckbox();
+vigsize = 		Dialog.getCheckbox();
+detailled = 	false;
+if (optiondir == optiondirs[0] || optiondir == optiondirs[1]) {
+	detailled = 	Dialog.getCheckbox();
+} // if
+
+// --------------- Si on choisit le tri sur la taille (unit = µm) -------------------------------------------
+esdmin = 0.020;
+esdmax = 10000;
+if (instrum == "flowcam")	esdmin = 0.020;
+if (instrum == "uvp5")		esdmin = 0.2;
+sizeoptions = newArray("Use enhanced vignette ESD","Use camera computed ESD (from UVP5)");
+sizeoption = sizeoptions[0];
+if (vigsize == true) { 
+	Dialog.create("Object ESD based on ''Area''  ");
+	if (instrum == "uvp5") {
+		Dialog.addChoice(" Select ESD measuremnt option       ", sizeoptions);
+	} // if
+	Dialog.addNumber("- Minimum object ESD (mm) ",esdmin);
+	Dialog.addNumber("- Maximum object ESD (mm) ",esdmax);
+	Dialog.show();
+	if (instrum == "uvp5") {		sizeoption = 		Dialog.getChoice();	} //if
+	esdmin = 		Dialog.getNumber();
+	esdmax = 		Dialog.getNumber();
+} // if
+
+// --------------------- Choix du fichier texte de liste ---------------------
+if (detailled == true && (optiondir == optiondirs[0] || optiondir == optiondirs[1])) {
+	// ------------- Recherche dans MACROS en premier ------------------
+	chem_macros =	getDirectory("macros");
+	filelist  = 	getFileList(chem_macros);
+	tm = 0;
+	t = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = startsWith(filelist[i],instrum+"_liste_ident");
+		ctrl1 = endsWith(filelist[i],".txt");
+		if (ctrl == 1 && ctrl1==1 )		{rr = filelist[i]; 	list[t] = rr;	tm++;		} // if
+	} // for
+	if (tm > 0 ) { 
+		showMessage("Using generic list from "+chem_macros+" folder !");
+		chem_listident = chem_macros;
+	} 	
+	else {	// ------------- Recherche dans le projet ensuite -------------------
+		filelist  = 	getFileList(chemconfig);
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	
+			ctrl = startsWith(filelist[i],instrum+"_liste_ident");
+			ctrl1 = endsWith(filelist[i],".txt");
+			if (ctrl == 1 && ctrl1==1 )		{rr = filelist[i]; 	list[t] = rr;	t++;		} // if
+		} // for
+//		t = maxOf(t,tm);
+		chem_listident = chemconfig;
+
+	} // if
+	if ( t == 0) { aa = getBoolean("No text file list for the instrument selected ! \n \nCreate a file in "+chemconfig+" or "+chem_macros+"\nfile name must start with the instrument name. \nPress Cancel to abort !");	} // if
+	else {	// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+		listafftexte = newArray(t);
+		for (i=0; i<listafftexte.length ; i++) {	rr = list[i];		listafftexte[i] = rr;	} // for
+		if ( t == 1) {	file = listafftexte[0];	} //if
+		else {
+			Dialog.create("SELECT liste of GROUPS ");
+			Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+			message = "SELECT file containing the list of GROUPS for the detailled sorting.     \nFiles from "+chem_listident ;
+			Dialog.addMessage(message);
+			Dialog.addChoice("       ", listafftexte);
+			Dialog.show();
+			file = 		Dialog.getChoice();
+		} // else
+	} // else
+	// ---------------------------- Lecture fichier existant -----------------------------------------------
+	openconfig = chem_listident +"\\"+file;
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+}//if
+
+// ---------------- date ---------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+print(j+" prediction files in the "+path);
+if (j >1 && option == "Select ONE file only") {
+	configpres = 1;
+	if (option == options[0]) {
+		Dialog.create("SORTING VIGNETTES TOOL          version : "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+		Dialog.addMessage("Cruise folder :       "+path);
+		Dialog.addMessage("Prediction folder :  "+dirprediction);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+		message = "SELECT text file containing the prediction.             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		predfile = Dialog.getChoice();
+	} // if
+} // if
+	
+// -------------- Boucle ---------------------------
+long = listaff.length;
+if (option == options[0]) { listaff[0] = predfile;	long = 1; 	} // if
+for (k=0;k< long ; k++) {	
+	// ------------- Ouverture du fichier dat1.txt ----------------------------------
+	predfile = listaff[k];
+	openfile = dirprediction+"\\"+predfile;
+	open(openfile);
+	wait(100);
+	data = getInfo();
+	wait(100);
+	run("Close");
+	pid = split(data,"\n");
+	sizerow = lengthOf(pid);
+//	getBoolean(predfile);
+
+	// --------------- Nom de l'échantillon ou du profil ---------------------
+	samplename =  "unknown";
+	n = 1;
+	while (n < sizerow) {
+		// ----UVP5------------------------
+		if (startsWith(pid[n],"profileid=")) {	
+			a = pid[n];
+			datan = split(a,"\ ");
+			samplename = datan[1];
+			n = sizerow-1;
+		} // if
+		// ----Flowcam/generic---------
+		if (startsWith(pid[n],"sampleid=")) {	
+			a = pid[n];
+			datan = split(a,"\ ");
+			samplename = datan[1];
+			n = sizerow-1;
+		} // if
+		n++;
+	} // while
+	
+	// ---------- Cas headers incomplets TARA 2009 ---------------
+	if (samplename ==  "unknown"  ) {
+		longueur = lengthOf(predfile);
+		samplename = substring(predfile,0,longueur - 4);
+	} // if
+	// ---- Pixel size ----------------
+	pixelsize = 0.174;
+	a = " ";
+	n = 1;
+	while (a != "[Data]") { 
+		n++;
+		a = pid[n];
+		if (startsWith(pid[n],"pixel=")) {	
+			datan = split(a,"\ ");
+			pixelsize = datan[1];
+			pixelsize = parseFloat(pixelsize);
+		} // if
+		if (instrum == "uvp5") {
+			if (startsWith(pid[n],"aa=")) {	
+				datan = split(a,"\ ");
+				aa = datan[1];
+				aa = parseFloat(aa);
+			} // if
+			if (startsWith(pid[n],"exp=")) {	
+				datan = split(a,"\ ");
+				expo = datan[1];
+				expo = parseFloat(expo);
+			} // if
+		} // if instrum
+	}// while
+
+	// ---------------- Recherche colonne prediction -----------------------
+	colpred = 0;
+	collabel = 0;
+
+	// --------------- Data section ----------------------------------------------
+	for (i=0; i<pid.length ; i++) {	dat = pid[i];
+		if (startsWith(dat,"[Data]")) {	deb=i+1;			} // if
+	} // for
+
+	// --------------- Separateur ------------------------------------------------
+	colareai = 1;
+	sep = "tabs";
+	ctrl1 = indexOf(pid[deb],";");
+	if (ctrl1>=0) { 		sep = "dotcoma";	} // if
+	ctrl1 = indexOf(pid[deb]," ");
+	if (ctrl1>=0) { 		sep = "space";	} // if
+	if (sep == "dotcoma") {	a= replace(pid[deb],";"," ");		entete = split(a,"\ ");		} // if
+	if (sep == "tabs") {	a = pid[deb];			entete = split(a,"\t");		} // if
+	if (sep == "space") {	a = pid[deb];			entete = split(a,"\ ");		} // if
+	for (i=0; i<entete.length ; i++) {	
+		v = entete[i];	
+		if (v=="Label") { 	collabel = i;		} //if	Nom de l image source
+		if (v=="!Item") { 	colno = i;		} //if
+		ctrlpred = startsWith(v,"pred_");
+		if (ctrlpred==1) { 	colpred = i;		} // if
+		if (v=="Area") { 	colarea = i;		} //if
+		if (v=="Areai") { 	colareai = i;		} //if
+	} // for
+	// ----------- Creation repertoire -----------------------------------
+	//	method = 	entete[colpred];
+	choix = "_"+entete[colpred]+"_to_validate";
+	if (optiondir == optiondirs[2]) choix = "_from_dat1_validated";
+	if (vigsize == true) { 	
+		esdmint = toString(esdmin);
+		choix = choix + "_sup_" + esdmint +"_mm";	
+		if (sizeoption == sizeoptions[1] && colareai > 2)  choix = choix + "_i";
+	} // if
+	else {			choix = choix + "_all_objects";	}	// else
+	if (sortsample == true) {	newdir = 	pathsort+"\\"+samplename+"_"+dateheure+choix+"\\";	} // if
+	else {				newdir = 	pathsort+"\\"+dateheure+"_"+choix+"\\";	} // if
+	if (File.exists(newdir) == false) { 	File.makeDirectory(newdir);		} // if
+
+	// ---------------- Copie du fichier dat1.txt -------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	if (pid[0] != "PID") 	print("PID");
+	for (i=0; i<pid.length ; i++) {	
+		dat = pid[i];	
+		print(dat);	
+	} // for
+	sauvedat = "save=" + newdir+"\\"+predfile;	
+	selectWindow("Log");
+	run("Text...",sauvedat);
+	if (optiondir == optiondirs[0] || optiondir == optiondirs[1]) {	
+		sauvedat = "save=" + pathdat1ext+"\\"+predfile;	
+		selectWindow("Log");
+		run("Text...",sauvedat);
+	} // if
+	
+	// --------------- Boucle sur les vignettes ------------------------------------------------
+	setBatchMode(1);
+	for (i=deb+1; i<sizerow ; i++) {
+		if (sep == "dotcoma") {	a= replace(pid[i],";"," ");	ligne = split(a,"\ ");		} // if
+		if (sep == "tabs") {	a = pid[i];			ligne = split(a,"\t");		} // if
+		if (sep == "space") {	a = pid[i];			ligne = split(a,"\ ");		} // if
+		// -------------- Creation du nom de la vignette a lire ---------------------
+		profilefolder = 	ligne[collabel];
+		novig = 	ligne[colno];
+		prediction = 	ligne[colpred];
+		//  ------------- Calcul ESD (mm) -----------------------------------------------------
+		if (vigsize == false) {	esdmin = 0.000000000001;	esdmax = 10000000000000;	} // if
+		// ------------------- Type de mesure --------------------------------------
+		if (sizeoption == sizeoptions[1] && colareai > 2) {
+			// -------------------- Sélection sur la taille initiale -------------
+			Areapi = 		ligne[colareai];
+			Areapi = 		parseFloat(Areapi);
+			Smm = 			aa*pow(Areapi,expo);
+		} // if	
+		else {
+			Areap = 		ligne[colarea];
+			Areap = 		parseFloat(Areap);
+			Smm = 			Areap * pixelsize*pixelsize;
+		} // if
+		esd = 	2* pow(Smm/3.1416,0.5);
+		if (esd >= esdmin && esd <= esdmax) {
+			openvig = path+"\\work\\"+profilefolder+"\\"+profilefolder+"_"+novig+".jpg";
+
+			// ---------------- Existence du repertoire de destination ---------------------
+			savefolder = newdir+"\\"+prediction+"\\";
+			if (File.exists(savefolder) == false )	File.makeDirectory(savefolder);
+
+			// ---------------- Traitement vignette ----------------------------------
+			//	print(openvig);
+			
+			//	aaa = getBoolean(openvig);
+			if (File.exists(openvig)) {	
+				
+				
+				open(openvig);	
+				textsave = savefolder+profilefolder+"_"+novig+".jpg";
+				//	aaa = getBoolean(textsave);
+				
+				saveAs("Jpeg",textsave);
+				close();
+			} // if
+		} // if
+	} // for vignette
+	// ------------------------- Ajout detailled folders ---------------------
+	if (detailled == true && ( optiondir == optiondirs[0] || optiondir == optiondirs[1])) {
+		for (i=0; i<conf.length; i++)	{ 	File.makeDirectory(newdir+"\\"+conf[i]);		}//for
+	} //  detailled
+	if (optiondir == optiondirs[0]) {
+		// -------------------------- On renomme le fichier extrait -------------
+		longueur = lengthOf(predfile);
+		samplename = substring(predfile,0,longueur - 4);
+		aa= File.rename(openfile,dirprediction+"\\"+samplename+".ext");
+	}//if
+} // for
+setBatchMode(0);
+print("A purger");	selectWindow("Log");		run("Close");
+
+// ------------------------- FIN ---------------------------
+showMessage("Normal END\nof\nUVP5_sort_vig_prediction");
+ret = "OK";
+return ret;
+
+
+

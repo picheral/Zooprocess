@@ -1,0 +1,78 @@
+//-----------------------Zooscan_convert_pid-------------------------------------
+version = "5.00";
+date = "2008/02/07";
+// ------------- Picheral, CNRS --------------------------------
+
+// ---------------------Effacement de la fenetre LOG-----------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+
+projfolder = getDirectory("Chose PID files directory !   ");
+projpid = projfolder+"\\corrected_pid";
+File.makeDirectory(projpid);
+
+//----------------------------Liste des fichiers PID ----------------------------------------------
+fileresults = getFileList(projfolder);	sizeresults = fileresults.length;		
+listpid = 		newArray(sizeresults);
+j = 0;
+for (i=0; i<fileresults.length ; i++) {	ctrl1 = endsWith(fileresults[i],"dat1.pid");
+	if (ctrl1 == true )	{	rr = fileresults[i]; 	listpid[j] = rr;	j++;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { configpres = 0;
+	getBoolean("No PID file in the "+projfolder+" ! \n \nPress Cancel to abort !          ");
+} //
+//---------------- Purger les fichiers vides de la listautres !--------------------------------------------------
+else {	listaff = newArray(j);	
+	for (i=0; i<j ; i++) {	rr = listpid[i];	listaff[i] = rr;	} // for
+}  // else
+
+// ------------------ lecture des fichiers dat1.pid -------------------------------------------------------
+message = "Corrected files : ";
+
+for (k=0;k<listaff.length;k++) { 
+	// ---------------------Effacement de la fenetre LOG-----------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if	
+	pidfile = listaff[k];
+	openpid = projfolder+"\\"+pidfile;
+	open(openpid);
+	wait(500);
+	config = getInfo();
+	pid = split(config,"\n");
+	run("Close");
+	toprint = newArray(pid.length);
+	//-----------------Recherche DATA section & Resolution --------------------------
+	for (i=0; i<pid.length ; i++) {	dat = pid[i];	toprint[i] = dat;
+		if (startsWith(dat,"[Data]")) 	deb=i+1;	
+	} // for
+	//------------------ Detection du TAG -------------
+	TAG = 0;
+	entete = pid[deb];
+	toprint[deb] = entete+";Tag";
+	if (endsWith(entete,"Tag")) {		TAG = 1;		toprint[deb] = entete;	} // if
+
+	// ------------------------ Boucle sur les lignes---------------------------------
+	start = deb+1;
+	for (i=start; i<pid.length; i++)	{
+		mat = pid[i];
+		if (TAG == 0) mat = mat+";1";
+		toprint[i] = mat;
+	} // for
+	// ----------------- Ecriture du fichier corrige ----------------------------------
+	if (TAG == 0) { 
+		for (i=0; i<pid.length; i++)	{ val  = toprint[i];	print(val);	} // for
+		//--------------------------------Sauvegarde d'un fichier ----------------------------------------
+		if (isOpen("Log")) {		selectWindow("Log");	sauve = "save=" + projpid + "\\"+pidfile;	run("Text...",sauve);	run("Close");	} // if
+		message = message + "\n"+pidfile;
+		listaff[k] = pidfile+"      Corrected";
+	} // if
+} // for
+
+// ---------------------Effacement de la fenetre LOG-----------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if	
+for (k=0;k<listaff.length;k++) { 	print(listaff[k]);		} // for
+sauve = "save=" + projpid + "\\"+"Corrected.txt";	
+run("Text...",sauve);
+
+// --------------------------- FIN ---------------------------------------------------------------------
+//	showMessage("End of process",message);
+showMessage("Check ''Corrected.tx'' file in "+projpid);

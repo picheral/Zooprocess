@@ -1,0 +1,116 @@
+// ------------------------- Zooscan_metadata_fill_window_fraction ----------------------------------------------
+version = "7.12";
+date = "2012/08/04";
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+proj = array[0];
+sample = array[1];
+fracId = array[2];
+if (fracId == "fractionId" ) {	titrered = sample+"_1";				}//if
+//	else {				titrered = 	sample+"_"+fracId;		}//else
+option = array[3];
+if (option == "edit") {
+	Fracmin = array[4];	Fracsup = array[5];	Fracnb = array[6];	Observation = array[7];
+	Code = array[8];	Submethod = array[9];	Cellpart = array[10];	Replicates = array[11];
+	Volini = array[12];	Volprec = array[13];	Scanop = array[14];
+}  // if
+else {
+	Fracmin = 10;	Fracsup = 999999;	Fracnb = 999999;	Observation = "no";
+	Code = "1";	Submethod = "motoda";	Cellpart = "1";	Replicates = "1";
+	Volini = "1";	Volprec = "1";		Scanop = "to_fill";
+} // else
+Fracmin = parseInt(Fracmin);	Fracsup = parseInt(Fracsup);	Fracnb = parseInt(Fracnb);
+
+check= 1;
+while (check == 1) {
+	check= 0;
+	message = "Warning : \n";
+	Dialog.create(" METADATA         version : "+version);
+	Dialog.addMessage("----------------------- Please ENTER or CHECK the informations ------------------------------------------------");
+	Dialog.create("Project  : "+proj);
+	// ------------------- Saisie SCAN ---------------------
+	if (fracId == "fractionId" ) {
+		Dialog.addMessage("Sample : "+sample);
+		Dialog.addMessage("Fraction Id : "+fracId);
+		Dialog.addMessage("=> Scan Id : "+titrered);
+	}
+	else { 
+		Dialog.addMessage("Scan Id : "+sample);
+		Dialog.addMessage("Fraction Id : "+fracId);
+	} // else
+	Dialog.addMessage("---------------------------------------------------------------------------------------------------------------");
+	Dialog.addNumber("Fraction min mesh (µm) ",Fracmin);
+	Dialog.addNumber("Fraction max mesh (µm) ",Fracsup);
+	Dialog.addNumber("Fraction spliting ratio x (1/x) ",Fracnb);
+	Dialog.addString("Remark on fraction (no special char !) ",Observation);
+	Dialog.addString("SubMethod",Submethod);
+	Dialog.addMessage("---------------------------------------------------------------------------------------------------------------");
+	Dialog.addString("Scanning operator ",Scanop);
+	Dialog.addMessage("---------------------------------------------------------------------------------------------------------------");
+	
+	Dialog.show;
+
+	Fracmin = Dialog.getNumber();
+	if (Fracmin == 0) { message = message + "Fraction min mesh is not a number  or Fraction min mesh set to 0   \n  "; check = 1;} // if
+
+	Fracsup = Dialog.getNumber();
+	if (Fracsup == 0) { message = message + "Fraction max mesh is not a number  or Fraction max mesh set to 0   \n  "; check = 1;} // if
+	if (Fracsup != 0 && Fracmin != 0 && Fracmin > Fracsup) { message = message + "Fraction min mesh (µm) should be less than Fraction max mesh (µm) \n  "; check = 1;} // if
+
+	Fracnb = Dialog.getNumber();
+	if (Fracnb == 0) { message = message + "Fracnb is not a number  or Fracnb set to 0   \n  "; check = 1;} // if
+
+	Observation = Dialog.getString();
+	a= lengthOf(Observation);
+	if (a==0) {message = message+ "Observation empty \n";		check = 1;		} // if
+	Observation  = replace(Observation," ","_"); 				
+	Observation  = replace(Observation,"?","_"); 
+	Observation  = replace(Observation,",","_"); 
+	Observation  = replace(Observation,"/","_"); 
+	Observation  = replace(Observation,":","_"); 
+	Observation  = replace(Observation,"!","_"); 
+	Observation  = replace(Observation,"-","_"); 				
+	Observation  = replace(Observation,"+","_"); 
+	Observation  = replace(Observation,"°","_"); 
+	Observation  = replace(Observation,"%","_"); 
+	Observation  = replace(Observation,">","_"); 
+	Observation  = replace(Observation,"<","_"); 
+	Observation  = replace(Observation,";","_"); 
+
+	Code = "1";
+	SubMethod= Dialog.getString();
+	a= lengthOf(SubMethod);
+	if (a==0) {message = message+ "SubMethod empty \n";		check = 1;		} // if
+	ind= indexOf(SubMethod," ");
+	if (ind != -1) { SubMethod  = replace(SubMethod," ","_"); 				 }
+	
+	Scanop = Dialog.getString();
+	if (Scanop == "to_fill" || Scanop == "") {message = message+ "Scanning operator field must be filled \n";		check = 1;		} // if
+	Scanop  = replace(Scanop," ","_"); 				
+	Scanop  = replace(Scanop,"?","_"); 
+	Scanop  = replace(Scanop,",","_"); 
+	Scanop  = replace(Scanop,"/","_"); 
+	Scanop  = replace(Scanop,":","_"); 
+	Scanop  = replace(Scanop,"!","_"); 
+	Scanop  = replace(Scanop,"-","_"); 				
+	Scanop  = replace(Scanop,"+","_"); 
+	Scanop  = replace(Scanop,"°","_"); 
+	Scanop  = replace(Scanop,"%","_"); 
+	Scanop  = replace(Scanop,">","_"); 
+	Scanop  = replace(Scanop,"<","_"); 
+	Scanop  = replace(Scanop,";","_"); 	
+	
+	CellPart = "1";
+	Replicates = "1";
+	Vollni ="1";
+	VolPrec = "1";
+}// while
+Fracmin = toString(Fracmin);
+Fracsup = toString(Fracsup);
+Fracnb = toString(Fracnb);
+texte = Fracmin+" "+Fracsup+" "+Fracnb+" "+Observation+" "+Code+" "+SubMethod+" "+CellPart+" "+Replicates+" "+Vollni+" "+VolPrec+" "+Scanop;
+
+// ------------------------------------ FIN ---------------------------------
+return texte;

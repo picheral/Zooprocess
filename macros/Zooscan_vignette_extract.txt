@@ -1,0 +1,197 @@
+//---------------------------Zooscan_vignette_extract---------------------------
+version = "7.21";
+date = "2016/01/30";
+if (isOpen("Results") ) { 	selectWindow("Results");	run("Close");		} // if
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+resolution = 	arg[1];
+longline = 	arg[2];
+x1 = 		arg[3];
+
+titre = 		arg[5];
+titrered = 		arg[6];
+No = 		arg[7];
+Bx = 		arg[8];
+By = 		arg[9];
+Width = 	arg[10];
+Height = 	arg[11];
+maskcont = 	arg[12];
+contrast = 	arg[13];
+vignettetext = 	arg[14];
+masksave = 	arg[15];
+chemwork = 	arg[16];
+chemin =		arg[17];
+
+// ----------------------- new options ------------------------------------------------
+format = "jpeg";
+clean = "0";
+legend = "2";
+flip = "0";
+legendzooscan = false;
+upper = 243;
+if (arg.length > 18) {	format = arg[18];	clean = arg[19];	flip = arg[20];	legend = arg[21];	legendzooscan = arg[22];	upper = arg[23];	} // if
+upper = parseInt(upper);
+
+gamma = contrast;
+//	for (i = 0;i<arg.length;i++) { print(i+" "+arg[i]);	} // for
+
+if (chemin != "unused") { chemwork = chemin+"\\";	} // if
+resolution= parseInt(resolution);
+longline= parseFloat(longline);
+L = parseInt(Width);
+H = parseInt(Height);
+Bx = parseInt(Bx);
+By = parseInt(By);
+x1 = parseFloat(x1);
+
+larg = L;
+haut = H;
+
+nomvignette =titrered+"_"+No;
+longline = longline * resolution/25.4;
+x2 = x1+longline;
+
+run("Colors...", "foreground=red background=white selection=black");
+setColor(0);
+selectImage(titre);
+setVoxelSize(1,1,1,"pixel");
+Larg = getWidth();
+Haut = getHeight();
+
+//-----------------------------Creation de la vignette--------------------------------
+Xmin = 	Bx-L/5;
+//---------------Cas Xmin < 0--------------------
+if ( Xmin <0 ) { 	Xa = 0;		L=	maxOf(L*1.2+Bx,longline+2*x1);	} // if
+else { 		Xa = Xmin;	L=	maxOf(L*1.4,longline+2*x1);		} // else	
+Xmax = Xmin+L;
+// ---------------Cas Xmax > Larg---------------
+if (Xmax > Larg) {	La = Larg - Xa;		} // if
+else {		La = L;			} // else
+//---------------------20 est l'espace pour ecriture de la reference de taille 10 mm
+Ymin = 	By-H/5;
+// ----------------Cas Ymin <0--------------------
+if ( Ymin <0 ) { 	Ya = 0;		H=	(H*1.2)+By+31;	} // if
+else { 		Ya = Ymin;	H=	(H*1.4)+31;	} // else
+Ymax = Ymin + H;
+//-----------------Cas Ymax > Haut--------------
+if (Ymax > Haut) {	Ha = Haut - Ya;		} // if
+else {		Ha = H;			} // else
+y1 = 	H-5;
+
+//------------------------ Il faut que l'image source soit active -----------------------------
+selectImage(titre);
+makeRectangle(Xa,Ya,La,Ha);
+run("Copy");
+if (format == "color_jpeg") {
+	newImage(nomvignette, "RGB White",L, H, 1);
+}
+else {
+	newImage(nomvignette, "8-bit White",L, H, 1);
+}
+makeRectangle(Xa-Xmin,Ya-Ymin,La,Ha);
+run("Paste");
+
+// -------------------------------- Flip -------------------------------------------------------------
+if (flip == "1") {
+	selectImage(nomvignette);
+	makeRectangle(larg/5,haut/5,larg,haut);
+	run("Flip Vertically");
+	run("Select None");	
+} // if
+
+// -------------------------------- Nettoyage complet ------------------------------------------
+if (clean == "1" || legend == "2") {
+	// ------------------- Copie de travail ---------------------------------
+	selectImage(nomvignette);
+	run("Duplicate...", "title=vignette_msk");
+
+	// ------------------- Threshold ----------------------------------------
+	setThreshold(0, upper);
+	run("Convert to Mask");
+
+	// ------------------- Nettoyage autour du plus gros objet --------
+	run("Set Measurements...", "area centroid bounding fit redirect=[vignette_msk] decimal=2");
+	run("Analyze Particles...", "size=30-Infinity circularity=0.00-1.00 show=Nothing exclude include record");
+	updateResults();
+
+	// ------------------- Fermeture image segmentee ------------------------------------------
+	nbobj = nResults;
+	ligne = 0;		g = 0;		Ratio = 0;
+	// ---------------------- Si probleme de vignette blanche -----------------------------------
+	if (nbobj == 0) {
+		getBoolean("Blank vignette, press Cancel to ABORT !  ");
+	} //
+	// ---------------------- Detection Objet cible ------------------------------------------
+//	areainit = 	getResult("Area", ligne);
+//	ystart =	getResult("YStart", ligne);
+	Width = parseInt(Width);
+	Height = parseInt(Height);
+	while (g<nbobj) {		
+		obj_largeur = false;
+		obj_hauteur = false;
+//		area = getResult("Area", g);	
+		ystart =	getResult("YStart", g);
+		obj_width = 	getResult("Width", g);
+		obj_height = 	getResult("Height", g);		
+//		aa = getBoolean(g+"  "+Width+" "+obj_width+" "+Height+" "+obj_height);
+		// --------------- Test si les dimensions concordent ---------------
+		if (obj_width > Width * 0.95  && obj_width < Width * 1.05) obj_largeur = true;
+		if (obj_height > Height * 0.95 && obj_height < Height * 1.05) obj_hauteur = true;
+		if (obj_largeur == true && obj_hauteur == true && ystart >= (Ya-Ymin) )	{ ligne = g; g = nbobj;	} 
+//		if (area > areainit && ystart>= (Ya-Ymin) ) ligne = g;
+//		areainit = maxOf(area,areainit);
+		g++;		
+	} // for
+	xstart = 	getResult("XStart", ligne);
+	ystart =	getResult("YStart", ligne);
+	// --------------- nettoyage autour du plus gros objet -------------
+	selectImage("vignette_msk");
+	DEBX = xstart;
+	DEBY= ystart;
+	doWand(DEBX,DEBY);
+	run("Clear Outside");
+	run("Select None");	
+	run("Invert");
+	run("Image Calculator...", "image1="+nomvignette+" operation=Add image2=vignette_msk");
+	selectImage("vignette_msk");
+	close();
+	//--------------------- Ecriture de la legende
+	selectImage(nomvignette);
+	setFont("SansSerif", 9);
+	drawString(vignettetext+" mm",x1,H-8);
+} // if clean
+
+//---------------------Rehaussement du contraste-----------------
+if (maskcont=="1") { selectImage(nomvignette);		valeur = "saturated="+contrast;	run("Enhance Contrast", valeur);	} // if enhance
+if (maskcont == "2" ) { selectImage(nomvignette);	textgamma = 	"value="+contrast;	run("Gamma...", textgamma);	} // else if
+
+//---------------------Trace de l'echelle 1 mm dans la vignette
+setLineWidth(2);
+drawLine(x1,y1,x2,y1);
+if (legend == "1") {
+	//-------------------Ajoute de coins de delimitation de l'objet-----------
+	selectImage(nomvignette);
+	setLineWidth(1);
+	drawLine(larg/5,haut/5,larg/5+10,haut/5);
+	drawLine(larg/5,haut/5,larg/5,haut/5+10);
+	drawLine(larg+larg /5,haut+haut/5,larg+larg/5-10,haut+haut/5);
+	drawLine(larg+larg/5,haut+haut/5,larg+larg/5,haut+haut/5-10);
+	//----------------------Ecriture de la legende ----------------------
+	setFont("SansSerif", 9);
+	if (legendzooscan == true) {	drawString(vignettetext+" mm  Zooscan CNRS",x1,H-8);	} // if
+	else {	drawString(vignettetext+" mm   gma= "+gamma,x1,H-8);				} // else
+} // if clean
+
+//-------------------------------Sauvegarde des vignettes -------------------
+if (masksave == "1" && (format == "jpeg" || format == "color_jpeg")) { 	saveAs("Jpeg",chemwork+nomvignette);	} // if
+else if (masksave == "1" && format == "tif") { 	saveAs("Tiff",chemwork+nomvignette);	} // if
+else if (masksave == "1" && format == "bmp") { 	saveAs("BMP",chemwork+nomvignette);	} // if
+makeRectangle(0,0,1,1);
+rename(nomvignette);
+
+// ------------------- FIN -----------------------------------------------
+if (isOpen("Results") ) { 	selectWindow("Results");	run("Close");		} // if
+ret = nomvignette;
+return ret;

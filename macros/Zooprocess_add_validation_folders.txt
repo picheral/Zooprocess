@@ -1,0 +1,155 @@
+//------------------- Zooprocess_add_validation_folders ---------------------------------
+version = "7.17";
+date = "2014/02/03";
+
+arg = getArgument(); 
+//	getBoolean(arg);
+array = split(arg," ");
+chem= 		array[0];
+path = 		array[1];
+instrum = 	array[2];
+optionc = 	array[4];
+newdir = 	array[5];
+
+longinst = 	lengthOf(instrum);
+chemsorted = 	path+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+chemconfig = 	path+"\\config\\";
+if (instrum == "zooscan") chemconfig = 	path+"\\Zooscan_config\\";
+sort = true;
+
+
+option_list = newArray("Create folder for validation in ALL subfolders","Create folder for validation in a UNIQUE subfolder");
+Dialog.create("READ IDENTIFICATION from folder sorted vignettes            version "+version);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage( "Project  :  "+path);
+Dialog.addMessage("Instrument :  "+instrum);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addChoice("          SELECT OPTION       ",option_list);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.show();
+folder_list = 		Dialog.getChoice();
+
+//	getBoolean(arg);
+// --------------------------Affichage de la date et de l'heure ------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+if (optionc == "root") {
+	// --------- Depuis "Other tools" -----------
+	// ------------- Choix du repertoire ------------------------------------
+	Dialog.create("READ IDENTIFICATION from folder sorted vignettes            version "+version);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project  :  "+path);
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addCheckbox("          Use default project architecture ?       ",true);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	sort = 		Dialog.getCheckbox();
+}// if optionc
+if (sort == false) {	
+	// ----------------------- Selection manuelle du répertoire ---------------------
+	chemsortedman = getDirectory("Select directory to create empty folders.  ");		
+	listfold  = newArray(1);
+	listfold[0] = chemsortedman;
+} // if
+else {
+	// -------------------- Liste des reperoires dans Sorted vignettes ----------------
+	sorted = getFileList(chemsorted);
+	if (sorted.length >=1) {
+		filelist = newArray(sorted.length);
+		j = 0;
+		for (i=0; i<sorted.length ; i++) {	  
+			rr = sorted[i]; 
+			identlong = 	lengthOf(rr);
+			if (endsWith(rr,"/"))	 {	rr = 	substring(rr,0,identlong-1);	filelist[j] = rr;		j++;	} // if
+		} // for
+		if (j>=1) { listfold  = newArray(j); 
+			for (k = 0;k<j;k++) { rr = filelist[k]; 	listfold[k] = rr;	} // for
+		} // if
+		else { 
+			getBoolean("No validated folders in "+chemsorted+" Press Cancel to abort ! ");
+		} // else
+		
+	} // if
+	else { 
+		getBoolean("No folders in "+chemsorted+" Press Cancel to abort ! ");
+	} // else
+}// else
+
+//-------------- Choix du fichier Text -----------------------------------------------
+filelist  = 	getFileList(chemconfig);
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = startsWith(filelist[i],instrum);
+	ctrl1 = endsWith(filelist[i],".txt");
+	if (ctrl == 1 && ctrl1==1 )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+listaff = newArray(j);
+if ( j == 0) { getBoolean("No text file list for the instrument selected ! \n \nCreate a file in "+chemconfig+"\nfile name must start with the instrument name. \nPress Cancel to abort !");	} // if
+else {
+	// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	Dialog.create("SELECT liste of GROUPS ");
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	message = "SELECT file containing the list of GROUPS             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);
+	if (sort == true && optionc == "root" && folder_list == option_list[1]) {
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addChoice("                  Select ''sorted vignettes'' folder       ",listfold);
+	} //
+	Dialog.show();
+	file = 			Dialog.getChoice();
+	if (sort == true && optionc == "root" && folder_list == option_list[1])  {
+		// -------------- Architecture par default -----------------------------
+		chemsort = 		Dialog.getChoice();
+		chemfinal = path+"\\PID_process\\"+"\\Sorted_vignettes\\"+chemsort+"\\";
+//		getBoolean("A  "+chemfinal);
+	} // if
+	else if (optionc == "root" && folder_list == option_list[1])  {	
+		// ------------ Selection manuelle -------------------------------------
+		chemfinal = path+"\\PID_process\\"+"\\Sorted_vignettes\\"+chemsorted+"\\";
+		chemfinal = chemsortedman;
+//		getBoolean("B  "+chemfinal);
+	} // else
+	else if (folder_list == option_list[1]) {
+		chemfinal = path+"\\PID_process\\"+"\\Sorted_vignettes\\"+newdir+"\\";
+//		getBoolean("C  "+chemfinal);
+	} // else
+} // else
+if (optionc != "root") chemfinal = chemsort;
+//	getBoolean("D  "+chemfinal);
+
+// ---------------------------- Lecture fichier existant -----------------------------------------------
+openconfig = chemconfig +"\\"+file;
+open(openconfig);
+wait(100);
+config = getInfo();
+run("Close");
+conf  = split(config,"\n");
+
+if (folder_list == option_list[1]) {
+	// --------------------------- Creation des repertoires -----------------------------------------------
+	for (i=0; i<conf.length; i++)	{ 
+		File.makeDirectory(chemfinal+"\\"+conf[i]);
+	//	getBoolean(chemfinal+"\\"+conf[i]);
+	}//for
+}
+else if (folder_list == option_list[0]) {
+	for (k=0; k<listfold.length; k++)	{ 
+		chemfinal = path+"\\PID_process\\"+"\\Sorted_vignettes\\"+listfold[k]+"\\";
+		// --------------------------- Creation des repertoires -----------------------------------------------
+		for (i=0; i<conf.length; i++)	{ 
+			File.makeDirectory(chemfinal+"\\"+conf[i]);
+			//	getBoolean(chemfinal+"\\"+conf[i]);
+		}//for
+	} // for
+}
+
+// ----------------------------------- FIN ------------------------------------------------------------------------------------------
+ret = instrum;
+return ret;

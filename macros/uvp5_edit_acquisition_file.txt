@@ -1,0 +1,464 @@
+// ------------------ uvp5_edit_acquisition_file.txt -----------------------
+version =	 "7.22";
+date =	 "2016/06/22";
+
+// datamoy => 11100 (pour visu série)
+// STD / HD et SN
+
+args = getArgument();
+arg = split(args," ");
+pathconfig = arg[0];
+option = arg[1];
+uvp_type = arg[2];
+uvp_sn_txt = arg[3];
+if (arg.length > 4) {
+	Exposure = arg[4];
+	Gain = arg[5];
+	SMbase = arg[6];
+}
+else {	SMbase = 0;	}
+
+modfile = option+".ini";
+// ------------------ Creation de fichiers par défaut lors de l'installation ---------------------
+if (option != "edit") {
+	ret_file = option;
+	// ------------------- Ouverture fichier de config pour récupération des paramètres ----------------------
+	configfile = "process_install_config.txt";
+	openconfig = pathconfig +"\\"+configfile;
+
+	// ---------------------------- Lecture fichier existant -----------------------------------------------
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	size = conf.length;
+	array = newArray(size);
+	for (i=0; i<conf.length; i++)	{ texte = conf[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		} // for
+	calibration = 			array[0];
+	pixel=				array[1];
+	upper= 				array[2];
+	gamma= 				array[3];
+	echelle_mm= 			array[4];
+	process_option= 		array[5];
+	profmin= 			array[6];
+	esdmin= 			array[7];
+	esdmax= 			array[8];
+	threshold= 			array[9];
+	smzoo= 				array[10];
+	ratio = 			array[11];
+	Larg= 				array[12];
+	Haut= 				array[13];
+	scale= 				array[14];
+	if (conf.length == 16 ) {	areamini= array[15];	} //
+	else { 				areamini = 1;		}
+	// ; uvp5hd sn203 : f200hd
+	description = " uvp5"+uvp_type+" sn"+uvp_sn_txt+" : "+ret_file;
+	if (startsWith(ret_file,"mixt")) {	TaskType = "2";	}
+	if (startsWith(ret_file,"full")) {	TaskType = "3";	}
+	if (endsWith(ret_file,"fd")) {		DiskType = "0";	}
+	if (endsWith(ret_file,"hd")) {		DiskType = "1";	}
+	Filesavetype = "0";
+	AVISleep = "1000";
+	AVIFileSize = "0";
+	ShutterSpeed = "12";
+	ShutterMode = "1";
+	ShutterPolarity = "0";
+	Gamma = "0";
+	Threshold = "512";
+	TriggerMode = "1";
+	Thresh = threshold;
+	if (uvp_type != "hd") {		SMbase = "0";	Gain = "6";	}//
+	SMzoo = smzoo;
+	TimeOut = "1000";
+	BRUoption = "1";
+	EraseBorderBlobs = "0";
+	Choice = "1";
+	Ratio = "3";
+	N = "10";
+	DataMoy = "11100";
+	FontPath = "C:\LOVCAM\modfile\grey.bmp";
+	FontSubstract ="0";
+	SaveAfterSub = "0";
+	// ----------- HD --------------
+	if (uvp_type == "hd") {
+//		Exposure = 160;
+//		Gain = 200;
+		Frequence = 20;
+		if (indexOf(ret_file,"full") >= 0) 	Frequence = 10;	
+		Choice = "0";
+//		SMbase = "3";
+	}
+	// --------------------- Impression ----------------------------------
+		if (isOpen("Log")) {	selectWindow("Log");			
+			dateheure =	runMacro("Zooscan_get_time_5");
+			selectWindow("Log");
+			text =  "save=" + pathlog+"\\pilot_log_"+dateheure+".txt";
+			run("Text...",text);	
+			wait(100);
+			run("Close");
+		} // if
+		print("[General]");
+		print(";"+description+"\n ");
+		print("; -1 : error, 0 : Save only, 1 : Process only, 2 : Mixt process, 3 : Full process");
+		print("TaskType= "+TaskType);
+		print("; -1 : error, 0 : FD, 1 : HD");
+		print("DiskType= "+DiskType);
+		if (uvp_type == "std") {		print("; -1 : error, 0 : BMP, 1 : TIFF, 2 : AVI,3 : JPEG");	}
+		else {					print("; -1 : error, 0 : BMP, 1 : PNG");			} 
+		print("Filesavetype= "+Filesavetype+"\n ");
+		
+		if (uvp_type == "std") {
+			print("; Size of the AVI sequence (only if Filesavetype=2)");
+			print("AVIFileSize= "+AVIFileSize);
+			print("; Delay between two images (only if Filesavetype=2)");
+			print("AVISleep= "+AVISleep+"\n ");
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterSpeed= "+ShutterSpeed);
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterMode= "+ShutterMode);	
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterPolarity= "+ShutterPolarity);
+			print("; cf SONY documentation for GAIN");
+			print("Gain= "+Gain);		
+			print("; cf SONY documentation for GAMMA");
+			print("Gamma= "+Gamma);
+			print("; cf SONY documentation for GAMMA");
+			print("Threshold= "+Threshold+"\n ");
+			print("[Sequence]");
+			print("; 0 : No trigger, 1 : Trigger");
+			print("TriggerMode= "+TriggerMode+"\n ");
+		}
+		else {	print("; Exposure time in microS");
+			print("Exposure= "+Exposure);
+			print("; GainRaw (range : 36-512)");
+			print("Gain= "+Gain);	
+			print("; Frequence max (1-20 Hz)");
+			print("Frequence= "+Frequence+"\n ");
+		}
+		print("[Processing]");
+		print("Thresh= "+Thresh);
+		print("SMbase= "+SMbase);
+		print("SMzoo= "+SMzoo);
+		print("TimeOut= "+TimeOut);
+		print("BRUoption= "+BRUoption);
+		print("EraseBorderBlobs= "+EraseBorderBlobs+"\n ");
+		
+		print("[Picture]");
+		if (uvp_type == "std") {		print("; 0 : full image, 1 : vignettes ");		}			
+		else {					print("; 0 : vignettes, 1 : full image,  >1 : vignette or full image if more than N objets");	}
+		print("Choice= "+Choice);
+		print("Ratio= "+Ratio+"\n ");
+		
+		print("[TRData]");
+		print("N= "+N);	
+		print("DataMoy= "+DataMoy+"\n ");
+		
+		if (uvp_type == "std") {
+			print("[Font]");
+			print("FontPath= "+FontPath);
+			print("FontSubstract= "+FontSubstract);
+			print("SaveAfterSub= "+SaveAfterSub);
+		}
+		// ---------------- Enregistrement --------------------------------
+		File.makeDirectory(pathconfig+"\\uvp5_settings\\");
+		pathconfig = pathconfig+"\\uvp5_settings\\";
+		ret_file = ret_file+".ini";
+}// creation
+
+if (option == "edit") {
+	// ------------------- MODFILE LIST ------------------------------
+	config_list = getFileList(pathconfig);
+	file_list = newArray(config_list.length);
+	m = 0;
+	for (g = 0 ; g < config_list.length ; g++ ) {
+		file = config_list[g];
+		if (lengthOf(file) == 10 && endsWith(file,".ini")) {
+			file_list[m] = file;
+			m++;
+		}
+	}
+	mod_list = newArray(m);
+	for (g = 0 ; g < m ; g++ ) { rr = file_list[g];		mod_list[g] = rr;	}
+	Dialog.create("UVP5 EDIT ACQUISITION FILE   ");
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");
+	Dialog.addChoice("        SELECT Camera acquisition file ",mod_list);
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------      ");	
+	Dialog.show();
+	modfile = 		Dialog.getChoice();
+	
+	// -------------------- OUVERTURE ---------------------------------------
+	openconfig = pathconfig+"\\"+modfile;
+	long = lengthOf(modfile);
+	file_red = substring(modfile,0,long-4);
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	description = conf[1];
+	if (lengthOf(description) >0) {
+		long = lengthOf(description);
+		description = substring(description,1,long);
+	}
+	else { description =  " ";}
+	for (i=1;i<conf.length;i++){
+	file = conf[i];
+	if (lengthOf(file) > 3) {
+		if (startsWith(file,"TaskType="))	{	file = replace(file,"="," "); data = split(file," "); TaskType=data[1];		}
+		else if (startsWith(file,"DiskType=")) 	{	file = replace(file,"="," "); data = split(file," "); DiskType=data[1];		}
+		else if (startsWith(file,"Filesavetype=")){ file = replace(file,"="," "); data = split(file," "); Filesavetype=data[1];		}
+		else if (startsWith(file,"AVIFileSize=")) {file = replace(file,"="," "); data = split(file," "); AVIFileSize=data[1];	AVIFileSize = parseInt(AVIFileSize);	}
+		else if (startsWith(file,"AVISleep=")) {file = replace(file,"="," "); data = split(file," "); AVISleep=data[1];		AVISleep = parseInt(AVISleep);	}	
+		else if (startsWith(file,"ShutterSpeed=")){ file = replace(file,"="," "); data = split(file," "); ShutterSpeed=data[1];		}
+		else if (startsWith(file,"ShutterMode=")){ file = replace(file,"="," "); data = split(file," "); ShutterMode=data[1];	ShutterMode = parseInt(ShutterMode);	}
+		else if (startsWith(file,"ShutterPolarity=")){ file = replace(file,"="," "); data = split(file," "); ShutterPolarity=data[1];	ShutterPolarity = parseInt(ShutterPolarity);	}
+		else if (startsWith(file,"Gain=")){ file = replace(file,"="," "); data = split(file," "); Gain=data[1];			Gain = parseInt(Gain);		}
+		else if (startsWith(file,"Gamma=")){ file = replace(file,"="," "); data = split(file," "); Gamma=data[1];		Gamma = parseInt(Gamma);	}
+		else if (startsWith(file,"Threshold=")){ file = replace(file,"="," "); data = split(file," "); Threshold=data[1];	Threshold = parseInt(Threshold);	}
+		else if (startsWith(file,"TriggerMode=")) {file = replace(file,"="," "); data = split(file," "); TriggerMode=data[1];		}
+		else if (startsWith(file,"Thresh=")) {file = replace(file,"="," "); data = split(file," "); Thresh=data[1];		Thresh = parseInt(Thresh);	}
+		else if (startsWith(file,"SMbase=")){ file = replace(file,"="," "); data = split(file," "); SMbase=data[1];		SMbase = parseInt(SMbase);	}
+		else if (startsWith(file,"SMzoo=")) {file = replace(file,"="," "); data = split(file," "); SMzoo=data[1];		SMzoo = parseInt(SMzoo);	}
+		else if (startsWith(file,"TimeOut=")){ file = replace(file,"="," "); data = split(file," "); TimeOut=data[1];		TimeOut = parseInt(TimeOut);	}
+		else if (startsWith(file,"BRUoption=")) {file = replace(file,"="," "); data = split(file," "); BRUoption=data[1];		}
+		else if (startsWith(file,"EraseBorderBlobs=")) { file = replace(file,"="," "); data = split(file," "); EraseBorderBlobs=data[1];		}
+		else if (startsWith(file,"Choice=")) { file = replace(file,"="," "); data = split(file," "); Choice=data[1];			}
+		else if (startsWith(file,"Ratio=")) { file = replace(file,"="," "); data = split(file," "); Ratio=data[1];		Ratio = parseInt(Ratio);	}
+		else if (startsWith(file,"N=")) { file = replace(file,"="," "); data = split(file," "); N=data[1];			N = parseInt(N);	}
+		else if (startsWith(file,"DataMoy=")) { file = replace(file,"="," "); data = split(file," "); DataMoy=data[1];}
+		else if (startsWith(file,"FontPath=")) { file = replace(file,"="," "); data = split(file," "); FontPath=data[1];}
+		else if (startsWith(file,"FontSubstract=")) { file = replace(file,"="," "); data = split(file," "); FontSubstract=data[1];}
+		else if (startsWith(file,"SaveAfterSub=")) { file = replace(file,"="," "); data = split(file," "); SaveAfterSub=data[1];	}
+		else if (startsWith(file,"Exposure=")) { file = replace(file,"="," "); data = split(file," "); Exposure=data[1];	Exposure = parseInt(Exposure) - 60;	}
+		else if (startsWith(file,"Frequence=")) { file = replace(file,"="," "); data = split(file," "); Frequence=data[1];	Frequence = parseInt(Frequence);	}
+	} // if length
+	} // for
+		Dialog.create("EDIT ACQUISITION FILE for UVP5                                   1/2 ");
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+		Dialog.addMessage("UVP type = "+uvp_type);
+		Dialog.addString("     Enter general description of the file (comments)",description);
+		TaskType_a = newArray("old","0","1","2","3");
+		TaskType_a[0] = TaskType;
+		Dialog.addMessage("    Process options => 0: Save image, 1: Process, 2: Process & Save, 3: Save & Process");
+		Dialog.addChoice("              Select Process option ",TaskType_a);
+		Dialog.addMessage("    Recording disk => 0: Save data on FD, 1: Save data on HD");
+		DiskType_a = newArray("old","0","1");
+		DiskType_a[0] = DiskType;
+		Dialog.addChoice("              Select Recording disk ",DiskType_a);
+//		Dialog.addMessage("0: bmp, 1:tif, 2: AVI, 3: Jpg");
+//		AVIFileSize = parseInt(AVIFileSize);
+//		Dialog.addNumber("              Enter AVIFileSize ",AVIFileSize);	
+//		AVISleep = parseInt(AVISleep);
+//		Dialog.addNumber("              Enter AVISleep ",AVISleep);
+		if (uvp_type == "std") {
+			ShutterSpeed_a = newArray("old","0","1","2","3","4","5","6","7","8","9","10","11","12","13");
+			ShutterSpeed_a[0] = ShutterSpeed;
+			Dialog.addChoice("              Select ShutterSpeed (12: 1/10000)",ShutterSpeed_a);	
+//			ShutterMode = parseInt(ShutterMode);
+//			Dialog.addNumber("              Enter ShutterMode ",ShutterMode);
+//			ShutterPolarity = parseInt(ShutterPolarity);
+//			Dialog.addNumber("              Enter ShutterPolarity ",ShutterPolarity);
+			Gain = parseInt(Gain);
+			Dialog.addNumber("              Enter Gain (0-13)",Gain);
+//			Gamma = parseInt(Gamma);
+//			Dialog.addNumber("              Enter Gamma ",Gamma);
+		} // 
+		else {	
+			Filesavetype_a = newArray("old","0","1");	//	,"2","3");
+			Filesavetype_a[0] = Filesavetype;
+			Dialog.addChoice("          Select Image format (0 : BMP, 1 : PNG) ",Filesavetype_a);	
+			Dialog.addNumber("          Enter Exposure time (an offet of 60µs will be added) ",Exposure);
+			Dialog.addNumber("          Enter Gain (36-512) ",Gain);
+			Dialog.addNumber("          Frequence max (1-20 Hz) ",Frequence);
+		}
+		Threshold = parseInt(Threshold);
+//		Dialog.addNumber("              Enter Threshold ",Threshold);		
+//		TriggerMode_a = newArray("old","0","1");
+//		TriggerMode_a[0] = TriggerMode;
+//		Dialog.addChoice("              Select TriggerMode ",TriggerMode_a);			
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+
+		//=====================================================================================
+		Dialog.show;	
+		//=====================================================================================
+			
+		description = Dialog.getString();
+		TaskType = Dialog.getChoice();
+		DiskType = Dialog.getChoice();
+		if (uvp_type == "std") {
+//			Filesavetype = Dialog.getChoice();
+//			AVIFileSize = Dialog.getNumber();
+//			AVISleep = Dialog.getNumber();
+			ShutterSpeed = Dialog.getChoice();
+//			ShutterMode = Dialog.getNumber();
+//			ShutterPolarity = Dialog.getNumber();
+		}
+		else { 	Filesavetype = Dialog.getChoice();
+			Exposure = Dialog.getNumber();
+			Exposure = Exposure + 60;
+		}// else
+		Gain = Dialog.getNumber();
+		
+		if (uvp_type == "hd") {
+			Frequence = Dialog.getNumber();
+		}
+//		Gamma = Dialog.getNumber();
+//		Threshold = Dialog.getNumber();
+//		TriggerMode = Dialog.getChoice();
+		
+		// --------------------- Sheet 2 ------------------------------------
+		Dialog.create("EDIT ACQUISITION FILE for UVP5                                   2/2 ");
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");				
+		Thresh = parseInt(Thresh);
+		Dialog.addNumber("              Enter Threshold for seementation",Thresh);		
+		SMbase = parseInt(SMbase);
+		Dialog.addNumber("              Enter minimum size for particles (pixel)",SMbase);
+		SMzoo = parseInt(SMzoo);
+		Dialog.addNumber("              Enter minimum size for zooplankton (pixel)",SMzoo);
+		TimeOut = parseInt(TimeOut);
+		Dialog.addNumber("              Enter TimeOut (particle process)",TimeOut);
+		BRUoption_a = newArray("old","0","1");
+		BRUoption_a[0] = BRUoption;
+		Dialog.addChoice("              Select process option (0: limited, 1: complete) ",BRUoption_a);
+		EraseBorderBlobs_a = newArray("old","0","1");
+		EraseBorderBlobs_a[0] = EraseBorderBlobs;
+		Dialog.addChoice("              Blobs on border (0: keep, 1: remove) ",EraseBorderBlobs_a);
+		Choice_a = newArray("old","0","1");
+		Choice_a[0] = Choice;
+		if (uvp_type == "std") {
+			Dialog.addChoice("              Zooplankton image (0: full, 1: thumbnail) ",Choice_a);
+		}
+		else {
+			Dialog.addNumber("              Zooplankton image (n=0: full, n=1: thumbnails, n>1: full img if nb of thumbnail >n) ",Choice);
+		}
+		Ratio = parseInt(Ratio);	
+		Dialog.addNumber("              Enter vignette border ratio ",Ratio);	
+		N = parseInt(N);
+		Dialog.addNumber("              Enter number of averaged images ",N);
+		Dialog.addString("              Enter OUTPUT selection chanels (5 char) ",DataMoy);
+		if (uvp_type == "std") {
+			Dialog.addString("              Enter FontPath (background img) ",FontPath);
+			FontSubstract_a = newArray("old","0","1");
+			FontSubstract_a[0] = FontSubstract;
+			Dialog.addChoice("              Select FontSubstract ",FontSubstract_a);
+			SaveAfterSub_a = newArray("old","0","1");
+			SaveAfterSub_a[0] = SaveAfterSub;
+			Dialog.addChoice("              Select SaveAfterSub ",SaveAfterSub_a);
+		}
+		
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+
+		//=====================================================================================
+		Dialog.show;	
+		//=====================================================================================
+			
+		Thresh = Dialog.getNumber();
+		SMBase = Dialog.getNumber();
+		SMzoo = Dialog.getNumber();
+		TimeOut = Dialog.getNumber();
+		BRUoption = Dialog.getChoice();
+		EraseBorderBlobs = Dialog.getChoice();
+		if (uvp_type == "std") {		Choice = Dialog.getChoice();	}
+		else {					Choice = Dialog.getNumber();	}	
+		Ratio = Dialog.getNumber();
+		N = Dialog.getNumber();
+		DataMoy = Dialog.getString();
+		if (uvp_type == "std") {
+			FontPath = Dialog.getString();
+			FontSubstract = Dialog.getChoice();
+			SaveAfterSub = Dialog.getChoice();
+		}//
+		// --------------------- Impression ----------------------------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[General]");
+		print(";"+description+"\n ");
+		
+		print("; -1 : error, 0 : Save only, 1 : Process only, 2 : Mixt process, 3 : Full process");
+		print("TaskType= "+TaskType);
+		print("; -1 : error, 0 : FD, 1 : HD");
+		print("DiskType= "+DiskType);
+		if (uvp_type == "std") {		print("; -1 : error, 0 : BMP, 1 : TIFF, 2 : AVI,3 : JPEG");	}
+		else {					print("; -1 : error, 0 : BMP, 1 : PNG");			} 
+		print("Filesavetype= "+Filesavetype+"\n ");
+		
+		if (uvp_type == "std") {
+			print("; Size of the AVI sequence (only if Filesavetype=2)");
+			print("AVIFileSize= "+AVIFileSize);
+			print("; Delay between two images (only if Filesavetype=2)");
+			print("AVISleep= "+AVISleep+"\n ");
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterSpeed= "+ShutterSpeed);
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterMode= "+ShutterMode);	
+			print("; cf SONY documentation for SHUTTER");
+			print("ShutterPolarity= "+ShutterPolarity);
+			print("; cf SONY documentation for GAIN");
+			print("Gain= "+Gain);		
+			print("; cf SONY documentation for GAMMA");
+			print("Gamma= "+Gamma);
+			print("; cf SONY documentation for GAMMA");
+			print("Threshold= "+Threshold+"\n ");	
+			print("[Sequence]");
+			print("; 0 : No trigger, 1 : Trigger");
+			print("TriggerMode= "+TriggerMode+"\n ");
+		}// if
+		else {
+			print("; Exposure time in microS");
+			print("Exposure= "+Exposure);
+			print("; GainRaw (range : 36-512)");
+			print("Gain= "+Gain);
+			print("; Frequence max (1-20 Hz)");
+			print("Frequence= "+Frequence+"\n ");	
+		}		
+		print("[Processing]");
+		print("Thresh= "+Thresh);
+		print("SMbase= "+SMbase);
+		print("SMzoo= "+SMzoo);
+		print("TimeOut= "+TimeOut);
+		print("BRUoption= "+BRUoption);
+		print("EraseBorderBlobs= "+EraseBorderBlobs+"\n ");		
+		print("[Picture]");
+		if (uvp_type == "std") {		print("; 0 : full image, 1 : vignettes ");		}			
+		else {					print("; 0 : vignettes, 1 : full image,  >1 : image if more than N objets");	}
+		print("Choice= "+Choice);
+		print("Ratio= "+Ratio+"\n ");		
+		print("[TRData]");
+		print("N= "+N);	
+		print("DataMoy= "+DataMoy+"\n ");		
+		if (uvp_type == "std") {
+			print("[Font]");
+			print("FontPath= "+FontPath);
+			print("FontSubstract= "+FontSubstract);
+			print("SaveAfterSub= "+SaveAfterSub);
+		}//
+	check = 0;
+	while( check == 0) {
+		Dialog.create("ACQUISITION FILE SAVING MODULE   ");
+		Dialog.addMessage("---------------------------------------------------------------------------      ");
+		Dialog.addString("        Enter Camera modfile name (6 char)",file_red);
+		Dialog.addMessage("---------------------------------------------------------------------------      ");						
+		Dialog.show();
+		ret_file = 		Dialog.getString();
+		ret_file = ret_file+".ini";
+		mod_exist = 0;                                      
+		// ------------------------ Vérification du nom du fichier ---------------------------
+		for (g = 0 ; g < m ; g++ ) { 
+			rr = file_list[g];
+			if (rr == ret_file) mod_exist = 1;
+		}
+		if (mod_exist == 1) {	check = getBoolean(ret_file+" exists already. \n \nPRESS YES to overwrite \n \nPRESS NO to enter new name ");	}
+		else {check = 1;	}
+	}
+} // if edit
+
+// ------------------------ Sauvegarde -----------------------
+openconfig = pathconfig+"\\"+ret_file;
+selectWindow("Log");
+text =  "save=" + openconfig;
+run("Text...",text);	
+wait(100);
+run("Close");
+if (option == "edit") {		showMessage("WARNING","The file "+ret_file+" must be sent to UVP5 !\n \nIt is recommended to run the dedicated tool.");		} // if
+// ------------------- FIN -------------------------------
+return modfile;

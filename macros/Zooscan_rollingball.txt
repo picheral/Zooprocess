@@ -1,0 +1,179 @@
+// ---------------- Zooscan_rollingball.txt ---------------------------------------
+date = "2009/06/13";
+version = "6.12";
+
+arg = getArgument(); 
+array = split(arg," ");
+chemtemp= 	array[0];
+backval= 	array[1]; 	
+method= 		array[2]; 	
+
+nb = 5;
+duration = 1000;
+suppress = 	"rolling="+ backval + " white";
+
+selectImage("imagesource");
+largeur = 	getWidth();
+hauteur = 	getHeight();
+largeura = floor(largeur/6);	
+backval = parseInt(backval);
+overlap = backval*5;
+
+saveAs("Tiff",chemtemp+"raw.tif");
+//	close();
+//	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+//	open(chemtemp+"raw_a.tif");
+//	rename("imagesource");
+
+// ------------------------ 1/6 ------------------------------------------------------
+	selectImage("raw.tif");
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(0, 0, largeura+overlap,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw_a.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	
+	// ------------------------ 2/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(largeura, 0,largeura+overlap,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw_b.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 3/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(2*largeura, 0,largeura+overlap,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw_c.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 4/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(3*largeura, 0,largeura+overlap,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw_d.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 5/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(4*largeura, 0,largeura+overlap,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw_e.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 6/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+//	right = minOf(largeura+overlap,largeur);
+	makeRectangle(5*largeura, 0,largeura,hauteur);
+	run("Crop");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ----------------------- recomposition ------------------------------------------
+//	print("> Reconstructing image");
+
+	// ------------ a -----------------
+	newImage("tempo", "8-bit White", largeur, hauteur, 1);
+	open(chemtemp+"raw_a.tif");
+	makeRectangle(0, 0, largeura+overlap/2,hauteur);
+	run("Copy");
+	close();
+	selectImage("tempo");
+	makeRectangle(0, 0, largeura+overlap/2,hauteur);
+	run("Paste");
+	rename("raw.tif");
+
+	// ------------- b ---------------------------------
+	open(chemtemp+"raw_b.tif");
+	wait(100);
+	makeRectangle(overlap/2, 0,largeura,hauteur);
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(largeura+overlap/2,0, largeura, hauteur);
+	run("Paste");
+
+	// ------------ c -------------------------------------
+	open(chemtemp+"raw_c.tif");
+	wait(100);
+	makeRectangle(overlap/2, 0,largeura,hauteur);
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(2*largeura+overlap/2,0, largeura, hauteur);
+	run("Paste");
+
+	// ------------ d -------------------------------------
+	open(chemtemp+"raw_d.tif");
+	wait(100);
+	makeRectangle(overlap/2, 0,largeura,hauteur);
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(3*largeura+overlap/2,0,largeura, hauteur);
+	run("Paste");
+
+	// ------------ e -------------------------------------
+	open(chemtemp+"raw_e.tif");
+	wait(100);
+	makeRectangle(overlap/2, 0,largeura,hauteur);
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(4*largeura+overlap/2,0, largeura, hauteur);
+	run("Paste");
+
+	// ------------ f -------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(overlap/2, 0,largeura,hauteur);
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(5*largeura+overlap/2,0, largeura-overlap/2, hauteur);
+	run("Paste");
+
+	// -------------------- sauvegarde temporaire ----------------------
+	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	open(chemtemp+"raw.tif");
+	rename("imagesource");
+
+// -------------------- FIN ---------------------------------------
+ret = "OK";
+return ret;
+

@@ -1,0 +1,65 @@
+// --------------------------- Zooscan_update_folders.txt ---------------------------------------
+version = "6.15";
+date = "2009/11/02";
+arg = 		getArgument(); 
+array = 		split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+drive = 	substring(projfolder,0,2);
+lon = 	lengthOf(projfolder);
+zoosc = 	indexOf(projfolder,"Zooscan_");
+proj = 	substring(projfolder,zoosc+8,lon);
+
+path = drive+"Zooscan_"+proj;
+pathconfig =	path+"\\"+"\\Zooscan_config";
+pathmeta = 	path+"\\"+"\\Zooscan_meta\\";
+pathback = 	path+"\\"+"\\Zooscan_back\\";
+pathscan = 	path+"\\"+"\\Zooscan_scan";
+pathwork = 	path+"\\"+"\\Zooscan_scan\\"+"\\_work";
+pathraw = 	path+"\\"+"\\Zooscan_scan\\"+"\\_raw";
+pathresults = 	path+"\\"+"\\Zooscan_results";
+//------------------PID folders---------------------------------------
+pathpid = 		path+"\\"+"\\PID_process";
+pathlearn = 		path+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+pathpidresults = 		path+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+pathsortedvig = 		path+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+pathpredic = 		path+"\\"+"\\PID_process\\"+"\\Prediction\\";
+pathpidpredicted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+pathdat1extracted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_extracted\\";
+pathdat1validatted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+
+//-----------------PID folders-----------------------------------------------------------------------------
+File.makeDirectory(pathpid);
+File.makeDirectory(pathlearn);
+File.makeDirectory(pathpidresults);
+File.makeDirectory(pathvig);
+File.makeDirectory(pathsortedvig);
+path = drive+"Zooscan_"+proj;
+File.makeDirectory(pathpredic); 
+File.makeDirectory(pathpidpredicted); 
+File.makeDirectory(pathdat1extracted); 		
+File.makeDirectory(pathdat1validatted);	
+
+// --------------------- FIN --------------------
+showMessage("PID folders added to "+proj);
+
+ret = "Fin";
+return ret;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

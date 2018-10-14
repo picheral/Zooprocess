@@ -1,0 +1,258 @@
+//-----------------------Zooscan_background_again----------------------------
+version = "6.10";
+date = "2009/03/30";
+
+// args = chem+" "+chemvue+" "+proc+" "+proj +" "+projfolder;
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+chemvue = 	arg[1];
+proc = 		arg[2];
+proj = 		arg[3];
+projfolder =	arg[4];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemback =	projfolder + "\\Zooscan_back\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+drive =		substring(projfolder,0,2);
+setBatchMode(true);
+scanner = "Biotom";
+getBoolean("WARNING : \n \nAll background images will be reprocessed using the ACTUAL settings of the ''lut.txt'' file ! \n \nPress YES to continue, \nPress CANCEL to abort.    ");
+
+// ---------------------------- Default values ----------------------------------------------------
+nbframe = 2;
+ratio = 0.6;			time = 40;		ecranw= screenWidth();	ecranh= screenHeight();
+vuescanofsetx = 10;		vuescanofsety = 10;	resolution = 300;		
+Hardware= "none";			Unit= 0;			reduction=1;		AutoOffset=0;
+PreviewXOffset= 0;			XOffset= 0;		XSize= 0;			XSpacing= 0;
+YOffset= 0;	YSize=0;		operation = "background";
+bitperpixel = 	8;		bitperpixelligne =	0;	tifiletype= 8;
+tifileligne =	0;		colorbalance = 	"manual";				colballigne = 	0;
+save16 = 		0;
+tiffile = 0;		rawfile = 0;
+titrefinal = " ";
+
+//----------------------------Test sur l'existence du repertoire des fichiers de config-------------------------------
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+confrep = 	File.exists(chemconfig);
+conflut = 		File.exists(chemconfig+"lut.txt");
+if (confrep==0 || conflut == 0 ) { 	
+	if (confrep==0) {getBoolean("Error message : "+chemconfig+" folder doesn't exist.     \n                              \nPress Cancel to abort !     ");  					} // if
+	if (conflut == 0) { getBoolean("Error message : lut.txt file doesn't exist in project                 \n"+projfolder+"           \n                              \nPress Cancel to abort !      ");  		} // if
+}// if	
+
+// -----------------------------Existence d'une LUT ------------------------------------------------------
+else { 	conflut = File.exists(chemconfig+"lut.txt");
+	if (conflut == 0) showMessage("Error message : lut.txt file doesn't exist.           ");  
+	else { 	//---------------------Lecture fichier LUT ---------------------------------
+		open(chemconfig+"lut.txt");
+		wait(100);
+		lutdata = getInfo();
+		run("Close");
+		ligne = split(lutdata,"\n");
+		min = 	ligne[0];	max = 		ligne[1];		gamma = 	ligne[2];		sens = 	ligne[3];
+		adjust = 	"no";	odrange = 	1.8;		ratio = 		1.15;		medianchoice = 	"no";
+		medianvalue = 	1;			//	for (i=0; i<ligne.length; i++) { print(ligne[i]);	} // for
+		//	showMessage(ligne.length);
+		if (ligne.length == 6) {	adjust = ligne[4];	odrange = ligne[5];	ratio = 1.15;	
+			showMessage("Zooprocess requires a new LUT file.                 \nUpdate your LUT file for Zooprocess 3.05 and above versions.                ");
+		} // if
+		else if (ligne.length == 7) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];		
+			odrange = parseFloat(odrange);	
+		} // else if
+		else if (ligne.length == 9) {	
+			adjust = ligne[4];	odrange = ligne[5];		ratio =ligne[6];		
+			sizelimit =ligne[7];		sizelimit= parseInt(sizelimit);
+			overlap = ligne[8];		overlap = parseFloat(overlap);
+			odrange = ligne[5];		odrange = parseFloat(odrange);
+		} // else if
+		else if (ligne.length == 11) {	
+			adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);		
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+		} // if
+		else if (ligne.length == 12) {	adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);	
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+			resolutionreduct = ligne[11];		resolutionreduct = parseInt(resolutionreduct);			
+		} // if
+		else { 	getBoolean("Your LUT file is not correct, please check it using the ''EDIT LUT file'' tool !    \nPress OK to keep processing. \nPress Cancel to abort.                      ");		} // else
+	} // else
+	if (odrange >= 3) odgrange = 1.15;	
+} // else
+// ------------------------ Catalogue des fichiers LOG des backgrounds existants ---------------------------------
+confrep = 		File.exists(chemback);
+if (confrep==0) { 	showMessage("WARNING : ",chemback," folder doesn't exist, process aborted  ");  		} // if
+else { 	//-------------- Selection des fichiers -----------------------------------------
+	filelist  = 	getFileList(chemback);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	ctrl = endsWith(filelist[i],"log.txt");
+		if (ctrl == true)		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { print("No background files file in the "+chemback);
+		configpres = 0;
+		getBoolean("No valid background logfile in "+chemback+"        \nPress Cancel to abort !         ");
+	} //
+	else { print(j+" background logfiles in the "+chemback);
+		configpres = 1;
+		// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+
+		// ------------------------ Boucle sur les fichiers LOG --------------------------------------------------------------------
+		for (i=0; i<listaff.length ; i++) {
+			print(listaff[i]);
+			// ------------ Test sur la presence et le nombre d'images RAW pour ce log --------------------------
+			file = listaff[i];
+			dateheure = substring(file,0,13);
+			if (indexOf(file,"narrow") >0) 	framesize = "narrow";
+			if (indexOf(file,"large") >0) 	framesize = "large";
+			nbframe = 0;
+			liste = " ";			
+			for (f=0; f<21 ; f++) {
+				filenamein = dateheure+"_back_"+framesize+"_raw_"+f+".tif";
+				if (File.exists(chemback+"\\"+filenamein)) {
+					nbframe++;
+					liste = liste+" "+filenamein;
+				} // if
+			} // for
+			// ---------------------- On continue car presence RAW images -----------------------
+			if (nbframe > 1) { 
+				// ------------- Premiere image ---------------------------------------------------------
+				ligne = split(liste,"\ ");
+				filenamein = ligne[0];
+				long = lengthOf(filenamein);
+				noframe = substring(filenamein,long-5,long-4);
+				//	showMessage(filenamein+"  "+noframe);
+			 	//--------------------------------------Moyenne des images scannees--------------------------------------------
+				vecteurmedian = newArray(nbframe);
+				vecteurframe = newArray(nbframe);
+				vecteurframe[0] = noframe;
+				medianavg = 0;
+				MINRECavg = 	0;
+				MAXRECavg = 	0;
+				titre = dateheure+"_back_"+framesize+"_"+noframe+".tif";
+				filenameout = 	titre;
+				//----------------SI "MANUAL", on calcule l'image en 8 bits en convertissant avec MIN et MAX ---------------------------------------
+				param = 1;
+				savezip = 0;
+				arg= projfolder+" "+"background"+" "+chemback+" "+filenamein+" "+chemback+" "+filenameout+" 1 "+param+" "+savezip+" "+chem;
+				ret = runMacro("Zooscan_convert",arg);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if ( l == 1) { getBoolean("Error message : Zooscan_convert macro aborted,                               \nPress Cancel to abort                ");	} // if
+				else {	argret = 		split(flag," ");	
+					XSize = 		argret[0];	
+					YSize = 		argret[1];	
+					Resolution = 	argret[2];	
+					median = 	argret[3];		medianavg = medianavg+parseInt(median);	
+					MINREC = 	argret[4];		MINRECavg = MINRECavg+parseInt(MINREC);
+					MAXREC = 	argret[5];		MAXRECavg = MAXRECavg+parseInt(MAXREC);
+					medianchoice = 	argret[7];
+					vecteurmedian[0] = parseInt(median);
+				} // else
+				setBatchMode(true);
+				texte = "value="+nbframe;
+				open(chemback+titre);
+				wait(100);
+				run("Divide...",texte);	
+				saveAs("Tif",chemtemp+"fond.tif");
+				close();
+				// ---------------------------- Images suivantes ----------------------------------------------------	
+				for (k=1;k<nbframe;k++) {
+					filenamein = 	ligne[k];
+					long = lengthOf(filenamein);
+					noframe = substring(filenamein,long-5,long-4);
+					vecteurframe[k] = noframe;
+					//	showMessage(filenamein+"  "+noframe);
+					titre = dateheure+"_back_"+framesize+"_"+noframe+".tif";
+					filenameout = 	titre;	
+					//----------------SI "MANUAL", on calcule l'image en 8 bits en convertissant avec MIN et MAX --------------------------------------
+					arg= projfolder+" "+colorbalance+" "+chemback+" "+filenamein+" "+chemback+" "+filenameout+" 1 "+param+" "+savezip+" "+chem;
+					ret = runMacro("Zooscan_convert",arg);
+					flag=toString(ret);
+					l= lengthOf(flag);
+					if ( l == 1) { getBoolean("Error message : Zooscan_convert macro aborted,                               \nPress Cancel to abort                ");	} // if
+					else {	argret = 		split(flag," ");	
+						XSize = 		argret[0];	
+						YSize = 		argret[1];	
+						Resolution = 	argret[2];	
+						median = 	argret[3];		medianavg = medianavg+parseInt(median);	
+						MINREC = 	argret[4];		MINRECavg = MINRECavg+parseInt(MINREC);
+						MAXREC = 	argret[5];		MAXRECavg = MAXRECavg+parseInt(MAXREC);
+						vecteurmedian[k] = parseInt(median);
+					} // else
+					setBatchMode(true);
+					texte = "value="+nbframe;
+					open(chemback+titre);
+					wait(100);
+					rename("fond1");
+					run("Divide...",texte);	
+					open(chemtemp+"fond.tif");
+					rename("fond");		
+					run("Image Calculator...", "image1=fond operation=Add image2=fond1");
+					selectImage("fond1");
+					run("Close");
+				//	for (u=0; u<4; u++) {	showStatus("Free memory");	run("free memory");	progress = (u+1)/4;	showProgress(progress);	wait(1000);	} // for
+
+				} // for
+				titrefinal = 	dateheure+"_background_"+framesize+"_manual.tif";
+				//----------------Conversion 8 BITS----------------------
+				selectImage("fond");		
+				run("8-bit");
+				// ----------------- Mesure MEDIAN 8 bits------------------------------------
+				largeur = 	getWidth();
+				hauteur = 	getHeight();
+				BX = largeur*0.03;
+				BY = hauteur*0.05;
+				W = largeur *0.94;
+				H = hauteur*0.93;
+				makeRectangle(BX,BY,W,H);
+				run("Set Measurements...", "  mean standard modal median limit redirect=None decimal=1");
+				run("Measure");
+				median8bits = getResult("Median",0);
+				stddev8bits = getResult("StdDev",0);
+				if (isOpen("Results") ) { 	selectWindow("Results");	run('Close'); 		} // if
+				saveAs("Tiff", chemback+"\\" + titrefinal); 		
+				run("Close");
+			//	for (u=0; u<4; u++) {	showStatus("Free memory");	run("free memory");	progress = (u+1)/4;	showProgress(progress);	wait(1000);	} // for
+
+				//--------------------------- enregistrer un log-------------------------------
+				print("A purger");		selectWindow("Log");		run("Close");
+
+				// -------------------------- lecture du log cree lors du SCAN ---------------------------
+				open(chemback+"\\"+file);
+				dat = getInfo();
+				wait(100);
+				run("Close");
+				data = split(dat,"\n");
+				t = 0;
+				while(data[t] != "[LUT]" ) { 	print(data[t]);		t++;			} // while
+				print("[LUT]");
+				print("Color_Balance=  manual");
+				MINRECavg = MINRECavg/nbframe;
+				MAXRECavg = MAXRECavg/nbframe;
+				print("Averaged_Min= ",MINRECavg);	print("Averaged_Max= ",MAXRECavg);	print("Gamma= ",gamma);	print("Order= ",sens);	print("Grey_mode_auto= ",adjust);	print("OD_range= ",odrange);	print("Ratio= ",ratio);
+				medianavg = medianavg/nbframe;
+				for (k=0;k<nbframe;k++) {	print("Frame= "+vecteurframe[k]+"   Median= "+vecteurmedian[k]);		} // for
+				print("16bits_Averaged_MEDIAN= ",medianavg);	
+				print("8bits_Averaged_MEDIAN= ",median8bits);
+				print("8bits_Averaged_StdDev= ",stddev8bits);
+				print("Median_filter= "+medianchoice);
+				print("Background= postprocessed");
+			} // if frame
+			selectWindow("Log");
+			sauve = "save=" + chemback+"\\" +dateheure+"_back_"+framesize+"_"+colorbalance+"_log.txt";
+			run("Text...",sauve);
+			run('Close');
+		} // for boucle sur les log
+	} //else
+} // else confback
+
+// ------------------------------ FIN ------------------------------------------
+ret = titrefinal;
+return ret;

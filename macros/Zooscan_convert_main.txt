@@ -1,0 +1,443 @@
+//------------------------Zooscan_convert_main-------------
+version = "7.10";
+date = "2012/05/28";
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 		split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+process_opt= 	array[2];
+skip_opt = 		"0";
+repl = 		0;
+batch =		"0";
+if (array.length == 4) 		skip_opt= array[3];		
+if (array.length == 5) 	{	skip_opt= array[3];		repl = array[4]; 	repl = parseInt(repl);				} // if
+if (array.length == 6) 	{	skip_opt= array[3];		repl = array[4]; 	repl = parseInt(repl);	batch =	array[5];		} // if
+if (array.length == 7) 	{	skip_opt= array[3];		repl = array[4]; 	repl = parseInt(repl);	batch =	array[5];		chemzooprocess = array[6];} // if
+text_run = chemzooprocess+"batch_run.txt";
+text_stop = chemzooprocess+"batch_stop.txt";
+
+drive = 		substring(projfolder,0,2);
+lon = 		lengthOf(projfolder);
+zoosc = 		indexOf(projfolder,"Zooscan_");
+proj = 		substring(projfolder,zoosc+8,lon);
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemwork1 = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemraw = 	chemscan + "_raw\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+chemzip = 	chemscan + "_zip\\";
+rettrtbatch =  	"1 ";
+section = 	1;
+configpres = 	1;
+sizelimit= 	220;	
+overlap = 	0.07;
+medianchoice = 	"no";
+
+//----------------------------Test sur l'existence du repertoire des fichiers de config-------------------------------
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+confrep = 	File.exists(chemconfig);
+conflut = 		File.exists(chemconfig+"lut.txt");
+if (confrep==0 || conflut == 0 ) { 	
+	if (confrep==0) {getBoolean("Error message : "+chemconfig+" folder doesn't exist.     \n                              \nPress Cancel to abort !     ");  					} // if
+	if (conflut == 0) { getBoolean("Error message : lut.txt file doesn't exist in project                 \n"+projfolder+"           \n                              \nPress Cancel to abort !      ");  		} // if
+}// if	
+
+// -----------------------------Existence d'une LUT ------------------------------------------------------
+else { 	conflut = File.exists(chemconfig+"lut.txt");
+	if (conflut == 0) showMessage("Error message : lut.txt file doesn't exist.           ");  
+	else { 	//---------------------Lecture fichier LUT ---------------------------------
+		open(chemconfig+"lut.txt");
+		wait(100);
+		lutdata = getInfo();
+		run("Close");
+		ligne = split(lutdata,"\n");
+		min = 	ligne[0];	max = 		ligne[1];		gamma = 	ligne[2];		sens = 	ligne[3];
+		adjust = 	"no";	odrange = 	1.8;		ratio = 		1.15;		medianchoice = 	"no";
+		medianvalue = 	1;			//	for (i=0; i<ligne.length; i++) { print(ligne[i]);	} // for
+		//	showMessage(ligne.length);
+		if (ligne.length == 6) {	adjust = ligne[4];	odrange = ligne[5];	ratio = 1.15;	
+			showMessage("Zooprocess requires a new LUT file.                 \nUpdate your LUT file for Zooprocess 3.05 and above versions.                ");
+		} // if
+		else if (ligne.length == 7) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];		
+			odrange = parseFloat(odrange);	
+		} // else if
+		else if (ligne.length == 9) {	
+			adjust = ligne[4];	odrange = ligne[5];		ratio =ligne[6];		
+			sizelimit =ligne[7];		sizelimit= parseInt(sizelimit);
+			overlap = ligne[8];		overlap = parseFloat(overlap);
+			odrange = ligne[5];		odrange = parseFloat(odrange);
+		} // else if
+		else if (ligne.length == 11) {	
+			adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);		
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+		} // if
+		else if (ligne.length == 12) {	adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);	
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+			resolutionreduct = ligne[11];		resolutionreduct = parseInt(resolutionreduct);			
+		} // if
+		else { showMessage("Your LUT file is not correct, please check it using the ''EDIT LUT file'' tool !                          ");		} // else
+	} // else
+	if (odrange >= 3) odgrange = 1.15;	
+} // else
+
+// -------------------- Lecture des options dans fichier optionnel -------------------
+option_process = "B";
+optionfile = 	chemconfig + "\\optionfile.txt";
+if (File.exists(optionfile)) {	open(optionfile);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{	texte = array[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		}// for
+	option_process = array[0];
+} // if
+
+//----------------------- Close OPEN IMAGES---------------------------------
+while (nImages()>0) {	selectImage(nImages());  	run("Close");	} // while	
+for (i=0; i<4; i++)	{	run("free memory");		wait(1000);	} // for
+
+Resolution = 2400;
+nbframes = 1;		hh = 1;
+
+// ---------------- MENU ----------------------------------------------------------------------------------------------
+listaff = newArray("BATCH Image Process","SINGLE Image Process");
+listfile = newArray("Process only TIF uncompressed image files","Process only ZIP image files");
+if (process_opt != "trtbatch") { 
+	Dialog.create("SELECT CONVERSION OPTIONS, version = "+version);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project = "+proj);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "EXISTING 8 bits files will be REPLACED in the ''scan'' folder !   ");
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Settings from the LUT.TXT file of the project : ");
+	Dialog.addMessage( "- Grey_mode_auto = "+adjust);
+	Dialog.addMessage( "- Ratio = "+ratio);
+	Dialog.addMessage( "- OD range = "+odrange);
+	Dialog.addMessage( "- Gamma correction = "+sens);
+	Dialog.addMessage( "- Gamma setting = "+gamma);
+	Dialog.addMessage( "- Min grey = "+min);
+	Dialog.addMessage( "- Max grey = "+max);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addChoice(" ",listaff);
+	Dialog.addChoice(" ",listfile);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addCheckbox("Fast process (images not displayed) ? ", true);
+	Dialog.addCheckbox("Skip allready processed images ? ", true);
+	Dialog.addCheckbox("ZIP 16 bits RAW image if archive doesn't exist ? ", false);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.show();
+	mode = 		Dialog.getCheckbox();
+	if (mode == true)	batch = "1";
+	job = 		Dialog.getChoice();
+	filetype = 	Dialog.getChoice();
+	repl = 		Dialog.getCheckbox();
+	savezip =		Dialog.getCheckbox();
+} // if process
+else {	job = 		listaff[0];
+	filetype = 	listfile[0];
+	savezip =	false;		// modified in v 7.09 2012/02/22
+} // else
+
+//----------------------- Selection des fichiers dont le nom comporte le mot "_raw_1.tif" et dont les metadata et le log existent--------------------
+filelist  = 	getFileList(chemraw);
+rawimg = 0;
+list = newArray(filelist.length);
+previmg = "XX";
+for (i=0; i<filelist.length ; i++) {	rawfile = filelist[i]; 	
+	ctrl = 0;
+	ctrl = endsWith(rawfile,"_raw_1.tif");				
+	ctrl1 = indexOf(rawfile,"_raw_1");	
+	ctrl2 = endsWith(rawfile,".zip");	
+	if ((ctrl1>= 0 && ctrl2 == 1) || ctrl == 1) ctrl =1;		
+	//-------------------- Test META et LOG -------------------------------------------------
+	if (ctrl == 1) {long = 	lengthOf(rawfile);
+		titrered = 	substring(rawfile, 0, long-10);
+		if (endsWith(rawfile,"_raw_1_tif.zip")) { titrered = 	substring(rawfile, 0, long-14);	} // if
+		titrered = 	replace(titrered,".","_");
+		rawmetafile =	titrered + "_1_meta.txt";
+		rawlogfile = 	titrered + "_1_log.txt";								
+		exmeta = 	File.exists(chemraw+rawmetafile);
+		exlog = 	File.exists(chemraw+rawlogfile);
+		if (exmeta == 1 && exlog == 1 && previmg != titrered ) {list[rawimg] = rawfile;	rawimg++;	previmg = titrered;	} // if
+	} // if
+} // for	
+
+// ------------------- Suppression des lignes vides ---------------------
+listraw = newArray(rawimg);
+for (k=0; k<rawimg ; k++) {	rr = list[k];	listraw[k] = rr;			} // for
+
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (rawimg==0) { 	configpres = 0;
+	getBoolean("No valid RAW Image (ZIP or TIF) file in :     \n"+chemraw+"                           \nRaw image file missing     \nor                                            \nMeta file missing   \nor               \nLog file missing    ");
+} // if
+
+// -------------------- Process des images car elles existent ---------------------------------------------------------------------------------
+colorbalance = 	"manual";	
+param = "2";
+n = rawimg;
+if (job == listaff[1] ) {//-------------------------SINGLE-----------------------------------
+	Dialog.create("RAW IMAGE FILENAME ");
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Project :  "+proj);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	message = "Select RAW Image to be converted using ''lut.txt'' data.           " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listraw);
+	Dialog.show();
+	rawfile = Dialog.getChoice();
+	n = 1;
+	param = "1";
+} // if job
+
+// ------------------- Boucle sur les images RAW -------------------------------------------------------------
+for (h=0 ; h<n ; h++) {	
+	if (File.exists(text_run)) { 
+		control = 	0;
+	if (param == "1") { long = 	lengthOf(rawfile);
+		titrered = 	substring(rawfile, 0, long-10);
+		if (endsWith(rawfile,"_raw_1_tif.zip"))	{ titrered = 	substring(rawfile, 0, long-14);	} // if		
+	} // if
+	else {rawfile = 	listraw[h];
+		long = 	lengthOf(rawfile);
+		titrered = substring(rawfile, 0, long-10);
+		if (endsWith(rawfile,"_raw_1_tif.zip")) {	titrered = 	substring(rawfile, 0, long-14);	} // if
+	} // else
+	// ------------------ Test fichiers resultants si skip mis a 1 ou repl mis a 1 -------------------------
+	// Si le champ "Image_split" est NO, alors pas besoin de chercher la frame "_2", si la "_1" existe, on peut skipper => control = 1
+	// Si le champ n'existe pas alors on recalcule toujours l'image TIF => control ne change pas
+	// Si le champ "Image_split" est YES, alors on cherche la frame "_1" ET la frame "_2". Si les deux existent, on peut skipper => control = 1
+	// ------------Test contenu du log frame 1 cas ou on teste l'existence Tif, log et meta ------------------------
+	controla = 0;
+	controlb = 0;
+	if (param == "2") { 
+		rawlogfile = 	titrered + "_1_log.txt";
+		tiffile = 		titrered + "_1.tif";
+		chemwork1 = 	chemscan + "_work\\"+titrered+"_1\\";
+		chemwork2 = 	chemscan + "_work\\"+titrered+"_2\\";
+		if (File.exists(chemwork1+rawlogfile)  && File.exists(chemscan+tiffile)) { 
+			open(chemwork1+rawlogfile);
+			wait(100);
+			logdata = getInfo();
+			run('Close');
+			logdata = split(logdata,"\n");
+			fin = 	logdata.length;
+			g = 	30;
+			while (g < fin) {	champ = logdata[g];
+				if (champ == "Image_split= NO" && File.exists(chemwork1+titrered +"_1_meta.txt")) {
+					g = fin;
+					controla = 1;
+				} // if
+				if (champ == "Image_split= YES") {
+					if ( File.exists(chemwork1+titrered +"_1_meta.txt")) {	
+						if (File.exists(chemwork2+titrered + "_2_log.txt") && File.exists(chemwork2+titrered +"_2_meta.txt")) {	
+							g = fin;
+							controla = 1;
+						} // if	
+					} // if		
+				} // if
+				if (champ == "[Info]" ) g = fin;
+				g++;
+			} // while
+		} // if
+		if (File.exists(chemwork1+rawlogfile)) { open(chemwork1+rawlogfile);
+			wait(100);
+			logdata = getInfo();
+			run('Close');
+			logdata = split(logdata,"\n");
+			fin = 	logdata.length;
+			g = 	30;
+			while (g < fin) {	champ = logdata[g];
+				if (champ == "Image_split= NO" && (File.exists(chemwork1+titrered +"_1_vis1.zip") || File.exists(chemwork1+titrered +"_1_vis1.jpg")) && File.exists(chemwork1+titrered +"_1_dat1.pid") && File.exists(chemwork1+titrered +"_1_meta.txt") && File.exists(chemwork1+titrered +"_1_out1.gif") && File.exists(chemwork1+titrered +"_1_msk1.gif")) {
+					g = fin;
+					controlb = 1;
+				} // if
+				if (champ == "Image_split= YES") {
+					if ((File.exists(chemwork1+titrered +"_1_vis1.zip") || File.exists(chemwork1+titrered +"_1_vis1.jpg")) && File.exists(chemwork1+titrered +"_1_dat1.pid") && File.exists(chemwork1+titrered +"_1_meta.txt") && File.exists(chemwork1+titrered +"_1_out1.gif") && File.exists(chemwork1+titrered +"_1_msk1.gif")) {	
+						if ((File.exists(chemwork2+titrered +"_2_vis1.zip") || File.exists(chemwork2+titrered +"_2_vis1.jpg")) && File.exists(chemwork2+titrered + "_2_log.txt") && File.exists(chemwork2+titrered +"_2_dat1.pid") && File.exists(chemwork2+titrered +"_2_meta.txt") && File.exists(chemwork2+titrered +"_2_out1.gif") && File.exists(chemwork2+titrered +"_2_msk1.gif")) {	
+							g = fin;
+							controlb = 1;
+							//	showMessage(titrered+  "  skipped");
+						} // if	
+					} // if		
+				} // if
+				if (champ == "[Info]" ) g = fin;
+				g++;
+			} // while
+		} // if
+		if (repl == 1 && controla == 1) 						control = 1;		// skip convert
+		if (repl == 1 && controla == 0 && skip_opt == 1 && controlb == 1)			control = 1;		// skip_opt convert
+		if (repl == 1 && controla == 0 && skip_opt == 0 && controlb == 0)			control = 1;		// skip_opt convert
+	} // if param = 2
+
+	//	getBoolean(titrered+"  param = "+param+"   repl = "+repl+"    skip_opt = "+skip_opt+"   ctrla = "+controla+"   ctrlb = "+controlb +" control = "+control);
+	
+	//------------- Process des images en boucle ---------------------------------------------------------------
+	if ( control == 0) { 
+		// ------------------------ Gestion du suivi si batch ------------------------------
+		if (process_opt == "trtbatch" ) {
+			if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if
+			opensuivi = chemtemp +"Suivi_log.txt";
+			open(opensuivi);
+			wait(100);				
+			suivi = getInfo();
+			run("Close");
+			array = split(suivi,"\n");
+			for (i=0; i<array.length; i++) {	print(array[i]);		} // for
+			dateheure =	runMacro("Zooscan_get_time_5");
+			print("------------------------------------------------");
+			print("Date= ",dateheure);
+			print("Image = "+titrered);
+			print("Image CONVERTED");
+			selectWindow("Log");
+			sauve = "save=" + chemtemp +"Suivi_log.txt";
+			run("Text...",sauve);
+			run("Close");
+			rettrtbatch = rettrtbatch+" "+titrered;
+		} // process_opt
+		long =		lengthOf(rawfile);
+		rawfileout = 	substring(rawfile,0,long-10);
+		if (endsWith(rawfile,"_raw_1_tif.zip")) { 	rawfileout = 	substring(rawfile, 0, long-14);	} // if
+		rawfileout = 	rawfileout+"_1.tif";
+		//	for (i=0; i<4; i++)	{	run("free memory");		wait(1000);	} // for
+		if (endsWith(rawfile,".zip")) {	savezip = 0;	} // if
+
+		// ---------------- CONVERSION ---------------------------------
+		for (i=0; i<10; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/9;	showProgress(progress);	wait(1000);	} // for
+		arg= projfolder+" "+colorbalance+" "+chemraw+" "+rawfile+" "+chemscan+" "+rawfileout+" "+batch+" "+param+" "+savezip+" "+chem;
+		ret = runMacro("Zooscan_convert",arg);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		//--------------------Evaluation de la taille de l image----------------------------------
+		if (l>0 ) { argret = 		split(flag," ");
+			XSize = 		argret[0];		YSize = 		argret[1];			Resolution = 	argret[2];
+			median = 	argret[3];		MINREC = 	argret[4];			MAXREC = 	argret[5];
+			reduct = argret[6];	reduct = parseFloat(reduct);
+			medianchoice = argret[7];
+			mean = argret[8];
+			XSize = 		parseInt(XSize);		YSize = 		parseInt(YSize);		
+			Resolution = 	parseInt(Resolution);	size = XSize * YSize /1000000;		size = parseInt(size);
+			print("Raw Image Size= ",size," Mo");
+		} // if l>0
+		//	getBoolean(size+"   "+sizelimit);
+		//---------------------- Section de l'image ------------------------	
+		if (size > sizelimit && l>0) { 	print("File is splitted automatically");		
+			section = 2;		
+			blancres = 	300;
+			arg = chemscan+" "+titrered+" "+overlap+" "+Resolution+" "+blancres+" "+batch;
+			ret = runMacro("Zooscan_split_to_frames.txt",arg);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l>1) { argret = split(flag," ");	nbframes = 	argret[1];	cropy = argret[2];	cropy = parseFloat(cropy);	xofset = argret[3];	xofset = parseFloat(xofset);	} // if
+			else { showMessage("Error message : Zooscan_split_to_frames macro aborted         ");	} // else
+		} // if
+		//-------------------- Creation Work folders et copie des metadata----------------------------------
+		if (l>0 ) {
+			chemwork1 = 	chemscan + "_work\\";
+			long = 		lengthOf(rawfileout);
+			titrered = 	substring(rawfileout, 0, long-6);
+			chemwork = 	chemscan + "_work\\"+titrered;
+			rawmetafile =	titrered + "_1_meta.txt";
+			rawlogfile = 	titrered + "_1_log.txt";
+			// ------------ read META ------------------------------
+			open(chemraw+rawmetafile);
+			wait(100);
+			metadata = getInfo();
+			run('Close');
+			metadata = split(metadata,"\n");
+			// ------------ read LOG ------------------------------
+			open(chemraw+rawlogfile);
+			logdata = getInfo();
+			wait(100);
+			run('Close');
+			logdata = split(logdata,"\n");
+			for (m=1; m<=nbframes;m++) { 
+				confwork = 	File.exists(chemwork+"_"+m);
+				if (confwork==0) { 	File.makeDirectory(chemwork+"_"+m); 			} // if
+				// ------------ LOG -------------------------------
+				testlog = File.exists(chemwork+"_"+m+"\\" + titrered + "_"+m+"_log.txt");
+				testpid = File.exists(chemwork+"_"+m+"\\" + titrered + "_"+m+"_dat1.pid");
+				//	showMessage(testlog+"  "+skip_opt);
+				if (testpid == false || skip_opt == "0") {
+					if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+					fin = logdata.length;
+					for (g=0;g<logdata.length;g++) {
+						val = logdata[g];		
+						pos = indexOf(val,"Color_Balance=");
+						if (pos == 0) { fin = g;		} // if
+					} // for
+					for (g=0;g<fin;g++) {	
+						champ = logdata[g];
+						if (nbframes == 2) {//----------------- Correction X Size------------------------------------------------
+							pos1 = indexOf(champ,"XSize");
+							if (pos1==0 ) { 	val = cropy * (4800/Resolution);	champ = "XSize="+val;
+								if ( m == 2) {	print("XOffset=",xofset);		} // if
+							} // if
+						} // if
+						// ---------- Cas ou l'image 2400dpi LARGE a ete convertie en 1200dpi ------------------------------	
+						if (startsWith(champ,"ScanResolution=3") && reduct == 0.5)	champ = "ScanResolution=4";
+						print(champ);					
+					} // for
+					if (section == 2) { 	print("Image_split= YES");		} // if
+					else {		print("Image_split= NO");		} // else
+					print("Color_Balance= "+colorbalance);
+					print("Filter= "+medianchoice);
+					print("Min= ",MINREC);	print("Max= ",MAXREC);	print("Gamma= ",gamma);	
+					print("Order= ",sens);	print("Grey_mode_auto= ",adjust);	print("OD_range= ",odrange);	
+					print("Ratio= ",ratio);		
+					print("Median_level= ",median);
+					print("Mean_level= ",mean);
+					sauve = "save=" + chemwork+"_"+m+"\\" + titrered + "_"+m+"_log.txt";
+					selectWindow("Log");
+					run("Text...",sauve);
+				} // if
+				// ------------ META -------------------------------
+				//	if (File.exists(chemwork+"_"+m+"\\" + titrered + "_"+m+"_meta.txt") == false || skip_opt == "0") {
+				if (testpid == false || skip_opt == "0") {
+					print("Clear");	selectWindow("Log");	run("Close");	
+					for (g=0;g<metadata.length;g++) { val = metadata[g];		print(val);		} // for
+					sauve = "save=" + chemwork+"_"+m+"\\" + titrered + "_"+m+"_meta.txt";
+					selectWindow("Log");
+					run("Text...",sauve);
+				} // if
+			} // for
+		} // if
+	} // if control
+	else { // ------------------------ Gestion du suivi si batch NON CONVERTIE ------------------------------
+		if (process_opt == "trtbatch" ) {
+			if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if
+			opensuivi = chemtemp +"Suivi_log.txt";
+			open(opensuivi);
+			wait(100);
+			suivi = getInfo();
+			run("Close");
+			array = split(suivi,"\n");
+			for (i=0; i<array.length; i++) {	print(array[i]);		} // for
+			dateheure =	runMacro("Zooscan_get_time_5");
+			print("------------------------------------------------");
+			print("Date= ",dateheure);
+			print("Image = "+titrered);
+			print("Image conversion SKIPPED");
+			selectWindow("Log");
+			sauve = "save=" + chemtemp +"Suivi_log.txt";
+			run("Text...",sauve);
+			run("Close");
+		} // process_opt
+	} // else
+	} // if
+} // for boucle images raw	
+
+if (configpres != 0 && process_opt !="trtbatch" ) { showMessage("Normal End of image conversion.                \n \n- TIF file(s) created in the ''Zooscan_scan'' folder.                  \n- ''meta'' & ''log'' files copied into the images ''_work'' sub folders.       ");		} // if
+
+//----------------------- FIN --------------------------------------
+if (File.exists(text_stop)) {  showMessage("CONVERT Process stopped by operator !");	} // else
+ret = arg;
+if (process_opt == "trtbatch" ) ret = rettrtbatch;
+return ret;

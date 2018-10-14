@@ -1,0 +1,998 @@
+// --------------------------- UVP5_process_ctd -----------------------------------------------
+version = "1.00";
+date = "2008/06/21";
+
+args = 	getArgument();
+arg = 	split(args," ");
+dirprocessed = 	arg[0];
+datfilename = 	arg[1];
+profile = 		arg[2];
+firstimg = 	arg[3];
+dircruise = 	arg[4];
+batch = 		arg[5];
+Ctdfile = 		arg[6];
+
+profilectd = toUpperCase(Ctdfile);
+firstimg = parseInt(firstimg);
+profile =  toUpperCase(profile);
+
+//------------- Ouverture du fichier  ----------------
+open(dirprocessed +datfilename);
+data = getInfo();
+wait(100);
+run("Close");
+ligne = split(data,"\n");
+
+// --------------- Graphiques -------------------------
+Depth = 		newArray(ligne.length);
+Smallnb = 	newArray(ligne.length);
+Smallsize = 	newArray(ligne.length);
+Smallgrey = 	newArray(ligne.length);
+prevdepth = -1;
+index = 0;
+j = 0;
+depthmax = 0;
+while(index < ligne.length) {
+	dataline = 	ligne[index];
+	dataline = 	replace(dataline,";"," ");
+	dataline = 	split(dataline,"\ ");
+	imgnb = 		dataline[0];
+	imgnb = 		parseInt(imgnb);
+	if (imgnb > firstimg) {
+		depth =		dataline[2];
+		depth = 		parseFloat(depth);
+		smallnb = 	dataline[14];
+		smallnb = 	parseInt(smallnb);
+		smallsize = 	dataline[15];
+		smallsize = 	parseInt(smallsize);
+		smallgrey = 	dataline[16];
+		smallgrey = 	parseInt(smallgrey);
+		// ---------------- Test descente ------------------------------
+		if (depth > prevdepth && depth > depthmax) {
+			depthmax = maxOf(depthmax,depth);
+			Depth[j] = 	-1*depth/10;
+			Smallnb[j] = 	smallnb;
+			Smallsize[j] = 	smallsize;
+			Smallgrey[j] = 	smallgrey;
+			j++;
+		} // if	
+		prevdepth = depth;
+	} // if firstimg
+	index++;
+} // while
+
+
+// -------------- mini et maxi -------------------------
+nbmin = 0;
+nbmax = 200;
+sizemin = 0;
+sizemax = 10;
+greymin = 0;
+greymax = 20;
+
+tempmin = 	12;
+tempmax = 	28;
+fluomin = 	0;
+fluomax = 	1;
+transmin = 	80;
+transmax = 	95;
+o2min = 		150;	
+o2max = 		250;
+salmin = 		37;	
+salmax =		40;
+densmin = 	25;	
+densmax = 	30;
+isusmin = 	0;
+isusmax = 	20;
+
+// ------------------------- Graph data ----------------------------------
+depthprop = 100 *(1+ floor(depthmax/1000));
+Zstep = 10;
+if (depthprop > 100) Zstep = 100;
+if (depthprop > 1000) Zstep = 500;
+nmoy = 20;
+
+if (batch != "batch") {
+Dialog.create("Graph parameters ");
+
+Dialog.addMessage("---------------------------------------------------------------------------------------------");
+Dialog.addNumber("Enter MAXIMUM depth ",depthprop);
+Dialog.addNumber("Enter depth intervalles",Zstep);
+Dialog.addNumber("          Enter number of images for smoothing",nmoy);
+Dialog.addMessage("---------------------------------------------------------------------------------------------");
+Dialog.addNumber("Particlules min",nbmin);
+Dialog.addNumber("Particules max",nbmax);
+Dialog.addNumber("Size min",sizemin);
+Dialog.addNumber("Size max",sizemax);
+Dialog.addNumber("Grey min",greymin);
+Dialog.addNumber("Grey max",greymax);
+Dialog.addMessage("---------------------------------------------------------------------------------------------");
+Dialog.addNumber("Temperature min",tempmin);
+Dialog.addNumber("Temperature max",tempmax);
+Dialog.addNumber("Salinity min",salmin);
+Dialog.addNumber("Salinity max",salmax);
+Dialog.addNumber("Density min",densmin);
+Dialog.addNumber("Density max",densmax);
+Dialog.addNumber("Transmissiometer min",transmin);
+Dialog.addNumber("Transmissiometer max",transmax);
+Dialog.addNumber("Fluorescence min",fluomin);
+Dialog.addNumber("Fluorescence max",fluomax);
+Dialog.addNumber("Oxygene min",o2min);
+Dialog.addNumber("Oxygene max",o2max);
+Dialog.addMessage("---------------------------------------------------------------------------------------------");
+Dialog.show;
+depthprop = Dialog.getNumber();
+Zstep = Dialog.getNumber();
+nmoy = Dialog.getNumber();
+// ------------ UVP ------------------
+nbmin = Dialog.getNumber();
+nbmax = Dialog.getNumber();
+sizemin = Dialog.getNumber();
+sizemax = Dialog.getNumber();
+greymin = Dialog.getNumber();
+greymax = Dialog.getNumber();
+// -------------- CTD ----------------
+tempmin = Dialog.getNumber();
+tempmax = Dialog.getNumber();
+salmin = Dialog.getNumber();
+salmax = Dialog.getNumber();
+densmin = Dialog.getNumber();
+densmax = Dialog.getNumber();
+transmin = Dialog.getNumber();
+transmax = Dialog.getNumber();
+fluomin = Dialog.getNumber();
+fluomax = Dialog.getNumber();
+o2min = Dialog.getNumber();
+o2max = Dialog.getNumber();
+} // if
+
+Zstep = abs(Zstep);
+miniy = -1*abs(depthprop);
+
+// ---------------------- suppression des valeurs nulles (remontee) et LISSAGE -------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+Depthj = 		newArray(j-nmoy);
+Smallnbj = 	newArray(j-nmoy);
+Smallsizej = 	newArray(j-nmoy);
+Smallgreyj = 	newArray(j-nmoy);
+
+maxsmallnb = 0;
+
+for (i = 0 ; i<j-nmoy ; i++) {
+	if (i/500 == floor(i/500) && i !=0 ) {	showStatus("Smoothing UVP data  : "+i+" /"+j);	} // if
+	depth = 		Depth[i];
+	depth = 		parseFloat(depth);
+	for (k = i+1;k<i+nmoy;k++) {	prof = Depth[k];		prof = parseFloat(prof);	depth = 	depth+prof;		} // for
+	depth = 		depth/nmoy;
+	Depthj[i] = 	depth;
+
+	smallnb = 	Smallnb[i];
+	for (k = i+1;k<i+nmoy;k++) {	nb = Smallnb[k];		nb = parseInt(nb);		smallnb = smallnb+nb;	} // for
+	smallnb = 	smallnb/nmoy;
+	maxsmallnb = 	maxOf(maxsmallnb,smallnb);
+	Smallnbj[i] = 	smallnb;	
+
+	smallsize = 	Smallsize[i];
+	for (k = i+1;k<i+nmoy;k++) {	size = Smallsize[k];		size = parseInt(size);	smallsize = smallsize+size;	} // for
+	smallsize = 	smallsize/nmoy;
+	Smallsizej[i] = 	smallsize;
+
+	smallgrey = 	Smallgrey[i];
+	for (k = i+1;k<i+nmoy;k++) {	grey = Smallgrey[k];	grey = parseInt(grey);	smallgrey = smallgrey+grey;	} // for
+	smallgrey = 	smallgrey/nmoy;
+	Smallgreyj[i] = 	smallgrey;
+
+	//	print("Depth= "+depth+"  Nb= "+smallnb+"  Size= "+smallsize+"  Grey= "+smallgrey);
+} // for
+
+// ----------------- GRAPH --------------------------------------------------------------------------------------------
+largeurplot = 450;
+largeurgraph = largeurplot+70;
+hauteurplot = 750;
+largeur= largeurgraph*3;
+hauteur = hauteurplot+50;
+dimlegende = 50;
+
+run("Profile Plot Options...", "width="+largeurplot+" height="+hauteurplot+" minimum=0 maximum=0 vertical interpolate");
+maxiy = 	0;
+minix = 	0;
+nbtics =  floor(abs(miniy)/Zstep)+1;
+
+// ---------------- Abondance -------------------------
+Plot.create(profile+" abundance",profile,"Z (m)");
+maxsmallnb = 100 *(1+ floor(maxsmallnb/100));
+maxix =	maxOf(nbmax,maxsmallnb);
+Plot.setLimits(nbmin, maxix, miniy, maxiy);
+Plot.setColor("red");
+Plot.add("line", Smallnbj,Depthj);
+Plot.show();
+setLineWidth(1);
+run("Colors...", "foreground=black background=white selection=red");
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+dimvertical = hauteur + dimlegende;
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_abundance.jpg"); 
+rename("UVP5_"+profile+"_abundance.jpg"); 
+text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+run("Canvas Size...",text);
+rename("All");
+
+// ---------------- grey -------------------------
+Plot.create(profile+" grey",profile,"Z (m)");
+Plot.setLimits(greymin, greymax, miniy, maxiy);
+Plot.setColor("blue");
+Plot.add("line", Smallgreyj,Depthj);
+Plot.show();
+selectImage(profile+" grey");
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_grey.jpg"); 
+rename("UVP5_"+profile+"_grey.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_grey.jpg");
+
+// ---------------- size -------------------------
+Plot.create(profile+" size",profile,"Z (m)");
+Plot.setLimits(sizemin, sizemax, miniy, maxiy);
+Plot.setColor("green");
+Plot.add("line", Smallsizej,Depthj);
+Plot.show();
+selectImage(profile+" size");
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_size.jpg"); 
+rename("UVP5_"+profile+"_size.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_size.jpg");
+
+// ----------- Image finale -------------------------------------------------------
+saveAs("jpg", dirprocessed+"UVP5_"+profile+".jpg"); 
+
+// ----------------- Ajout des echelles sur graphe supperpose UVP ----------
+selectImage("UVP5_"+profile+".jpg");
+makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+run("Clear");
+run("Select None");
+setFont("SansSerif" , 16);
+setLineWidth(1);
+setColor(0,0,0);
+drawString("UVP5   "+profile, 200, 19);
+setFont("SansSerif" , 12);
+
+// --------------- Abundance (rouge) -----------------------
+setColor(255, 0, 0);
+drawLine(50,hauteurplot+44,500,hauteurplot+44);
+maxix = maxOf(nbmax,maxsmallnb);
+xstep = 50;
+nbtics =  floor(abs(maxix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/maxix;	} // for
+drawString("ABUNDANCE (# / L)", 100, hauteurplot+44-3);
+drawString(nbmin, 50, hauteurplot+44-3);
+drawString(maxix, 480, hauteurplot+44-3);
+
+// --------------- Grey -------------------------------
+setColor(0, 0, 255);
+drawLine(50,hauteurplot+67,500,hauteurplot+67);
+xstep = 2;
+nbtics =  floor(abs(greymax)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/greymax;	} // for
+drawString("GREY (8bits)", 100, hauteurplot+67-3);
+drawString(greymin, 50, hauteurplot+67-3);
+drawString(greymax, 480, hauteurplot+67-3);
+
+// --------------- Size --------------------------------
+setColor(0, 255, 0);
+drawLine(50,hauteurplot+93,500,hauteurplot+93);
+xstep = 1;
+nbtics =  floor(abs(sizemax)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/sizemax;	} // for
+drawString("MEAN SIZE (pixel)", 100, hauteurplot+93-3);
+drawString(sizemin, 50, hauteurplot+93-3);
+drawString(sizemax, 480, hauteurplot+93-3);
+selectImage("UVP5_"+profile+".jpg"); 
+saveAs("jpg", dirprocessed+"UVP5_"+profile+".jpg"); 
+
+//	getBoolean("Continue ?");
+
+// ------------------ Fermeture des graphs -----------
+selectImage("UVP5_"+profile+"_grey.jpg");
+close();
+selectImage("UVP5_"+profile+"_size.jpg");
+close();
+
+// --------------- Graph detailles  -----------------------
+Zmax = 	miniy;
+Zfull = 	Zstep;
+if (miniy < 200) {
+	miniy = -200;
+	Zstep = 20;
+	nbtics =  floor(abs(miniy)/Zstep)+1;
+	// ---------------- Abondance -------------------------
+	Plot.create(profile+" abundance (200m)",profile,"Z (m)");
+	maxsmallnb = 100 *(1+ floor(maxsmallnb/100));
+	maxix =	maxOf(nbmax,maxsmallnb);
+	Plot.setLimits(nbmin, maxix, miniy, maxiy);
+	Plot.setColor("red");
+	Plot.add("line", Smallnbj,Depthj);
+	Plot.show();
+	setLineWidth(1);
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	dimvertical = hauteur + dimlegende;
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_abundance_200m.jpg"); 
+	rename("UVP5_"+profile+"_abundance_200m.jpg"); 
+	text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+	run("Canvas Size...",text);
+	rename("All");
+
+	// ---------------- grey -------------------------
+	Plot.create(profile+" grey (200m)",profile,"Z (m)");
+	Plot.setLimits(greymin, greymax, miniy, maxiy);
+	Plot.setColor("blue");
+	Plot.add("line", Smallgreyj,Depthj);
+	Plot.show();
+	selectImage(profile+" grey (200m)");
+	ZZ = 20 + Zstep*750/abs(miniy);
+	setColor(0, 0, 0);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_grey_200m.jpg"); 
+	rename("UVP5_"+profile+"_grey_200m.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_grey_200m.jpg");
+
+	// ---------------- size -------------------------
+	Plot.create(profile+" size (200m)",profile,"Z (m)");
+	Plot.setLimits(sizemin, sizemax, miniy, maxiy);
+	Plot.setColor("green");
+	Plot.add("line", Smallsizej,Depthj);
+	Plot.show();
+	selectImage(profile+" size (200m)");
+	ZZ = 20 + Zstep*750/abs(miniy);
+	setColor(0, 0, 0);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_size_200m.jpg"); 
+	rename("UVP5_"+profile+"_size_200m.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_size_200m.jpg");
+
+	// ----------- Image finale -------------------------------------------------------
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_200m.jpg"); 
+
+	// ----------------- Ajout des echelles sur graphe supperpose ----------
+	selectImage("UVP5_"+profile+"_200m.jpg");
+	makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+	run("Clear");
+	run("Select None");
+	setFont("SansSerif" , 16);
+	setLineWidth(1);
+	setColor(0,0,0);
+	drawString("UVP5   "+profile, 200, 19);
+	setFont("SansSerif" , 12);
+
+	// --------------- Abundance (rouge) -----------------------
+	setColor(255, 0, 0);
+	drawLine(50,hauteurplot+44,500,hauteurplot+44);
+	maxix = maxOf(nbmax,maxsmallnb);
+	xstep = 50;
+	nbtics =  floor(abs(maxix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/maxix;	} // for
+	drawString("ABUNDANCE (# / L)", 100, hauteurplot+44-3);
+	drawString(nbmin, 50, hauteurplot+44-3);
+	drawString(nbmax, 480, hauteurplot+44-3);
+
+	// --------------- Grey -------------------------------
+	setColor(0, 0, 255);
+	drawLine(50,hauteurplot+67,500,hauteurplot+67);
+	xstep = 2;
+	nbtics =  floor(abs(greymax)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/greymax;	} // for
+	drawString("GREY (8bits)", 100, hauteurplot+67-3);
+	drawString(greymin, 50, hauteurplot+67-3);
+	drawString(greymax, 480, hauteurplot+67-3);
+
+	// --------------- Size --------------------------------
+	setColor(0, 255, 0);
+	drawLine(50,hauteurplot+93,500,hauteurplot+93);
+	xstep = 1;
+	nbtics =  floor(abs(sizemax)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/sizemax;	} // for
+	drawString("MEAN SIZE (pixel)", 100, hauteurplot+93-3);
+	drawString(sizemin, 50, hauteurplot+93-3);
+	drawString(sizemax, 480, hauteurplot+93-3);
+	
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_200m.jpg"); 
+
+	//	getBoolean("Continue ?");
+
+	// ------------------ Fermeture des graphs -----------
+	selectImage("UVP5_"+profile+"_grey_200m.jpg");
+	close();
+	selectImage("UVP5_"+profile+"_size_200m.jpg");
+	close();
+} // if
+
+
+//+++++++++++++++++++++++++         CTD          +++++++++++++++++++++++++++++++
+
+
+// ----------------------------- lecture fichier CTD --------------------------------------------------
+//	dircnv = "E:\\BOUM_DATA\\D_CTD_files\\";
+dircnv = dircruise+"\\D_CTD_files\\";
+cnvfile = dircnv+"\\d"+profilectd+".cnv";
+if (File.exists(cnvfile) == 0) { getBoolean("CNV file does not exist. \nPress Cancel to END !   ");		} // if
+open(dircnv+"d"+profilectd+".cnv");
+
+data = getInfo();
+wait(100);
+run("Close");
+ligne = split(data,"\n");
+// ------------- Detection premiere ligne data ---------------------------------
+i = 0;
+while (i< ligne.length) { data = ligne[i];
+	i++;
+	if (data == "*END*") {	deb = i;	i = ligne.length;	} // if
+} // if
+//	print(ligne[ligne.length-1]);
+
+Depth = 		newArray(ligne.length-deb);
+
+Fluo = 		newArray(ligne.length-deb);
+O2 = 		newArray(ligne.length-deb);
+Trans = 		newArray(ligne.length-deb);
+Temp = 		newArray(ligne.length-deb);
+Dens = 		newArray(ligne.length-deb);
+Sal = 		newArray(ligne.length-deb);
+Isus = 		newArray(ligne.length-deb);
+
+index = 0;
+isusmaxread = 0;
+for(i = deb;i<ligne.length;i++) {
+	datal = ligne[i];
+	data = split(datal,"\ ");
+	depth = 		data[0];
+	temp = 		data[1];
+	fluo = 		data[7];
+	trans = 		data[8];
+	o2 = 		data[14];
+	sal = 		data[15];
+	dens = 		data[19];
+	isus = 		data[12];
+	Depth[index] = 	-depth;
+	Fluo[index] = 	fluo;
+	O2[index] = 	o2;
+	Trans[index] = 	trans;
+	Temp[index] = 	temp;
+	Dens[index] = 	dens;
+	Sal[index] = 	sal;
+	isus = 		parseFloat(isus);
+	isus = 		isus+8;
+	isusmaxread = 	maxOf(isus,isusmaxread);
+	Isus[index] = 	toString(isus);
+	index++;
+} // for
+isusmaxread = 1+floor(isusmaxread);
+isusmax = maxOf(isusmaxread,isusmax);
+
+// ------------------ Premier lot :  O2, Temp et Sal ----------------------------------
+Zstep = 		Zfull;
+miniy =	Zmax;
+nbtics =  floor(abs(miniy)/Zstep)+1;
+// ---------------- Temp -------------------------
+Plot.create(profile+" temperature",profile,"Z (m)");
+Plot.setLimits(tempmin, tempmax, miniy, maxiy);
+Plot.setColor("red");
+Plot.add("line",Temp,Depth);
+Plot.show();
+setLineWidth(1);
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+dimvertical = hauteur + dimlegende;
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_temperature.jpg"); 
+rename("UVP5_"+profile+"_temperature.jpg"); 
+text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+run("Canvas Size...",text);
+rename("All");
+
+// ---------------- Sal -------------------------
+Plot.create(profile+" salinity",profile,"Z (m)");
+Plot.setLimits(salmin,salmax, miniy, maxiy);
+Plot.setColor("blue");
+Plot.add("line",Sal,Depth);
+Plot.show();
+selectImage(profile+" salinity");
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_salinity.jpg"); 
+rename("UVP5_"+profile+"_salinity.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_salinity.jpg");
+
+// ---------------- O2 -------------------------
+Plot.create(profile+" oxygene",profile,"Z (m)");
+Plot.setLimits(o2min, o2max, miniy, maxiy);
+Plot.setColor("green");
+Plot.add("line", O2,Depth);
+Plot.show();
+selectImage(profile+" oxygene");
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_oxygene.jpg"); 
+rename("UVP5_"+profile+"_oxygene.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_oxygene.jpg");
+
+// ----------- Image finale -------------------------------------------------------
+saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDa.jpg"); 
+
+// ----------------- Ajout des echelles sur graphe supperpose ----------
+selectImage("UVP5_"+profile+"_CTDa.jpg");
+makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+run("Clear");
+run("Select None");
+setFont("SansSerif" , 16);
+setLineWidth(1);
+setColor(0,0,0);
+drawString("CTD   "+profile, 200, 19);
+setFont("SansSerif" , 12);
+
+// --------------- Temperature (rouge) -----------------------
+setColor(255, 0, 0);
+drawLine(50,hauteurplot+44,500,hauteurplot+44);
+minix = 	tempmin;
+maxix = 	tempmax;
+xstep = 1;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("TEMPERATURE (°C)", 100, hauteurplot+44-3);
+drawString(minix, 50, hauteurplot+44-3);
+drawString(maxix, 480, hauteurplot+44-3);
+
+// --------------- Salinity -------------------------------
+setColor(0, 0, 255);
+drawLine(50,hauteurplot+67,500,hauteurplot+67);
+minix = 	salmin;
+maxix =	salmax;
+xstep = 0.5;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("SALINITY", 100, hauteurplot+67-3);
+drawString(minix, 50, hauteurplot+67-3);
+drawString(maxix, 480, hauteurplot+67-3);
+
+// --------------- Oxygene --------------------------------
+setColor(0, 255, 0);
+drawLine(50,hauteurplot+93,500,hauteurplot+93);
+minix = 	o2min;
+maxix =	o2max;
+xstep = 10;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("OXYGENE", 100, hauteurplot+93-3);
+drawString(minix, 50, hauteurplot+93-3);
+drawString(maxix, 480, hauteurplot+93-3);
+selectImage("UVP5_"+profile+"_CTDa.jpg"); 
+saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDa.jpg"); 
+
+// ------------------ Fermeture des graphs -----------
+selectImage("UVP5_"+profile+"_salinity.jpg");
+close();
+selectImage("UVP5_"+profile+"_oxygene.jpg");
+close();
+
+// --------------- Graph detailles  -----------------------
+if (miniy < 200) {
+	miniy = -200;
+	Zstep = 20;
+	nbtics =  floor(abs(miniy)/Zstep)+1;
+	// ---------------- Temp -------------------------
+	Plot.create(profile+" temperature",profile,"Z (m)");
+	Plot.setLimits(tempmin, tempmax, miniy, maxiy);
+	Plot.setColor("red");
+	Plot.add("line",Temp,Depth);
+	Plot.show();
+	setLineWidth(1);
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	dimvertical = hauteur + dimlegende;
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_temperature.jpg"); 
+	rename("UVP5_"+profile+"_temperature.jpg"); 
+	text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+	run("Canvas Size...",text);
+	rename("All");
+
+	// ---------------- Sal -------------------------
+	Plot.create(profile+" salinity",profile,"Z (m)");
+	maxix =	20;
+	Plot.setLimits(salmin,salmax, miniy, maxiy);
+	Plot.setColor("blue");
+	Plot.add("line",Sal,Depth);
+	Plot.show();
+	selectImage(profile+" salinity");
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_salinity.jpg"); 
+	rename("UVP5_"+profile+"_salinity.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_salinity.jpg");
+
+	// ---------------- O2 -------------------------
+	Plot.create(profile+" oxygene",profile,"Z (m)");
+	maxix =	10;
+	Plot.setLimits(o2min, o2max, miniy, maxiy);
+	Plot.setColor("green");
+	Plot.add("line", O2,Depth);
+	Plot.show();
+	selectImage(profile+" oxygene");
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_oxygene.jpg"); 
+	rename("UVP5_"+profile+"_oxygene.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_oxygene.jpg");
+
+	// ----------- Image finale -------------------------------------------------------
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDa_200m.jpg"); 
+
+	// ----------------- Ajout des echelles sur graphe supperpose ----------
+	selectImage("UVP5_"+profile+"_CTDa_200m.jpg");
+	makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+	run("Clear");
+	run("Select None");
+	setFont("SansSerif" , 16);
+	setLineWidth(1);
+	setColor(0,0,0);
+	drawString("CTD   "+profile, 200, 19);
+	setFont("SansSerif" , 12);
+
+	// --------------- Temperature (rouge) -----------------------
+	setColor(255, 0, 0);
+	drawLine(50,hauteurplot+44,500,hauteurplot+44);
+	minix = 	tempmin;
+	maxix = 	tempmax;
+	xstep = 1;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("TEMPERATURE (°C)", 100, hauteurplot+44-3);
+	drawString(minix, 50, hauteurplot+44-3);
+	drawString(maxix, 480, hauteurplot+44-3);
+
+	// --------------- Salinity -------------------------------
+	setColor(0, 0, 255);
+	drawLine(50,hauteurplot+67,500,hauteurplot+67);
+	minix = 	salmin;
+	maxix =	salmax;
+	xstep = 0.5;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("SALINITY", 100, hauteurplot+67-3);
+	drawString(minix, 50, hauteurplot+67-3);
+	drawString(maxix, 480, hauteurplot+67-3);
+
+	// --------------- Oxygene --------------------------------
+	setColor(0, 255, 0);
+	drawLine(50,hauteurplot+93,500,hauteurplot+93);
+	minix = 	o2min;
+	maxix =	o2max;
+	xstep = 10;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("OXYGENE", 100, hauteurplot+93-3);
+	drawString(minix, 50, hauteurplot+93-3);
+	drawString(maxix, 480, hauteurplot+93-3);
+	selectImage("UVP5_"+profile+"_CTDa_200m.jpg"); 
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDa_200m.jpg"); 
+
+	// ------------------ Fermeture des graphs -----------
+	selectImage("UVP5_"+profile+"_oxygene.jpg");
+	close();
+	selectImage("UVP5_"+profile+"_salinity.jpg");
+	close();
+
+} // if
+	
+
+// --------------- CTD ISUS FLUO TRANS ----------------------------------------------------
+Zstep = 		Zfull;
+miniy =	Zmax;
+nbtics =  floor(abs(miniy)/Zstep)+1;
+// ---------------- ISUS -------------------------
+Plot.create(profile+" isus",profile,"Z (m)");
+Plot.setLimits(isusmin, isusmax, miniy, maxiy);
+Plot.setColor("red");
+Plot.add("line",Isus,Depth);
+Plot.show();
+setLineWidth(1);
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+dimvertical = hauteur + dimlegende;
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_isus.jpg"); 
+rename("UVP5_"+profile+"_isus.jpg"); 
+text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+run("Canvas Size...",text);
+rename("All");
+
+// ---------------- Tran -------------------------
+Plot.create(profile+" transmissiometer",profile,"Z (m)");
+Plot.setLimits(transmin,transmax, miniy, maxiy);
+Plot.setColor("blue");
+Plot.add("line",Trans,Depth);
+Plot.show();
+selectImage(profile+" transmissiometer");
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_transmissiometer.jpg"); 
+rename("UVP5_"+profile+"_transmissiometer.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_transmissiometer.jpg");
+
+// ---------------- Fluo -------------------------
+Plot.create(profile+" fluorescence",profile,"Z (m)");
+maxix =	10;
+Plot.setLimits(fluomin, fluomax, miniy, maxiy);
+Plot.setColor("green");
+Plot.add("line", Fluo,Depth);
+Plot.show();
+selectImage(profile+" fluorescence");
+setColor(0, 0, 0);
+ZZ = 20 + Zstep*750/abs(miniy);
+for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_fluorescence.jpg"); 
+rename("UVP5_"+profile+"_fluorescence.jpg"); 
+run("Canvas Size...",text);
+imageCalculator("AND", "All","UVP5_"+profile+"_fluorescence.jpg");
+
+// ----------- Image finale -------------------------------------------------------
+saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDb.jpg"); 
+
+// ----------------- Ajout des echelles sur graphe supperpose ----------
+selectImage("UVP5_"+profile+"_CTDb.jpg");
+makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+run("Clear");
+run("Select None");
+setFont("SansSerif" , 16);
+setLineWidth(1);
+setColor(0,0,0);
+drawString("CTD   "+profile, 200, 19);
+setFont("SansSerif" , 12);
+
+// --------------- ISUS (rouge) -----------------------
+setColor(255, 0, 0);
+drawLine(50,hauteurplot+44,500,hauteurplot+44);
+minix = 	isusmin;
+maxix = 	isusmax;
+xstep = 1;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("ISUS", 100, hauteurplot+44-3);
+drawString(minix, 50, hauteurplot+44-3);
+drawString(maxix, 480, hauteurplot+44-3);
+
+// --------------- Trans -------------------------------
+setColor(0, 0, 255);
+drawLine(50,hauteurplot+67,500,hauteurplot+67);
+minix = 	transmin;
+maxix =	transmax;
+xstep = 5;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("TRANSMISSIOMETER", 100, hauteurplot+67-3);
+drawString(minix, 50, hauteurplot+67-3);
+drawString(maxix, 480, hauteurplot+67-3);
+
+// --------------- Fluo --------------------------------
+setColor(0, 255, 0);
+drawLine(50,hauteurplot+93,500,hauteurplot+93);
+minix = 	fluomin;
+maxix =	fluomax;
+xstep = 1;
+nbtics =  floor(abs(maxix-minix)/xstep)+1;
+xx = 50;
+for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+drawString("FLUORESCENCE", 100, hauteurplot+93-3);
+drawString(minix, 50, hauteurplot+93-3);
+drawString(maxix, 480, hauteurplot+93-3);
+selectImage("UVP5_"+profile+"_CTDb.jpg"); 
+saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDb.jpg"); 
+
+// ------------------ Fermeture des graphs -----------
+selectImage("UVP5_"+profile+"_transmissiometer.jpg");
+close();
+selectImage("UVP5_"+profile+"_fluorescence.jpg");
+close();
+
+// --------------- Graph detailles  -----------------------
+if (miniy < 200) {
+	miniy = -200;
+	Zstep = 20;
+	nbtics =  floor(abs(miniy)/Zstep)+1;
+	// ---------------- ISUS -------------------------
+	Plot.create(profile+" isus",profile,"Z (m)");
+	Plot.setLimits(isusmin, isusmax, miniy, maxiy);
+	Plot.setColor("red");
+	Plot.add("line",Isus,Depth);
+	Plot.show();
+	setLineWidth(1);
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	dimvertical = hauteur + dimlegende;
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_isus.jpg"); 
+	rename("UVP5_"+profile+"_isus.jpg"); 
+	text = 	 "width="+largeurgraph+" height="+dimvertical+" position=Top-Left";
+	run("Canvas Size...",text);
+	rename("All");
+
+	// ---------------- Trans -------------------------
+	Plot.create(profile+" transmissiometer",profile,"Z (m)");
+	maxix =	20;
+	Plot.setLimits(transmin,transmax, miniy, maxiy);
+	Plot.setColor("blue");
+	Plot.add("line",Trans,Depth);
+	Plot.show();
+	selectImage(profile+" transmissiometer");
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_transmissiometer.jpg"); 
+	rename("UVP5_"+profile+"_transmissiometer.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_transmissiometer.jpg");
+
+	// ---------------- Fluo -------------------------
+	Plot.create(profile+" fluorescence",profile,"Z (m)");
+	maxix =	10;
+	Plot.setLimits(fluomin, fluomax, miniy, maxiy);
+	Plot.setColor("green");
+	Plot.add("line", Fluo,Depth);
+	Plot.show();
+	selectImage(profile+" fluorescence");
+	setColor(0, 0, 0);
+	ZZ = 20 + Zstep*750/abs(miniy);
+	for (i=1;i<nbtics;i++) {	drawLine(50,ZZ,500,ZZ);	ZZ = ZZ+ Zstep*750/abs(miniy);	} // for
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_fluorescence.jpg"); 
+	rename("UVP5_"+profile+"_fluorescence.jpg"); 
+	run("Canvas Size...",text);
+	imageCalculator("AND", "All","UVP5_"+profile+"_fluorescence.jpg");
+
+	// ----------- Image finale -------------------------------------------------------
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDb_200m.jpg"); 
+
+	// ----------------- Ajout des echelles sur graphe supperpose ----------
+	selectImage("UVP5_"+profile+"_CTDb_200m.jpg");
+	makeRectangle(0, hauteurplot+25, largeurgraph, dimlegende);
+	run("Clear");
+	run("Select None");
+	setFont("SansSerif" , 16);
+	setLineWidth(1);
+	setColor(0,0,0);
+	drawString("CTD   "+profile, 200, 19);
+	setFont("SansSerif" , 12);
+
+	// --------------- ISUS (rouge) -----------------------
+	setColor(255, 0, 0);
+	drawLine(50,hauteurplot+44,500,hauteurplot+44);
+	minix = 	isusmin;
+	maxix = 	isusmax;
+	xstep = 1;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+44,xx,hauteurplot+44-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("ISUS", 100, hauteurplot+44-3);
+	drawString(minix, 50, hauteurplot+44-3);
+	drawString(maxix, 480, hauteurplot+44-3);
+
+	// --------------- Transmissiometre -------------------------------
+	setColor(0, 0, 255);
+	drawLine(50,hauteurplot+67,500,hauteurplot+67);
+	minix = 	transmin;
+	maxix =	transmax;
+	xstep = 5;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+67,xx,hauteurplot+67-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("TRANSMISSIOMETER", 100, hauteurplot+67-3);
+	drawString(minix, 50, hauteurplot+67-3);
+	drawString(maxix, 480, hauteurplot+67-3);
+
+	// --------------- Fluorescence --------------------------------
+	setColor(0, 255, 0);
+	drawLine(50,hauteurplot+93,500,hauteurplot+93);
+	minix = 	fluomin;
+	maxix =	fluomax;
+	xstep = 1;
+	nbtics =  floor(abs(maxix-minix)/xstep)+1;
+	xx = 50;
+	for (i=0;i<nbtics+1;i++) {	drawLine(xx,hauteurplot+93,xx,hauteurplot+93-5);	xx = xx + xstep*450/(maxix-minix);	} // for
+	drawString("FLUORESCENCE", 100, hauteurplot+93-3);
+	drawString(minix, 50, hauteurplot+93-3);
+	drawString(maxix, 480, hauteurplot+93-3);
+	selectImage("UVP5_"+profile+"_CTDb_200m.jpg"); 
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTDb_200m.jpg"); 
+
+	// ------------------ Fermeture des graphs -----------
+	selectImage("UVP5_"+profile+"_transmissiometer.jpg");
+	close();
+	selectImage("UVP5_"+profile+"_fluorescence.jpg");
+	close();
+} // if
+
+// ------------------Combinaison des graphs -------------------------
+selectImage("UVP5_"+profile+".jpg");
+rename("All");
+text = 	 "width="+largeur+" height="+dimvertical+" position=Top-Left";
+run("Canvas Size...",text);
+selectImage("UVP5_"+profile+"_CTDa.jpg");
+run("Select All");
+run("Copy");
+selectImage("All");
+makeRectangle(largeurplot+70,0,largeurplot+70,dimvertical);
+run("Paste");
+selectImage("UVP5_"+profile+"_CTDb.jpg");
+run("Select All");
+run("Copy");
+selectImage("All");
+makeRectangle((largeurplot+70)*2,0,largeurplot+70,dimvertical);
+run("Paste");
+run("Select None");
+saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTD.jpg"); 
+if (batch == "batch") 	close();
+
+// --------------------- Fermeture -------------------------------------------
+selectImage("UVP5_"+profile+"_CTDa.jpg");
+close();
+selectImage("UVP5_"+profile+"_CTDb.jpg");
+close();
+
+if (miniy == -200) {
+	selectImage("UVP5_"+profile+"_200m.jpg");
+	rename("All_200m");
+	text = 	 "width="+largeur+" height="+dimvertical+" position=Top-Left";
+	run("Canvas Size...",text);
+	selectImage("UVP5_"+profile+"_CTDa_200m.jpg");
+	run("Select All");
+	run("Copy");
+	selectImage("All_200m");
+	makeRectangle(largeurplot+70,0,largeurplot+70,dimvertical);
+	run("Paste");
+	selectImage("UVP5_"+profile+"_CTDb_200m.jpg");
+	run("Select All");
+	run("Copy");
+	selectImage("All_200m");
+	makeRectangle((largeurplot+70)*2,0,largeurplot+70,dimvertical);
+	run("Paste");
+	run("Select None");
+	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_CTD_200m.jpg"); 
+	if (batch == "batch") 	close();
+	// --------------------- Fermeture -------------------------------------------
+	selectImage("UVP5_"+profile+"_CTDa_200m.jpg");
+	close();
+	selectImage("UVP5_"+profile+"_CTDb_200m.jpg");
+	close();
+} // if
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

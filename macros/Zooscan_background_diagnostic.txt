@@ -1,0 +1,433 @@
+//-----------------------Zooscan_background_diagnostic----------------------------
+version = "6.11";
+date = "2009/05/11";
+
+// args = chem+" "+chemvue+" "+proc+" "+proj +" "+projfolder;
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+chemvue = 	arg[1];
+proc = 		arg[2];
+proj = 		arg[3];
+projfolder =	arg[4];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemback =	projfolder + "\\Zooscan_back\\";
+chemtemp = 	chem + "\\Zooscan_temp\\";
+drive =		substring(projfolder,0,2);
+scanner = "Biotom";
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+setBatchMode(true);
+monthdur = 	newArray(" ","0","31","60","91","121","152","182","213","244","274","305","335");
+run("Set Measurements...", "  mean standard modal median limit redirect=None decimal=1");
+if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if
+//	getBoolean("WARNING : \n \nAll background images will be reprocessed using the ACTUAL settings of the ''lut.txt'' file ! \n \nPress YES to continue, \nPress CANCEL to abort.    ");
+
+// ---------------------------- Default values ----------------------------------------------------
+nbframe = 2;
+ratio = 0.6;			time = 40;		ecranw= screenWidth();	ecranh= screenHeight();
+vuescanofsetx = 10;		vuescanofsety = 10;	resolution = 300;		
+Hardware= "none";			Unit= 0;			reduction=1;		AutoOffset=0;
+PreviewXOffset= 0;			XOffset= 0;		XSize= 0;			XSpacing= 0;
+YOffset= 0;	YSize=0;		operation = "background";
+bitperpixel = 	8;		bitperpixelligne =	0;	tifiletype= 8;
+tifileligne =	0;		colorbalance = 	"manual";				colballigne = 	0;
+save16 = 		0;
+tiffile = 0;		rawfile = 0;
+titrefinal = " ";
+Ray= 30;
+
+//--------------------------------- Affichage de l'heure---------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+//------------------------------ MENU ------------------------------------------------------------
+listopt = newArray("narrow","large");
+Dialog.create("RAW background analysis       version "+version);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage( "Project  :  "+proj);
+Dialog.addMessage( "Defaults ''Zooscan_back'' folder : "+chemback);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage( "You must select a directory containing at leats one background ''raw'' image scanned with the selected frame.   \nYou can copy the ''raw'' backgrounds from all your projects into a single directory.  ");
+Dialog.addCheckbox("Change ''background'' folder ?      ",true);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addChoice("     Select Frame      ", listopt);
+Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.show();
+folderselect = 		Dialog.getCheckbox();
+frame = 		Dialog.getChoice();
+
+// ------------- Choix du repertoire ------------------------------------
+if (folderselect == true) {
+	chemback = getDirectory("Select folder containing the ''RAW'' background images ");
+} // if
+
+// ------------------------ Catalogue des fichiers RAW existants ---------------------------------
+confrep = 		File.exists(chemback);
+if (confrep==0) { 	getBoolean("WARNING : "+chemback+" folder doesn't exist. \n \nPress CANCEL to abort !  ");  		} // if
+
+filelist  = 	getFileList(chemback);
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	if (frame == "narrow") 	{	text = "back_narrow_raw";	} // if
+	if (frame == "large") 	{	text = "back_large_raw";		} // if
+	ctrl = 	indexOf(filelist[i], text);
+	if (ctrl > 5)		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { 
+	configpres = 0;
+	getBoolean("No valid background in "+chemback+"        \nPress Cancel to abort !         ");
+} // if
+// ------------------- Purge des lignes vides ----------------------------------------
+else { print(j+" background logfiles in the "+chemback);	
+	listback = newArray(j);
+	for (i=0; i<j ; i++) {	rr = list[i];	listback[i] = rr;		} // for
+} // else
+
+// ------------------------ VECTEURS --------------------------------------------------
+dateheureback = 		newArray(j);
+median = 	newArray(j);
+stddev = 	newArray(j);
+mean16 = 	newArray(j);
+mode = 	newArray(j);
+time = 		newArray(j);
+
+median8 = 	newArray(j);
+stddev8 = 	newArray(j);
+mean8 = 	newArray(j);
+mode8 = 	newArray(j);
+
+stdgreyod=newArray(j);
+meanod = newArray(j);
+
+// ------------------------ Boucle sur les fichiers RAW BACK --------------------------------------------------------------------
+for (i=0; i<listback.length ; i++) {
+	print(listback[i]);
+	file = listback[i];
+	// ------------- Vecteur date ---------------------------
+	Dateheureback = 	substring(file,0,13);
+	year = 		substring(file,0,4);
+	month = 	substring(file,4,6);
+	day = 		substring(file,6,8);
+//	print(year+" "+month+" "+day);
+	year = 		parseInt(year);
+	month = 	parseInt(month);
+	day = 		parseInt(day);
+	Time = (year-2000)*365 + ((month-1) * 30)+day; 
+	if (i == 0) Time0 = Time;
+	// +++++++++++++++++++++++++
+	time[i] = Time-Time0;
+	// +++++++++++++++++++++++++
+	// ------------- Calculs sur l'image -------------------
+	open(chemback+file);
+	largeur = 	getWidth();
+	hauteur = 	getHeight();
+
+	// ----------------- Mesure MEDIAN ------------------------------------
+	BX = largeur*0.03;
+	BY = hauteur*0.05;
+	W = largeur *0.94;
+	H = hauteur*0.93;
+	makeRectangle(BX,BY,W,H);
+	run("Measure");
+	Median = 	getResult("Median",0);
+	Stddev = 	getResult("StdDev",0);
+	Mode = 	getResult("Mode",0);
+	Mean =		getResult("Mean",0);
+
+	// +++++++++++++++++++++++++
+	median[i] = 	Median;
+	stddev[i] = 	Stddev;
+	mode[i] = 	Mode;
+	mean16[i] = 	Mean;
+	dateheureback[i] = Dateheureback;
+	// +++++++++++++++++++++++++
+	// -------------------------- Mesure 8 bits ----------------------------------
+	selectWindow("Results");	
+	run('Close');
+	selectImage(file);
+	run("8-bit");
+	makeRectangle(BX,BY,W,H);
+	run("Measure");
+
+	Median8 = 	getResult("Median",0);
+	Stddev8 = 	getResult("StdDev",0);
+	Mode8 = 	getResult("Mode",0);
+	Mean8 =	getResult("Mean",0);
+	// +++++++++++++++++++++++++
+	median8[i] = 	Median8;
+	stddev8[i] = 	Stddev8;
+	mode8[i] = 	Mode8;
+	mean8[i] = 	Mean8;
+	// +++++++++++++++++++++++++
+
+	// ------------------ Position OD automatique sur le premier ----------------------------------------
+	if (i == 0) {
+		selectImage(file);
+		// ------------------ rotation -----------------------------
+		run("Rotate 90 Degrees Right");
+		largeur = 	getWidth();
+		hauteur = 	getHeight();
+		y = hauteur/3;
+		meandat = newArray(500);
+		meanpos = newArray(500);
+		g= 0;
+
+		//------------mesures------------------------
+		while (y < hauteur*0.66) {
+			makeRectangle(largeur-300, y, 200, hauteur*0.001);	
+			getStatistics(area, mean, min, max, std);
+			meandat[g]=mean;
+			meanpos[g]=y;
+			g++;
+			y = y+hauteur*0.001;
+		} // while
+
+		//-----------------determination de la position Y--------------
+		min=255;
+		for (j=0;j<g;j++) { mean = meandat[j];	min=minOf(mean,min);	} // for
+		for (j=0;j<g;j++) { 	mean = meandat[j];
+			if (mean==min) { 		posy = meanpos[j];		} // if
+		} // for
+		makeRectangle(largeur-300, posy-hauteur*0.01, 300, hauteur*0.02);
+//		run("Plot Profile");
+//		showStatus("WAIT !");
+//		wait(5000);
+
+		//---------------Position en X---------------------------------------
+		selectImage(file);
+		grey = 0;
+		bord= 0;
+		k = largeur-300;
+		while (k< largeur) { grey = getPixel(k,posy);
+			limit = 0.6*Median8;
+			if (grey < limit ) { 		bord = k;		k=largeur;	} // if
+			k++;
+		} // while
+		posx = bord+ 0.85*(largeur-bord);
+posx = largeur - Ray/2 - 1;
+		selectImage(file);
+		makeOval(posx-Ray/2,posy-Ray/2,Ray,Ray);
+//	getBoolean("Continue ?");
+		// ------------------ rotation -----------------------------
+		run("Rotate 90 Degrees Left");
+		largeur = 	getWidth();
+		hauteur = 	getHeight();
+	} // if
+	// ------------------ rotation -----------------------------
+	run("Rotate 90 Degrees Right");
+//	makeRectangle(xminref, yminref, xdimref, ydimref);
+	makeOval(posx-Ray/2,posy-Ray/2,Ray,Ray);
+	getStatistics(area, mean, min, max, std);
+	// +++++++++++++++++++++++++
+	stdgreyod[i] = std;
+	meanod[i] =  mean;
+	// +++++++++++++++++++++++++
+
+	selectWindow("Results");	
+	run('Close');
+	// -------------------------- Fermeture image ------------------------------
+	selectImage(file);
+	close();
+} // for
+
+// ---------------- Sauvegarde Results ------------------------------------
+if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+
+for (i=0; i<listback.length ; i++) {
+	setResult("Label", i, dateheureback[i]);
+	setResult("Timeindex", i,time[i]);
+	setResult("Median", i,median[i]);
+	setResult("Mean", i,mean16[i]);
+	setResult("Mode", i,mode[i]);
+	setResult("StdDev", i,stddev[i]);
+	setResult("Median8", i,median8[i]);
+	setResult("Mean8", i,mean8[i]);
+	setResult("Mode8", i,mode8[i]);
+	setResult("StdDev8", i,stddev8[i]);
+	setResult("MeanOD8", i,meanod[i]);
+	setResult("StdDevOD8", i,stdgreyod[i]);
+} // for
+updateResults();
+saveAs("measurements",chemback+dateheure+"_"+frame+"_back_meas.txt");	
+selectWindow("Results");	
+run('Close');
+if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if
+
+// ---------------- MINI et MAXI -----------------------------------------------
+minitime = time[0];
+maxitime = time[listback.length - 1];
+minimedian = 100000;
+maximedian = 0;
+minimean = 1000000;
+maximean = 0;
+minimode = 1000000;
+maximode = 0;
+ministddev = 1000000;
+maxistddev = 0;
+ministddev8 = 1000000;
+maxistddev8 = 0;
+for (i=0; i<listback.length ; i++) {
+	Median =	median[i];
+	minimedian = minOf(minimedian,Median);
+	maximedian = maxOf(maximedian,Median);
+
+	Stddev = 	stddev[i];
+	ministddev = minOf(ministddev,Stddev);
+	maxistddev = maxOf(maxistddev,Stddev);
+
+	Stddev8 = 	stddev8[i];
+	ministddev8 = minOf(ministddev8,Stddev8);
+	maxistddev8 = maxOf(maxistddev8,Stddev8);
+
+	Mode = 	mode[i];
+	minimode = minOf(minimode,Mode);
+	maximode = maxOf(maximode,Mode);
+
+	Mean = 	mean16[i];
+	minimean = minOf(minimean,Mean);
+	maximean = maxOf(maximean,Mean);
+} // for
+
+maxgrey = maxOf(maximedian,maximode);
+maxgrey = maxOf(maxgrey,maximean);
+maxgrey = 1000 * floor(maxgrey/1000 + 1);
+
+minigrey = minOf(minimedian,minimode);
+minigrey = minOf(minigrey,minimean);
+minigrey = 100 * floor(minigrey/100 + 1);
+
+// ---------------- GRAPH -----------------------------------------------------
+setBatchMode(false);
+setFont("SansSerif" , 10);
+// "line", "circles", "boxes", "triangles", "crosses", "dots", 
+
+// ------------------------------ CONSTRUCTION ------------------------
+largeur = 528;
+hauteur = 255;
+newImage("tempo", "RGB Black", largeur*2, hauteur*2, 1);
+
+// -------------- GREY 16bits ---------------------------------------------------------
+plottitre = "GREY_16bits";
+Plot.create(plottitre,"time (day)","grey (16 bits)");
+Plot.setLimits(minitime,maxitime, 10000, 60000);
+Plot.setColor("red");
+Plot.add("crosses", time,mean16);
+Plot.setColor("green");
+Plot.add("crosses", time,mode);
+Plot.setColor("black");
+Plot.add("crosses", time,median);
+Plot.show();
+selectWindow(plottitre);
+setColor(255, 0, 0);
+drawString("MEAN", 5, 40);
+setColor(0, 255, 0);
+drawString("MODE", 5, 50);
+setColor(0, 0, 0);
+drawString("MEDIAN", 5, 60);
+setColor(0, 0, 255);
+drawString("Zooprocess     ''"+frame+"'' frame                ("+dateheureback[0]+"       to     "+dateheureback[listback.length-1]+")", 5, 249);
+name = chemtemp+"back.tif";
+run("RGB Color");
+saveAs("TIF",name);
+close();
+open(chemtemp+"back.tif");
+run("Select All");
+run("Copy");
+close();
+selectImage("tempo");
+makeRectangle(0,0, largeur, hauteur);
+run("Paste");
+
+// -------------- STDDEV 16bits ---------------------------------------------------------
+plottitre = "STDEV_16bits";
+Plot.create(plottitre,"time (day)","Stddev (16 bits)");
+Plot.setLimits(minitime,maxitime, 0, 5000);
+Plot.setColor("black");
+Plot.add("crosses", time,stddev);
+Plot.show();
+selectWindow(plottitre);
+setColor(0, 0, 255);
+//	drawString("Zooprocess     ''"+frame+"'' frame                ("+dateheureback[0]+"       to     "+dateheureback[listback.length-1]+")", 5, 249);
+run("RGB Color");
+saveAs("TIF",name);
+close();
+open(chemtemp+"back.tif");
+run("Select All");
+run("Copy");
+close();
+selectImage("tempo");
+makeRectangle(largeur,0, largeur, hauteur);
+run("Paste");
+
+// -------------- GREY 8bits ---------------------------------------------------------
+plottitre = "GREY_8bits";
+
+Plot.create(plottitre,"time (day)","grey (8 bits)");
+Plot.setLimits(minitime,maxitime, 50, 250);
+Plot.setColor("red");
+Plot.add("crosses", time,mean8);
+Plot.setColor("green");
+Plot.add("crosses", time,mode8);
+Plot.setColor("black");
+Plot.add("crosses", time,median8);
+Plot.setColor("blue");
+Plot.add("crosses", time,meanod);
+Plot.show();
+selectWindow(plottitre);
+setColor(255, 0, 0);
+drawString("MEAN", 5, 40);
+setColor(0, 255, 0);
+drawString("MODE", 5, 50);
+setColor(0, 0, 0);
+drawString("MEDIAN", 5, 60);
+setColor(0, 0, 255);
+drawString("MEANOD", 5, 200);
+setColor(0, 0, 255);
+//	drawString("Zooprocess     ''"+frame+"'' frame                ("+dateheureback[0]+"       to     "+dateheureback[listback.length-1]+")", 5, 249);
+run("RGB Color");
+saveAs("TIF",name);
+close();
+open(chemtemp+"back.tif");
+run("Select All");
+run("Copy");
+close();
+selectImage("tempo");
+makeRectangle(0,hauteur, largeur, hauteur);
+run("Paste");
+
+
+// -------------- STDDEV 8bits ---------------------------------------------------------
+plottitre = "STDEV_8bits";
+Plot.create(plottitre,"time (day)","Stddev (8 bits)");
+Plot.setLimits(minitime,maxitime, 0, 30);
+Plot.setColor("black");
+Plot.add("crosses", time,stddev8);
+Plot.setColor("blue");
+Plot.add("crosses", time,stdgreyod);
+Plot.show();
+selectWindow(plottitre);
+setColor(0, 0, 255);
+//	drawString("Zooprocess     ''"+frame+"'' frame                ("+dateheureback[0]+"       to     "+dateheureback[listback.length-1]+")", 5, 249);
+run("RGB Color");
+saveAs("TIF",name);
+close();
+open(chemtemp+"back.tif");
+run("Select All");
+run("Copy");
+close();
+selectImage("tempo");
+makeRectangle(largeur, hauteur, largeur, hauteur);
+run("Paste");
+
+// --------------------- Image finale ---------------------------------------
+run("Select None");
+name = chemback+dateheure+"_"+frame+"_back.png";
+saveAs("PNG",name);
+
+// ------------------------------ FIN ------------------------------------------
+showMessage("NORMAL END");
+ret = "OK";
+return ret;

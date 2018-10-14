@@ -1,0 +1,37 @@
+// ------------------ uvp5_get_data_from_c110.txt -----------------------
+version =	 "7.20";
+date =	 "2015/03/20";
+
+ff = getArgument();
+ret = ff;
+
+if (indexOf(ff,"C110") >= 0) {
+	aa = indexOf(ff,"C110DATA");
+	ffr = substring(ff,aa,aa+110);
+	ff = ffr;
+	// ------------- Affichage VC110 ---------------------------
+	ret = "ACQ : "+"------------------------------";
+	c110 = replace(ff,"*"," ");	c110 = replace(c110,"_"," ");		c110 = split(c110," ");
+	if (c110.length > 8) {
+		depth = c110[1+4];			neg = substring(depth,0,1);
+		angle = c110[2+4];			temp = c110[4+4];				voltage = c110[5+4];
+		data_nb = c110[2];			data_size = c110[3];				data_grey = c110[4];	
+		fd_space = c110[1];		
+		factor= 1;
+		if ( voltage != "aaaaa") {
+			if (neg ==  "-" )  {	depth = substring(depth,1,5); factor = -1;	}
+			depth = parseInt(depth);	depth = factor * depth/10;		depth = toString(depth); //	if (indexOf(depth,".") <1) depth = depth+".0";
+			angle = substring(angle,2,5);
+			voltage = parseInt(voltage);	voltage = voltage/100;		voltage = toString(voltage);	
+			if (lengthOf(voltage) >3) voltage = substring(voltage,0,4);
+			if (lengthOf(voltage) < 3) voltage = voltage+".0";
+			if (lengthOf(voltage) == 4) voltage = voltage+"0";
+			temp = parseInt(temp);		temp = toString(temp);
+			//	ret = "ACQ : "+angle+"°   "+temp+"°C   "+voltage+"V   "+depth+"m   "+data;
+			ret = angle+" "+temp+" "+voltage+" "+depth+" "+data_nb+" "+data_size+" "+data_grey+" "+fd_space;
+		}
+	}
+}
+// ------------ FIN ----------------------
+return ret;
+

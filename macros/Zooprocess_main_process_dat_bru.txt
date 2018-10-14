@@ -1,0 +1,54 @@
+// --------------------- Zooprocess_main_process_dat_bru.txt ------------------------------
+version = "7.00";
+date = "2010/03/09";
+
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 	arg[0];
+instrum  = 	arg[1];
+
+
+
+
+
+// ------------------------------- MENU -----------------------------------------------------------------
+Dialog.create("Process DAT and BRU files            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addCheckbox("PROCESS PID and vignettes ?",true);
+	Dialog.addCheckbox("BATCH process ?",true);
+	Dialog.addCheckbox("SKIP processed file ?",false);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+
+
+	Dialog.show;
+	skip = 		Dialog.getCheckbox();
+	batch = 	Dialog.getChoice();
+
+
+
+
+
+
+
+
+
+	message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);
+	Dialog.show();
+	configfile = Dialog.getChoice();
+
+
+
+
+
+
+
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

@@ -1,0 +1,18 @@
+//-----------------Zooscan_Dialog_calib_results
+// argc= nbframe+" "+mean+" "+mingrey+" "+maxgrey;
+arg = getArgument();
+a = split(arg," ");
+nbframe = a[0];
+mean = a[1];
+mingrey = a[2];
+maxgrey = a [3];
+configfile= a[4];
+Dialog.create("CALIBRATION RESULTS");
+Dialog.addMessage( "nbframe= "+nbframe);
+Dialog.addMessage("ODmean= "+mean);
+Dialog.addMessage("ODmin= "+mingrey);
+Dialog.addMessage("ODmax= "+maxgrey);
+Dialog.addMessage("Press OK !   ");
+Dialog.show();
+ret ="1 1";
+return ret;

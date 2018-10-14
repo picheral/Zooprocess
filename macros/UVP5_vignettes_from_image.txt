@@ -1,0 +1,160 @@
+// -------------------------- UVP5_vignettes_from_image.txt -----------------------
+version = "1.00";
+date = "2008/07/09";
+
+args = 	getArgument();
+arg = 	split(args," ");
+
+dirprocessed = 	arg[0];
+datfilename = 	arg[1];
+profile = 		arg[2];
+firstimg = 	arg[3];
+firstimg = parseInt(firstimg);
+processvignettes = arg[4];
+processpid = 	arg[5];
+dirprofile =	arg[6];
+
+threshold = 6;
+areamin = 10;
+smzoo = 30;
+ratio = 3;
+Larg = 1280;
+Haut = 1024;
+
+setBatchMode(true);
+
+// ---------------- lire les valeurs dans le HDR --------------------------
+long = lengthOf(dirprofile);
+hdrname = substring(dirprofile,long-14,long);
+hdrfile = dirprofile+"\\HDR"+hdrname+".hdr";
+if (File.exists(hdrfile) == 0) { 
+	getBoolean(hdrfile+" does not exist. \nPress Cancel to abort !  ");	
+} // if
+//	open(hdrfile);
+//	data = getInfo();
+//	wait(100);
+//	run("Close");
+//	ligne = split(data,"\n");
+
+//	for (k=0; k<ligne.length ; k++) {
+//		data = ligne[k];
+//		showMessage(data);
+//		if (startsWith(data,"Thresh")) {	dat = replace(data,"="," "); dat = split(dat,"\ ");	threshold = dat[1];	showMessage(threshold);	} // if
+//		if (startsWith(data,"SMbase")) {	dat = replace(data,"="," "); dat = split(dat,"\ ");	areamin = dat[1];	showMessage(areamin);	} // if
+//		if (startsWith(data,"SMzoo")) {	dat = replace(data,"="," "); dat = split(dat,"\ ");	smzoo = dat[1];	showMessage(smzoo);	} // if
+//	} // for
+
+
+// ----------------- Demander le vignette ratio -------------------------
+
+Dialog.create("UVP5 Vignettes from Image         version : "+version);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.addMessage("Selected folder : "+dirprofile);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.addNumber("                 Threshold ",threshold);
+Dialog.addNumber("SMZoo ",smzoo);
+Dialog.addNumber("Vignette ratio ",ratio);
+Dialog.addMessage("---------------------------------------------------------------------------------------");
+Dialog.show;
+threshold = 	Dialog.getNumber();
+smzoo = 		Dialog.getNumber();
+ratio = 		Dialog.getNumber();
+	
+// ----------------------- liste des images de bonne taille --------------------------
+filelist = getFileList(dirprofile);
+j = 0;
+pos = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	pos = endsWith(nomvig,".bmp");
+	size = File.length(dirprofile+"\\"+nomvig);
+	size = parseInt(size);
+	if (pos == true && size == 1311798 )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+} // for
+if (j >= 1) {
+	listimg = newArray(j);
+	for (i=0; i<j ; i++) {	rr = list[i]; 	listimg[i] = rr;	} // for
+} // if
+
+// -------------- boucle sur les images ------------------------------
+for (img = 0; img<listimg.length; img++) {
+	showProgress(img/listimg.length);
+	// ------------- fermeture Results ---------------------------------------
+	if (isOpen("Results")) { selectWindow("Results");  	run('Close');	} // if
+	image = listimg[img];
+	open(dirprofile+"\\"+image);
+	wait(100);
+	long = 	lengthOf(image);
+	imagered = 	replace(image,".","_");
+	imagered = 	substring(image, 0, long-4);
+	setThreshold(threshold,255);
+	run("Convert to Mask");
+	selectImage(image);
+	// -------------- Analyse particules > SMZOO --------------------------
+	run("Set Measurements...", "area bounding limit redirect=None decimal=0");
+	text =  "size="+smzoo+"-Infinity circularity=0.00-1.00 show=Nothing display";
+	run("Analyze Particles...",text);
+	selectImage(image);
+	close();
+
+	// ------------ extraction vignettes à partir image source -------------------------------
+	open(dirprofile+"\\"+image);
+	counterfin = 	nResults;
+	if (counterfin != 0) {
+		for (j = 1; j<counterfin;j++) {
+			Bx = getResult("BX", j);
+			By = getResult("BY", j);
+			L = getResult("Width", j);
+			H = getResult("Height", j);
+			larg = L;
+			haut = H;
+			offsetx = L*(ratio-1)/2;
+			offsety = H*(ratio-1)/2;
+			//-----------------------------Creation de la vignette--------------------------------
+			Xmin = 	Bx-offsetx;
+			//---------------Cas Xmin < 0--------------------
+			if ( Xmin <0 ) { 	Xa = 0;		Lnew=	L*ratio/2;		} // if
+			else { 		Xa = Xmin;	Lnew=	L*ratio;		} // else	
+			Xmax = Xmin+Lnew;
+			// ---------------Cas Xmax > Larg---------------
+			if (Xmax > Larg) {	La = Larg - Xa;		} // if
+			else {		La = Lnew;			} // else
+			//---------------------20 est l'espace pour ecriture de la reference de taille 10 mm
+			Ymin = 	By-offsety;
+			// ----------------Cas Ymin <0--------------------
+			if ( Ymin <0 ) { 	Ya = 0;		Hnew=	(H*ratio/2)+By;	} // if
+			else { 		Ya = Ymin;	Hnew=	(H*ratio);		} // else
+			Ymax = Ymin + Hnew;
+			//-----------------Cas Ymax > Haut--------------
+			if (Ymax > Haut) {	Ha = Haut - Ya;			} // if
+			else {		Ha = Hnew;			} // else
+
+			//------------------------ Il faut que l'image source soit active-------------------
+			selectImage(image);
+			makeRectangle(Xa,Ya,La,Ha);
+			run("Copy");
+			newImage("vignette", "8-bit Black",Lnew, Hnew, 1);
+			makeRectangle(Xa-Xmin,Ya-Ymin,La,Ha);
+			run("Paste");
+		
+			// ----------------------Enregistrement---------------------------------------------------------------
+			selectImage("vignette");
+			no = j-1;
+			if (j-1<10) no = "00"+toString(j-1);
+			else if (j-1<100) no = "0"+toString(j-1);
+			text = 	dirprofile+"\\"+imagered+"_"+no+".bmp";
+			saveAs("BMP",text);
+			//	selectImage(imagered+"_"+no+".bmp");	
+			close();
+		} // for
+	} // if
+
+	selectImage(image); 	
+	run('Close');
+} // for img
+
+// ------------------- FIN ------------------------------
+ret = "OK";
+return ret;
+

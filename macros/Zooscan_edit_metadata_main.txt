@@ -1,0 +1,663 @@
+// ------------------------- Zooscan_edit_metadata_main -----------------------------
+version = "7.20";
+date = "2015/08/03";
+requires("1.41o");
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+process_type = 	array[2];
+
+chemraw = 	projfolder + "\\Zooscan_scan\\_raw\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+pathconfig = 	projfolder + "\\Zooscan_config\\";
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+
+// ------------- Travail à l'OOV (collection) -------------------------
+czz = false;
+if (File.exists(chem+"\\oov.txt") == true) {		czz = true;		}// if
+
+print("A purger");	selectWindow("Log");		run("Close");
+// ------------- Lecture de l'heure -----------------
+dateheuremmss =	runMacro("uvp5_get_time");
+
+// -------------- USER / ADVANCED ----------------------------------------------------
+mode_user = 		pathconfig+"mode_file_user.txt";
+mode_advanced = 	pathconfig+"mode_file_advanced.txt";
+if ( File.exists(mode_user))		advanced_mode = false;		option_mode = "USER";
+if ( File.exists(mode_advanced)) 	advanced_mode = true;		option_mode = "ADVANCED";
+
+// ------------- CHOIX SAMPLE / FRACTION ---------------------------------------------
+option_process  = 	newArray("Edit SAMPLE metadata","UPDATE ALL SAMPLE & FRACTION metadata from CSV file","DELETE sample from list","DELETE SCANNED fraction from list");
+if (process_type == "cor") {
+	process_opt = option_process[1];
+}
+else if (advanced_mode == true) 	{
+	Dialog.create("METADATA          version = "+version);
+	Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------         ");
+	Dialog.addMessage("Project  :  "+proj);
+	Dialog.addMessage("Mode :  "+option_mode);
+	Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------         ");
+	Dialog.addChoice("      SELECT Option",option_process);
+	Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------         ");
+	Dialog.show();
+	process_opt = Dialog.getChoice();
+}
+else {	process_opt ="Edit SAMPLE metadata";	} // else
+
+// --------------------- lecture du fichier HEADER SAMPLE ----------------------------
+metafile = chemmeta+"zooscan_sample_header_table.csv";
+open(metafile);  
+wait(100);
+metadata = getInfo();
+data = split(metadata,"\n");
+j = data.length;
+run("Close");
+// ---------------- Création vecteurs -------------------------------------------------------------------------------------
+sampleId = newArray(j-1); 	ship = newArray(j-1); 		scientificprog = newArray(j-1);
+stationId = newArray(j-1); 	date = newArray(j-1); 		latitude = newArray(j-1); 	longitude = newArray(j-1);
+depth = newArray(j-1); 		ctdref = newArray(j-1); 	otherref = newArray(j-1); 	townb = newArray(j-1);
+towtype = newArray(j-1); 	nettype = newArray(j-1); 	netmesh = newArray(j-1); 	netsurf = newArray(j-1);
+zmax = newArray(j-1); 		zmin = newArray(j-1); 		vol = newArray(j-1); 		sample_comment = newArray(j-1);
+vol_qc = newArray(j+1);	depth_qc = newArray(j+1);		sample_qc = newArray(j+1);	 	barcode = newArray(j+1);
+latitude_end = newArray(j+1); 		longitude_end = newArray(j+1);		net_duration = newArray(j+1); 		ship_speed_knots = newArray(j+1);
+cable_length = newArray(j+1); 		cable_angle = newArray(j+1);		cable_speed = newArray(j+1);		nb_jar = newArray(j+1);
+flag = false;
+for (i=0; i< j-1 ; i++) {
+	texte = data[i+1];
+	texte = replace(texte,";"," ");
+	array = split(texte," ");
+	sampleId[i]= array[0]; 				 		ship[i]= array[1]; 		scientificprog[i]= array[2];
+	stationId[i]= array[3]; 	date[i]= array[4]; 		latitude[i]= array[5]; 		longitude[i]= array[6];
+	depth[i]= array[7]; 		ctdref[i]= array[8]; 		otherref[i]= array[9]; 		townb[i]= array[10];
+	towtype[i]= array[11]; 		nettype[i]=array[12]; 		netmesh[i]= array[13]; 		netsurf[i]= array[14];
+	zmax[i]= array[15]; 		zmin[i]= array[16]; 		vol[i]= array[17];		sample_comment[i] = array[18];
+	if (array.length > 21 ) { 
+		vol_qc[i] = array[19];		depth_qc[i] = array[20];		sample_qc[i] = array[21]; 		barcode[i] = array[22];
+		latitude_end[i] = array[23];	longitude_end[i] = array[24];		net_duration[i] = array[25];		ship_speed_knots[i] = array[26];
+		cable_length[i] = array[27];	cable_angle[i] = array[28];		cable_speed[i] = array[29];		nb_jar[i] = array[30];
+	}//
+	else {	vol_qc[i] = "0";		depth_qc[i] = "0";		sample_qc[i] = "0000";	 barcode[i] = "NaN";	
+		latitude_end[i] = "NaN";	longitude_end[i] = "NaN";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
+		cable_length[i] = 9999;		cable_angle[i] = 9999;		cable_speed[i] = 9999;		nb_jar[i] = 9999;
+		flag = true;
+	}
+} // for
+if (flag == true) {
+	aaa = getBoolean("WARNING !!!!!!!!!!!!!!! \n \nThe ''zooscan_sample_header_table.csv'' table will be updated because it does not contain the new metadata fields. \nAdditionnal default values will be addded to all former samples metadata. \n \nEdit METADATA of the different samples to fill the fields if necessary !\nRUN then ''UPDATE ALL SAMPLE & FRACTION metadata from CSV file'' in ''Edit & MModify Metadata'' (ADVANCED mode) to update all sample files using the default values.");
+	// ------------------ Impression SAMPLE file corrigé -------------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+//	texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment";
+	texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment;vol_qc;depth_qc;sample_qc;barcode;latitude_end;longitude_end;net_duration;ship_speed_knots;cable_length;cable_angle;cable_speed;nb_jar";
+	texte = toLowerCase(texte);
+	print(texte);
+	del_idx = 0;
+	for (i=0; i< j-1 ; i++) {
+		//					texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i];
+		texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i]+";"+vol_qc[i]+";"+depth_qc[i]+";"+sample_qc[i]+";"+barcode[i]+";"+latitude_end[i]+";"+longitude_end[i]+";"+net_duration[i]+";"+ship_speed_knots[i]+";"+cable_length[i]+";"+cable_angle[i]+";"+cable_speed[i]+";"+nb_jar[i];
+		print(texte);
+	} // for
+	text = "save="+chemmeta+"zooscan_sample_header_table.csv";
+	selectWindow("Log");
+	run("Text...",text);
+	text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_sample_header_table.csv";
+	run("Text...",text);			
+} // if
+
+// --------------------- lecture du fichier SCAN SAMPLE ----------------------------
+metafile = chemmeta+"zooscan_scan_header_table.csv";
+open(metafile);  
+wait(100);
+metadata_scan = getInfo();
+data_scan = split(metadata_scan,"\n");
+k = data_scan.length;
+run("Close");
+// ---------------- Création vecteurs -------------------------------------------------------------------------------------
+scanId = newArray(k-1);
+sampleId_frac = newArray(k-1);	fracId  = newArray(k-1);		Scanop = newArray(k-1);	vol_frac = newArray(k-1);
+Fracmin = newArray(k-1);	Fracsup = newArray(k-1);		Fracnb = newArray(k-1);	Observation = newArray(k-1);
+Code = newArray(k-1);		Submethod = newArray(k-1);		Cellpart = newArray(k-1);	Replicates = newArray(k-1);
+Volini = newArray(k-1);		Volprec = newArray(k-1);
+for (i=0; i< k-1 ; i++) {
+	texte = data_scan[i+1];
+	texte = replace(texte,";"," ");
+	array = split(texte," ");
+	scanId[i]= array[0]; 	
+	sampleId_frac[i] = array[1];	
+	Scanop[i] = array[2];		
+	fracId [i] = array[3];	
+	Fracmin[i] = array[4];	
+	Fracsup[i] = array[5];		
+	Fracnb[i] = array[6];	
+	Observation[i] = array[7];
+	Code[i] = array[8];	Submethod[i] = array[9];	Cellpart[i] = array[10];	Replicates[i] = array[11];
+	Volini[i] = array[12];	Volprec[i] = array[13];
+} // for
+
+if (process_opt =="Edit SAMPLE metadata") {	
+	// ---------------------- BOUCLE sur les SAMPLE ------------------------------------------
+	otherprofile = 1;
+	while (otherprofile == 1) {
+		Dialog.create("METADATA   SAMPLE                         version = "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage("Project  :  "+proj);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------         ");
+		Dialog.addChoice("       SELECT SAMPLE to be EDITED ",sampleId);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------         ");
+		Dialog.show();
+		sample = Dialog.getChoice();
+		// ----------------- Recherche de l'index de l'échantillons dans le fichier ---------------------------------
+		for (i=0; i< j-1; i++) {
+			if (sample == sampleId[i]) display_index = i;
+		} // for
+		
+		// ---------------- Routine de saisie -------------------------------
+//		texte = sample+" to_fill "+ship[display_index]+" "+scientificprog[display_index]+" "+stationId[display_index]+" "+date[display_index]+" "+latitude[display_index]+" "+longitude[display_index]+" "+depth[display_index]+" "+ctdref[display_index]+" "+otherref[display_index]+" "+townb[display_index]+" "+towtype[display_index]+" "+nettype[display_index]+" "+netmesh[display_index]+" "+netsurf[display_index]+" "+zmax[display_index]+" "+zmin[display_index]+" "+vol[display_index]+" "+sample_comment[display_index]+" "+proj+" "+sample;
+		texte = sample+" to_fill "+ship[display_index]+" "+scientificprog[display_index]+" "+stationId[display_index]+" "+date[display_index]+" "+latitude[display_index]+" "+longitude[display_index]+" "+depth[display_index]+" "+ctdref[display_index]+" "+otherref[display_index]+" "+townb[display_index]+" "+towtype[display_index]+" "+nettype[display_index]+" "+netmesh[display_index]+" "+netsurf[display_index]+" "+zmax[display_index]+" "+zmin[display_index]+" "+vol[display_index]+" "+sample_comment[display_index]+" "+proj+" "+sample+" "+vol_qc[display_index]+" "+depth_qc[display_index]+" "+sample_qc[display_index]+" "+barcode[display_index]+" "+latitude_end[display_index]+" "+longitude_end[display_index]+" "+net_duration[display_index]+" "+ship_speed_knots[display_index]+" "+cable_length[display_index]+" "+cable_angle[display_index]+" "+cable_speed[display_index]+" "+nb_jar[display_index];;
+		texte = runMacro("Zooscan_metadata_fill_window",texte+" "+sample+" "+proj+" "+czz);
+		texte = toString(texte);
+		l= lengthOf(texte);
+		if (l > 1 )  {
+			array = split(texte," ");
+			sampleId[display_index]= array[0]; 								ship[display_index]= array[2]; 		scientificprog[display_index]= array[3];
+			stationId[display_index]= array[4]; 		date[display_index]= array[5]; 			latitude[display_index]= array[6]; 	longitude[display_index]= array[7];
+			depth[display_index]= array[8]; 		ctdref[display_index]= array[9]; 		otherref[display_index]= array[10]; 	townb[display_index]= array[11];
+			towtype[display_index]= array[12]; 		nettype[display_index]=array[13]; 		netmesh[display_index]= array[14]; 	netsurf[display_index]= array[15];
+			zmax[display_index]= array[16]; 		zmin[display_index]= array[17]; 		vol[display_index]= array[18];		sample_comment[display_index] = array[19];
+			vol_qc[display_index]= array[20]; 		depth_qc[display_index]= array[21]; 		sample_qc[display_index]= array[22]; 	barcode[display_index]= array[23]; 
+			latitude_end[display_index]= array[24];		longitude_end[display_index]= array[25];	net_duration[display_index]= array[26];	ship_speed_knots[display_index]= array[27];
+			cable_length[display_index]= array[28];		cable_angle[display_index]= array[29];		cable_speed[display_index]= array[30];	nb_jar[display_index]= array[31];	
+		} // if
+	
+		// --------------- Enregistrement -------------------------------
+		print("A purger");	selectWindow("Log");		run("Close");
+//		texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment";
+		texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment;vol_qc;depth_qc;sample_qc;barcode;latitude_end;longitude_end;net_duration;ship_speed_knots;cable_length;cable_angle;cable_speed;nb_jar";
+		texte = toLowerCase(texte);
+		print(texte);
+		for (i=0; i< j-1 ; i++) {
+//			texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i];
+			texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i]+";"+vol_qc[i]+";"+depth_qc[i]+";"+sample_qc[i]+";"+barcode[i]+";"+latitude_end[i]+";"+longitude_end[i]+";"+net_duration[i]+";"+ship_speed_knots[i]+";"+cable_length[i]+";"+cable_angle[i]+";"+cable_speed[i]+";"+nb_jar[i];
+		print(texte);
+		} // for
+		text = "save="+chemmeta+"zooscan_sample_header_table.csv";
+		selectWindow("Log");
+		run("Text...",text);
+		text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_sample_header_table.csv";
+		run("Text...",text);				
+		
+		// --------------- Liste des fractions scannées ----------------------------------------
+		message = "Scanned fraction for "+sample+" :\n";
+		scanId_source = newArray(10000);
+		sampleId_source = newArray(10000);
+		fraction_list_source = newArray(10000);
+		Fracmin_source = newArray(10000);	
+		Scanop_source = newArray(10000);	
+		Fracsup_source = newArray(10000);	
+		Fracnb_source = newArray(10000);	
+		Observation_source = newArray(10000);	
+		Code_source = newArray(10000);	
+		Submethod_source = newArray(10000);	
+		Cellpart_source = newArray(10000);	
+		Replicates_source = newArray(10000);	
+		Volini_source = newArray(10000);	
+		Volprec_source = newArray(10000);
+		m = 0;		
+		for (g=0; g< scanId.length; g++) {
+			texte = fracId[g];
+			test_frac = sampleId_frac[g];			
+//			if ( sample == test_frac) {	
+			if ( sample == test_frac || sample == sampleId_frac[g]+"_"+texte ) {	
+				scanId_source[m] = scanId[g];
+				sampleId_source[m] = sampleId_frac[g];
+				fraction_list_source[m] = texte; 	
+				Scanop_source[m] = Scanop[g];
+				Fracmin_source[m] = Fracmin[g];
+				Fracsup_source[m] = Fracsup[g];
+				Fracnb_source[m] = Fracnb[g];
+				Observation_source[m] = Observation[g];
+				Code_source[m] = Code[g];
+				Submethod_source[m] = Submethod[g];
+				Cellpart_source[m] = Cellpart[g];
+				Replicates_source[m] = Replicates[g];
+				Volini_source[m] = Volini[g];
+				Volprec_source[m] = Volprec[g];
+				m++;		
+			} // if	
+		} // for	
+		fraction_list = newArray(m);
+		for (h = 0; h < m  ; h++) { fraction_list[h] = fraction_list_source[h];	}// for
+		if (m >= 1 ) {
+	//		showMessage("Sample METADATA updated NOW for all scanned fractions, WAIT ! ");
+			showStatus("WAIT !");
+			// ----------------------- Si fractions scannées, MAJ des données SAMPLE pour toutes ces fractions --------------------------
+			for (h = 0; h < m ; h++) { 
+				fraction = fraction_list[h];				
+				// ------------------------- Ecriture META dans RAW---------------------------
+				print("A purger");	selectWindow("Log");	run('Close');
+				metadatamat = newArray(43);
+				metadatamat[0] = 	"SampleId= "+sampleId_source[h];
+				metadatamat[1] = 	"Scanop= "+Scanop_source[h];
+				metadatamat[2] = 	"Ship= "+ship[display_index];
+				metadatamat[3] = 	"Scientificprog= "+scientificprog[display_index];
+				metadatamat[4] = 	"StationId= "+stationId[display_index];
+				metadatamat[5] = 	"Date= "+date[display_index];
+				metadatamat[6] = 	"Latitude= "+latitude[display_index];
+				metadatamat[7] = 	"Longitude= "+longitude[display_index];
+				metadatamat[8] = 	"Depth= "+depth[display_index];
+				metadatamat[9] = 	"CTDref= "+ctdref[display_index];
+				metadatamat[10] = 	"Otherref= "+otherref[display_index];
+				metadatamat[11] = 	"Townb= "+townb[display_index];
+				metadatamat[12] = 	"Towtype= "+towtype[display_index];
+				metadatamat[13] = 	"Nettype= "+nettype[display_index];
+				metadatamat[14] = 	"Netmesh= "+netmesh[display_index];
+				metadatamat[15] = 	"Netsurf= "+netsurf[display_index];
+				metadatamat[16] = 	"Zmax= "+zmax[display_index];
+				metadatamat[17] = 	"Zmin= "+zmin[display_index];
+				metadatamat[18] = 	"Vol= "+vol[display_index];
+				metadatamat[19] = 	"FracId= "+fraction_list[h];
+				metadatamat[20] = 	"Fracmin= "+Fracmin_source[h];
+				metadatamat[21] = 	"Fracsup= "+Fracsup_source[h];
+				metadatamat[22] = 	"Fracnb= "+Fracnb_source[h];
+				metadatamat[23] = 	"Observation= "+Observation_source[h];
+				metadatamat[24] = 	"Code= "+Code_source[h];
+				metadatamat[25] = 	"SubMethod= "+Submethod_source[h];
+				metadatamat[26] = 	"CellPart= "+Cellpart_source[h];
+				metadatamat[27] = 	"Replicates= "+Replicates_source[h];
+				metadatamat[28] = 	"VolIni= "+Volini_source[h];
+				metadatamat[29] = 	"VolPrec= "+Volprec_source[h];
+				metadatamat[30] = 	"Sample_comment= "+sample_comment[display_index];
+				metadatamat[31] = 	"vol_qc= "+vol_qc[display_index];
+				metadatamat[32] = 	"depth_qc= "+depth_qc[display_index];
+				metadatamat[33] = 	"sample_qc= "+sample_qc[display_index];
+				metadatamat[34] = 	"barcode= "+barcode[display_index];
+				metadatamat[35] = 	"latitude_end= "+latitude_end[display_index];
+				metadatamat[36] = 	"longitude_end= "+longitude_end[display_index];
+				metadatamat[37] = 	"net_duration= "+net_duration[display_index];
+				metadatamat[38] = 	"ship_speed_knots= "+ship_speed_knots[display_index];
+				metadatamat[39] = 	"cable_length= "+cable_length[display_index];
+				metadatamat[40] = 	"cable_angle= "+cable_angle[display_index];
+				metadatamat[41] = 	"cable_speed= "+cable_speed[display_index];	
+				metadatamat[42] = 	"nb_jar= "+nb_jar[display_index];				
+				for (i=0; i<43 ; i++) { data = metadatamat[i]; 	print(data);	} // for
+				
+				// ----------------------- Sauvegarde des infos dans un fichier des metadata du nom de l'image -----------------
+				selectWindow("Log");
+				sauvemeta = "save=" + chemraw + "\\"+ scanId_source[h] + "_meta.txt";
+				run("Text...",sauvemeta);
+				message = message+"\n- "+chemraw + "\\"+ scanId_source[h] + "_meta.txt \n ";
+				
+				// --------------- MAJ de tous les fichiers ------------------------------------
+				texte = metadatamat[0];		
+				metadatamat[20] = 	"Min= "+Fracmin_source[h];
+				metadatamat[21] = 	"Max= "+Fracsup_source[h];
+				for (b = 1; b < 43 ; b++) {	texte = texte + " " + metadatamat[b];			} // for	
+				texte = texte + " "+scanId_source[h]+" "+projfolder+" batch";
+				flag = runMacro("Zooscan_edit_metadata_maj_files",texte);
+				flag = toString(flag);
+				lon = lengthOf(flag);
+				if (lon == 1) aa = getBoolean("Zooscan_edit_metadata_maj_files FAILED. \n \nPres CANCEL to ABORT !");
+			}// for h
+			
+			// ----------------------- metadata par FRACTION ----------------------------------------------------
+			end_fraction = false;
+			while (end_fraction == false ) {
+				if ( m == 1 ) {	fraction = 	fraction_list[0];		} // if
+				else {				
+					Dialog.create("METADATA   SCAN                         version = "+version);
+					Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+					Dialog.addMessage("Project  :  "+proj);
+					Dialog.addMessage("Sample :    "+sample);
+					Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+					Dialog.addChoice("       SELECT FRACTION to be EDITED ",fraction_list);
+					Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+					Dialog.addCheckbox("Exit editing fraction for this sample ",end_fraction);
+					Dialog.show();
+					fraction = Dialog.getChoice();
+					end_fraction = Dialog.getCheckbox();
+				} // 
+				if (end_fraction == false) {
+			//	showMessage(sample+"  "+fraction);
+					// ----------------- Recherche de l'index de l'échantillons dans le fichier ---------------------------------
+					display_index_frac = 0;
+					for (g=0; g < scanId.length ; g++) {
+					//	showMessage(sample+"  "+scanId[g]);
+						if (sample+"_"+fraction+"_1" == scanId[g] || sample+"_1" == scanId[g] ) {	display_index_frac = g;		}
+					} // for
+					// ----------------- Edition des données de la fraction ------------------------
+					lon = 1;
+					while ( lon == 1) {
+						arg = proj+" "+sample+" "+fracId[display_index_frac]+" edit "+Fracmin[display_index_frac]+" "+Fracsup[display_index_frac]+" "+Fracnb[display_index_frac]+" "+Observation[display_index_frac]+" "+Code[display_index_frac]+" "+Submethod[display_index_frac]+" "+Cellpart[display_index_frac]+" "+Replicates[display_index_frac]+" "+Volini[display_index_frac]+" "+Volprec[display_index_frac]+" "+Scanop[display_index_frac];
+						texte = runMacro("Zooscan_metadata_fill_window_fraction",arg);
+						texte = toString(texte);
+						lon = lengthOf(texte);
+						if (lon > 1) {	flag1cm = true;	}
+						else {showMessage("EDIT ANOTHER Fraction metadata" );	} // if
+					} // while
+				
+					// ---------------------------- Creation du fichier META dans RAW --------------------------------------------------------
+					texte = split(texte," ");
+					Fracmin[display_index_frac] = texte[0];	Fracsup[display_index_frac] = texte[1];		Fracnb[display_index_frac] = texte[2];		Observation[display_index_frac] = texte[3];
+					Code[display_index_frac] = texte[4];	Submethod[display_index_frac] = texte[5];	Cellpart[display_index_frac] = texte[6];	Replicates[display_index_frac] = texte[7];
+					Volini[display_index_frac] = texte[8];	Volprec[display_index_frac] = texte[9];		Scanop[display_index_frac] = texte[10];	
+				
+					// ------------------------- Ecriture SCAN HEADER --------------------
+					print("A purger");	selectWindow("Log");		run("Close");
+					texte = "scanId;sampleId;scanop;fracId;fracmin;fracsup;fracnb;observation;code;subMethod;cellPart;replicates;volIni;volPrec";
+					texte = toLowerCase(texte);
+					print(texte);
+
+//					aa = getBoolean(scanId.length);
+					for (h=0; h< scanId.length ; h++) {
+						texte = scanId[h]+";"+sampleId_frac[h]+";"+Scanop[h]+";"+fracId[h]+";"+Fracmin[h]+";"+Fracsup[h]+";"+Fracnb[h]+";"+Observation[h]+";"+Code[h]+";"+Submethod[h]+";"+Cellpart[h]+";"+Replicates[h]+";"+Volini[h]+";"+Volprec[h];
+						print(texte);
+					} // for
+					text = "save="+chemmeta+"zooscan_scan_header_table.csv";
+					selectWindow("Log");
+					run("Text...",text);
+					text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_scan_header_table.csv";
+					run("Text...",text);
+				
+					// ------------------------- Ecriture META dans RAW---------------------------
+					print("A purger");	selectWindow("Log");	run('Close');
+					metadatamat = newArray(43);
+					metadatamat[0] = 	"SampleId= "+sample;
+					metadatamat[1] = 	"Scanop= "+Scanop[display_index_frac];
+					metadatamat[2] = 	"Ship= "+ship[display_index];
+					metadatamat[3] = 	"Scientificprog= "+scientificprog[display_index];
+					metadatamat[4] = 	"StationId= "+stationId[display_index];
+					metadatamat[5] = 	"Date= "+date[display_index];
+					metadatamat[6] = 	"Latitude= "+latitude[display_index];
+					metadatamat[7] = 	"Longitude= "+longitude[display_index];
+					metadatamat[8] = 	"Depth= "+depth[display_index];
+					metadatamat[9] = 	"CTDref= "+ctdref[display_index];
+					metadatamat[10] = 	"Otherref= "+otherref[display_index];
+					metadatamat[11] = 	"Townb= "+townb[display_index];
+					metadatamat[12] = 	"Towtype= "+towtype[display_index];
+					metadatamat[13] = 	"Nettype= "+nettype[display_index];
+					metadatamat[14] = 	"Netmesh= "+netmesh[display_index];
+					metadatamat[15] = 	"Netsurf= "+netsurf[display_index];
+					metadatamat[16] = 	"Zmax= "+zmax[display_index];
+					metadatamat[17] = 	"Zmin= "+zmin[display_index];
+					metadatamat[18] = 	"Vol= "+vol[display_index];
+					metadatamat[19] = 	"FracId= "+fracId[display_index_frac];
+					metadatamat[20] = 	"Fracmin= "+Fracmin[display_index_frac];
+					metadatamat[21] = 	"Fracsup= "+Fracsup[display_index_frac];
+					metadatamat[22] = 	"Fracnb= "+Fracnb[display_index_frac];
+					metadatamat[23] = 	"Observation= "+Observation[display_index_frac];
+					metadatamat[24] = 	"Code= "+Code[display_index_frac];
+					metadatamat[25] = 	"SubMethod= "+Submethod[display_index_frac];
+					metadatamat[26] = 	"CellPart= "+Cellpart[display_index_frac];
+					metadatamat[27] = 	"Replicates= "+Replicates[display_index_frac];
+					metadatamat[28] = 	"VolIni= "+Volini[display_index_frac];
+					metadatamat[29] = 	"VolPrec= "+Volprec[display_index_frac];
+					metadatamat[30] = 	"Sample_comment= "+sample_comment[display_index];
+					metadatamat[31] = 	"vol_qc= "+vol_qc[display_index];
+					metadatamat[32] = 	"depth_qc= "+depth_qc[display_index];
+					metadatamat[33] = 	"sample_qc= "+sample_qc[display_index];
+					metadatamat[34] = 	"barcode= "+barcode[display_index];
+					metadatamat[35] = 	"latitude_end= "+latitude_end[display_index];
+					metadatamat[36] = 	"longitude_end= "+longitude_end[display_index];
+					metadatamat[37] = 	"net_duration= "+net_duration[display_index];
+					metadatamat[38] = 	"ship_speed_knots= "+ship_speed_knots[display_index];
+					metadatamat[39] = 	"cable_length= "+cable_length[display_index];
+					metadatamat[40] = 	"cable_angle= "+cable_angle[display_index];
+					metadatamat[41] = 	"cable_speed= "+cable_speed[display_index];
+					metadatamat[42] = 	"nb_jar= "+nb_jar[display_index];				
+					for (r=0; r<43 ; r++) { data = metadatamat[r]; 	print(data);	} // for
+
+					// ----------------------- Sauvegarde des infos dans un fichier des metadata du nom de l'image -----------------
+					selectWindow("Log");
+					sauvemeta = "save=" + chemraw + "\\"+ scanId[display_index_frac] + "_meta.txt";
+					run("Text...",sauvemeta);
+					message = message+"\n- "+chemraw + "\\"+ scanId[display_index_frac] + "_meta.txt \n ";
+
+					// --------------- MAJ de tous les fichiers ------------------------------------
+					metadatamat[20] = 	"Min= "+Fracmin[display_index_frac];
+					metadatamat[21] = 	"Max= "+Fracsup[display_index_frac];
+					texte = metadatamat[0];
+					for (b = 1; b < 43 ; b++) {	texte = texte + " " + metadatamat[b];			} // for	
+					texte = texte + " "+scanId[display_index_frac]+" "+projfolder+" sample";
+					flag = runMacro("Zooscan_edit_metadata_maj_files",texte);
+					flag = toString(flag);
+					lon = lengthOf(flag);
+					if (lon == 1) aa = getBoolean("Zooscan_edit_metadata_maj_files FAILED. \n \nPres CANCEL to ABORT !");
+					if ( m == 1 ) end_fraction = true;	
+				} // end fraction
+			} // if fraction existe		
+		} // for
+		
+		// ---------------- AUTRE échantillon ? -----------------------------
+		otherprofile = getBoolean("EDIT metadata for another SAMPLE ?   ");
+	} // while
+} // if SAMPLE
+
+else if (process_opt =="UPDATE ALL SAMPLE & FRACTION metadata from CSV file") {
+	// ---------------------- UPDATE ALL METADATA from CSV files ----------------------------------------------------
+	a = getBoolean("It is recommended to make a COPY of all meta files from the RAW folder before continuing !\n \nPress CANCEL to abort \or \nMake backup and Press YES then.\n \nThe process may take time. BE PATIENT !");
+	// ---------------------- BOUCLE sur les SAMPLE ------------------------------------------
+	for (i=0; i< j-1; i++) {		
+		sample = sampleId[i];
+		// --------------- Liste des fractions scannées ----------------------------------------
+		scanId_source = newArray(10000);
+		sampleId_source = newArray(10000);
+		fraction_list_source = newArray(10000);
+		Fracmin_source = newArray(10000);	
+		Scanop_source = newArray(10000);	
+		Fracsup_source = newArray(10000);	
+		Fracnb_source = newArray(10000);	
+		Observation_source = newArray(10000);	
+		Code_source = newArray(10000);	
+		Submethod_source = newArray(10000);	
+		Cellpart_source = newArray(10000);	
+		Replicates_source = newArray(10000);	
+		Volini_source = newArray(10000);	
+		Volprec_source = newArray(10000);
+		m = 0;		
+		for (g=0; g< scanId.length; g++) {
+			texte = fracId[g];
+			test_frac = sampleId_frac[g];			
+//			if ( sample == test_frac) {	
+			if ( sample == test_frac || sample == sampleId_frac[g]+"_"+texte ) {	
+				scanId_source[m] = scanId[g];
+				sampleId_source[m] = sampleId_frac[g];
+				fraction_list_source[m] = texte; 	
+				Scanop_source[m] = Scanop[g];
+				Fracmin_source[m] = Fracmin[g];
+				Fracsup_source[m] = Fracsup[g];
+				Fracnb_source[m] = Fracnb[g];
+				Observation_source[m] = Observation[g];
+				Code_source[m] = Code[g];
+				Submethod_source[m] = Submethod[g];
+				Cellpart_source[m] = Cellpart[g];
+				Replicates_source[m] = Replicates[g];
+				Volini_source[m] = Volini[g];
+				Volprec_source[m] = Volprec[g];
+				m++;		
+			} // if	
+		} // for	
+		fraction_list = newArray(m);
+		for (h = 0; h < m  ; h++) { fraction_list[h] = fraction_list_source[h];	}// for			}// for
+		if (m >= 1 ) {
+			// ----------------------- Si fractions scannées, MAJ des données SAMPLE pour toutes ces fractions --------------------------
+			for (h = 0; h < m ; h++) { 
+				fraction = fraction_list[h];	
+				// ------------------------- Ecriture META dans RAW---------------------------
+				print("A purger");	selectWindow("Log");	run('Close');
+				metadatamat = newArray(43);
+				metadatamat[0] = 	"SampleId= "+sampleId_source[h];
+				metadatamat[1] = 	"Scanop= "+Scanop_source[h];
+				metadatamat[2] = 	"Ship= "+ship[i];
+				metadatamat[3] = 	"Scientificprog= "+scientificprog[i];
+				metadatamat[4] = 	"StationId= "+stationId[i];
+				metadatamat[5] = 	"Date= "+date[i];
+				metadatamat[6] = 	"Latitude= "+latitude[i];
+				metadatamat[7] = 	"Longitude= "+longitude[i];
+				metadatamat[8] = 	"Depth= "+depth[i];
+				metadatamat[9] = 	"CTDref= "+ctdref[i];
+				metadatamat[10] = 	"Otherref= "+otherref[i];
+				metadatamat[11] = 	"Townb= "+townb[i];
+				metadatamat[12] = 	"Towtype= "+towtype[i];
+				metadatamat[13] = 	"Nettype= "+nettype[i];
+				metadatamat[14] = 	"Netmesh= "+netmesh[i];
+				metadatamat[15] = 	"Netsurf= "+netsurf[i];
+				metadatamat[16] = 	"Zmax= "+zmax[i];
+				metadatamat[17] = 	"Zmin= "+zmin[i];
+				metadatamat[18] = 	"Vol= "+vol[i];
+				metadatamat[19] = 	"FracId= "+fraction_list_source[h];
+				metadatamat[20] = 	"Fracmin= "+Fracmin_source[h];
+				metadatamat[21] = 	"Fracsup= "+Fracsup_source[h];
+				metadatamat[22] = 	"Fracnb= "+Fracnb_source[h];
+				metadatamat[23] = 	"Observation= "+Observation_source[h];
+				metadatamat[24] = 	"Code= "+Code_source[h];
+				metadatamat[25] = 	"SubMethod= "+Submethod_source[h];
+				metadatamat[26] = 	"CellPart= "+Cellpart_source[h];
+				metadatamat[27] = 	"Replicates= "+Replicates_source[h];
+				metadatamat[28] = 	"VolIni= "+Volini_source[h];
+				metadatamat[29] = 	"VolPrec= "+Volprec_source[h];
+				metadatamat[30] = 	"Sample_comment= "+sample_comment[i];
+				metadatamat[31] = 	"vol_qc= "+vol_qc[i];
+				metadatamat[32] = 	"depth_qc= "+depth_qc[i];
+				metadatamat[33] = 	"sample_qc= "+sample_qc[i];
+				metadatamat[34] = 	"barcode= "+barcode[i];
+				metadatamat[35] = 	"latitude_end= "+latitude_end[i];
+				metadatamat[36] = 	"longitude_end= "+longitude_end[i];
+				metadatamat[37] = 	"net_duration= "+net_duration[i];
+				metadatamat[38] = 	"ship_speed_knots= "+ship_speed_knots[i];
+				metadatamat[39] = 	"cable_length= "+cable_length[i];
+				metadatamat[40] = 	"cable_angle= "+cable_angle[i];
+				metadatamat[41] = 	"cable_speed= "+cable_speed[i];
+				metadatamat[42] = 	"nb_jar= "+nb_jar[i];							
+				for (r=0; r<43 ; r++) { data = metadatamat[r]; 	print(data);	} // for				
+				
+				// ----------------------- Sauvegarde des infos dans un fichier des metadata du nom de l'image -----------------
+				selectWindow("Log");
+				//sauvemeta = "save=" + chemraw + "\\"+ sample+"_"+fraction_list[h] + "_1_meta.txt";
+				sauvemeta = "save=" + chemraw + "\\"+ scanId_source[h] + "_meta.txt";
+				run("Text...",sauvemeta);
+				
+				// --------------- MAJ de tous les fichiers ------------------------------------
+				metadatamat[20] = 	"Min= "+Fracmin_source[h];
+				metadatamat[21] = 	"Max= "+Fracsup_source[h];
+				texte = metadatamat[0];
+				for (b = 1; b < 43 ; b++) {	texte = texte + " " + metadatamat[b];			} // for	
+				texte = texte + " "+scanId_source[h]+" "+projfolder+" batch";
+			//	texte = texte + " "+sample+"_"+scanId[i]+" "+projfolder+" batch";
+
+				flag = runMacro("Zooscan_edit_metadata_maj_files",texte);
+				flag = toString(flag);
+				lon = lengthOf(flag);
+				if (lon == 1) aa = getBoolean("Zooscan_edit_metadata_maj_files FAILED. \n \nPres CANCEL to ABORT !");
+			}// for h
+		} // if
+	} // for sample	
+} // elseif SCAN
+else if (process_opt == "DELETE sample from list") {
+	//----------------------- DELETE SAMPLE --------------------------------------------------
+	aa = getBoolean("WARNING : \n \nYou are about deleting sample from the project. \n \nPress YES to continue, Pres CANCEL to abort !");
+	otherprofile = 1;
+	while (otherprofile == 1) {
+		Dialog.create("METADATA   SAMPLE                         version = "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage("Project  :  "+proj);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addChoice("       SELECT SAMPLE to be DELETED ",sampleId);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.show();
+		sample = Dialog.getChoice();
+		if (sample != 'deleted') {
+			aa = getBoolean("Do you really want to delete sample "+sample+ " from list ? \nALL scanned fraction will also be removed !\n \nPress Cancel to Abort");
+			
+			// ------------------ Impression SAMPLE file corrigé -------------------------------------
+			print("A purger");	selectWindow("Log");		run("Close");
+//			texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment";
+			texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment;vol_qc;depth_qc;sample_qc;barcode;latitude_end;longitude_end;net_duration;ship_speed_knots;cable_length;cable_angle;cable_speed;nb_jar";
+			texte = toLowerCase(texte);
+			print(texte);
+			del_idx = 0;
+			for (i=0; i< j-1 ; i++) {
+				if (sampleId[i] != sample && sampleId[i] != 'deleted' ) {
+//					texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i];
+					texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i]+";"+vol_qc[i]+";"+depth_qc[i]+";"+sample_qc[i]+";"+barcode[i]+";"+latitude_end[i]+";"+longitude_end[i]+";"+net_duration[i]+";"+ship_speed_knots[i]+";"+cable_length[i]+";"+cable_angle[i]+";"+cable_speed[i]+";"+nb_jar[i];
+					print(texte);
+				} // 
+				else { del_idx = i;	} // else
+			} // for
+			sampleId[del_idx] = 'deleted';
+			text = "save="+chemmeta+"zooscan_sample_header_table.csv";
+			selectWindow("Log");
+			run("Text...",text);
+			text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_sample_header_table.csv";
+			run("Text...",text);			
+			
+			// ------------------ IMPRESSION SCAN file corrigé ---------------------------------------
+			print("A purger");	selectWindow("Log");		run("Close");
+			texte = "scanId;sampleId;scanop;fracId;fracmin;fracsup;fracnb;observation;code;subMethod;cellPart;replicates;volIni;volPrec";
+			texte = toLowerCase(texte);
+			print(texte);
+			for (h=0; h< scanId.length ; h++) {
+				if (sampleId_frac[h] != sample && sampleId[h] != 'deleted' ) {
+					texte = scanId[h]+";"+sampleId_frac[h]+";"+Scanop[h]+";"+fracId[h]+";"+Fracmin[h]+";"+Fracsup[h]+";"+Fracnb[h]+";"+Observation[h]+";"+Code[h]+";"+Submethod[h]+";"+Cellpart[h]+";"+Replicates[h]+";"+Volini[h]+";"+Volprec[h];
+					print(texte);
+				} // if
+			} // for
+			text = "save="+chemmeta+"zooscan_scan_header_table.csv";
+			selectWindow("Log");
+			run("Text...",text);
+			text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_scan_header_table.csv";
+			run("Text...",text);	
+			
+			// ---------------- AUTRE échantillon ? -----------------------------
+			otherprofile = getBoolean("Do not forget to manually remove all "+sample+" related files (TIF, LOG, META, PID, DAT1...) from the project ! \n \nDELETE another SAMPLE (YES/NO) ?   ");
+		} // if
+	} // while
+} // else if 
+
+else if (process_opt =="DELETE SCANNED fraction from list") {
+	// ---------------------- DELETE FRACTION SCANNEE ----------------------------------------
+	aa = getBoolean("WARNING : \n \nYou are about deleting scanned fraction from the project. \n \nPress YES to continue, Pres CANCEL to abort !");
+	otherprofile = 1;
+	while (otherprofile == 1) {
+		Dialog.create("METADATA   SCAN                         version = "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage("Project  :  "+proj);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addChoice("       SELECT SCAN to be DELETED ",scanId);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.show();
+		sample = Dialog.getChoice();
+		if (sample != 'deleted') {
+			aa = getBoolean("Do you really want to delete scan ''"+sample+ "'' from list ? \n \nPress Cancel to Abort");			
+		
+			// ------------------ IMPRESSION SCAN file corrigé ---------------------------------------
+			print("A purger");	selectWindow("Log");		run("Close");
+			texte = "scanId;sampleId;scanop;fracId;fracmin;fracsup;fracnb;observation;code;subMethod;cellPart;replicates;volIni;volPrec";
+			texte = toLowerCase(texte);
+			print(texte);
+			del_idx = 0;
+			for (h=0; h< scanId.length ; h++) {
+				if (scanId[h] != sample && scanId[h] != 'deleted' ) {
+					texte = scanId[h]+";"+sampleId_frac[h]+";"+Scanop[h]+";"+fracId[h]+";"+Fracmin[h]+";"+Fracsup[h]+";"+Fracnb[h]+";"+Observation[h]+";"+Code[h]+";"+Submethod[h]+";"+Cellpart[h]+";"+Replicates[h]+";"+Volini[h]+";"+Volprec[h];
+					print(texte);
+				} // if
+				else {	del_idx = h;	}//else
+			} // for
+			scanId[del_idx] = 'deleted';
+			text = "save="+chemmeta+"zooscan_scan_header_table.csv";
+			selectWindow("Log");
+			run("Text...",text);
+			text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_scan_header_table.csv";
+			run("Text...",text);		
+			// ---------------- AUTRE échantillon ? -----------------------------
+			otherprofile = getBoolean("Do not forget to manually remove all "+sample+" related files (TIF, LOG, META, PID, DAT1...) from the project ! \n \nDELETE another SCAN (YES/NO) ?   ");	
+			
+		} // if
+	} // while
+}// else if
+
+//----------------------- FIN --------------------------------------
+ret = arg;
+return ret;

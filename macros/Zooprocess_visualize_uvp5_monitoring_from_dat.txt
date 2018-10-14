@@ -1,0 +1,714 @@
+// --------------------------- Zooprocess_visualize_uvp5_monitoring_from_dat.txt -----------------------------------------------
+version = "7.26";
+date = "2018/01/28";
+
+// A partir des DAT du HD seulement
+
+args = 	getArgument();
+arg = 	split(args," ");
+path = arg[0];
+instrum = arg[1];
+appel = arg[2];
+tsv_file = arg[3];
+pathmeta = path+"\\meta\\";
+pathresults = path+"\\results\\";
+dirprocessed = 	pathresults;
+nbgraph = 2;
+lissage = true; // SINON problème de valeurs nulles à traiter !!!!
+
+// --------------- CALIBRATION TEMP ---------------------------------
+camera_a =	1;
+camera_b =	0;
+peltier_a =	1;
+peltier_b =	0;
+
+// --------------- Metadata -----------------------------------------
+metafile = "no";
+filelist = getFileList(pathmeta);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = startsWith(filelist[i],"uvp5_header_");
+	ctrl_end = endsWith(filelist[i],".txt");
+	if (ctrl == 1 && ctrl_end == 1) { metafile = filelist[i];		} // if
+} // for
+if (metafile == "no") {	aa =	getBoolean("Press ''Cancel'' now and Fill in metadata first. ");	} // if
+open(path+"\\meta\\"+metafile);
+wait(100);
+metadata = getInfo();
+run('Close');
+array = split(metadata,"\n");
+
+// --------------------- SELECTION MANUELLE DU PROFIL -----------------------
+listsel = newArray(1);
+listsel[0] = appel;
+fin = 1;
+if (appel == "root") {
+	// --------------- Liste des profiles disponibles -------------------
+	j = 0;
+	filelist = getFileList(pathresults);
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		if (endsWith(filelist[i],"_datfile.txt")) {rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for
+	if (j==0) { 
+		aa = getBoolean("No DATFILE file to process in "+pathresults+". \nPress CANCEL to abort !          ");
+	} //
+	else { 	listsel = newArray(j);
+		for (k=0;k<listsel.length ;k++) {	rr = list[k];	tt = substring(rr,0,lengthOf(rr)-12);  	listsel[k] = tt;		} // for
+	} // else
+	// --------------- Choix profile ------------------------------------
+	Dialog.create("UVP5 profiles            version :  "+version);
+	Dialog.addMessage("-------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("-------------------------------------------------------------------------------------      ");
+//	Dialog.addMessage("SELECT PROFILE to PLOT");
+	Dialog.addChoice("    SELECT PROFILE to PLOT",       listsel           );
+	Dialog.addMessage("or ");
+	Dialog.addCheckbox("PLOT ALL",false);
+	Dialog.addMessage("-------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	appel = 		Dialog.getChoice();
+	plot_all = 		Dialog.getCheckbox();
+	
+	// -------------------------------- Un ou plusieurs ---------------------------------------------
+	if (plot_all == true ) {	fin = j; 		}
+}
+
+// ================================= Boucle sur les profils ======================================
+for(t = 0; t < fin ; t++) {
+	appel = listsel[t];
+	// --------------- Recherche firstimg et profile (station) pour le profile ---------------
+	firstimg = "no";
+	for (i=1; i<array.length ; i++) { 
+		ligne = replace(array[i],";"," ");
+		ligne = split(ligne,"\ ");
+		Cruise = 	ligne[0];
+		Ship = 		ligne[1];
+		Filename = 	ligne[2];
+		Profile_id =	ligne[3];
+		Firstimage =	ligne[8];
+		Imagevol =	ligne[9];
+		Aa =		parseFloat(ligne[10]);
+		Expo =		parseFloat(ligne[11]);
+		if (ligne.length == 21 ){	Lastimage =	ligne[18];	Yoyo_opt = ligne[19];		Stationid = ligne[20];		} // if
+		else { 				Lastimage =	99999999999;	Yoyo_opt = "N";			Stationid = Profile_id;	} // else
+		Filename = 	toString(Filename);
+		Profile_id =	toString(Profile_id);	
+//		aa = getBoolean(appel+"    "+Profile_id);
+//		if (startsWith(appel,Profile_id)) {
+		if (appel == Profile_id) {
+			firstimg = Firstimage;	
+			profile = Profile_id;		
+			volimage = Imagevol;	
+			lastimage = Lastimage;	
+			stationid = Stationid;
+		} // if
+	}// for
+	if (firstimg == "no") {aa = getBoolean("First image not found in "+Profile_id+" \nPress Cancel to abort !   ");		} // if
+	profile = toString(profile);
+	firstimg = parseInt(firstimg);
+	volimage = parseFloat(volimage);
+	
+	// ------------ NOMS des fichiers --------------------
+	datfilename = appel+"_datfile.txt"; 
+	
+	//------------- Ouverture du fichier datfile.txt ----------------
+	//	aa = getBoolean(dirprocessed +datfilename);
+	open(dirprocessed +datfilename);
+	wait(500);
+	selectWindow(datfilename);
+	data = getInfo();
+	ligne = split(data,"\n");
+	run("Close");
+	
+	// -------------- Vecteurs ---------------------------------------
+	Depth = 	newArray(ligne.length);
+	Time = 		newArray(ligne.length);
+	Time_txt = 	newArray(ligne.length);
+	Angle = 	newArray(ligne.length);
+	Bat_volt = 	newArray(ligne.length);
+	T_cm = 		newArray(ligne.length);
+	T_haute_peltier = 	newArray(ligne.length);
+	T_camera = 		newArray(ligne.length);
+	index = 0;
+	j = 0;
+	depthmax = -5;
+	while(index < ligne.length) {
+		dataline_read = ligne[index];
+		dataline = 	replace(dataline_read,";"," ");
+		dataline = 	split(dataline,"\ ");
+		imgnb = 	dataline[0];
+		imgnb = 	parseInt(imgnb);
+		// ----------- DATA entre premiere et dernière image ---------------
+		if (imgnb > firstimg && imgnb <= lastimage) {
+			time = dataline[1];
+			hh = substring(time,9,11);
+			mm = substring(time,11,13);
+			ss = substring(time,13,15);
+			ms = substring(time,16,19);
+			hh = 3600* parseFloat(hh);
+			mm = 60 * parseFloat(mm);
+			ss = parseFloat(ss);
+			ms = parseFloat(ms);
+			depth = 		0.1 * parseFloat(dataline[2]);
+			angle =			parseFloat(dataline[3]);
+			bat_volt =		parseFloat(dataline[6]);
+			t_cm =			parseFloat(dataline[5]);
+			t_haute_peltier =	parseFloat(dataline[11]);
+			t_camera =		parseFloat(dataline[12]);
+			// ---------------- Test FIN descente ------------------------------
+			if (depth > depthmax) {
+				if (Yoyo_opt == "N") depthmax = maxOf(depthmax,depth);
+				Depth[j] = 		-1*depth;
+				Time[j] =		hh+mm+ss+ms/1000;
+				Time_txt[j] = 		time;
+				Angle[j] =		angle;		// 4
+				Bat_volt[j] = 		bat_volt/100;	// 5
+				T_cm[j] = 		t_cm;		// 6
+				T_haute_peltier[j] = 	(peltier_a * t_haute_peltier +peltier_b)/1000;	// 3
+				T_camera[j] = 		(camera_a * t_camera + camera_b)/1000;		// 2
+				j++;
+			} // if
+		} // if firstimg
+		index++;
+	} // while	
+	
+	// ------------------------- Graph data ----------------------------------
+	depthprop = 100 *(1+ floor(depthmax/100));
+	Zstep = 10;
+	if (depthprop > 5000) Zstep = 1000;
+	else if (depthprop > 1000) Zstep = 500;
+	else if (depthprop > 100) Zstep = 100;
+	
+	time_deb = Time[0];
+	time_end = Time[j-1];
+	
+	time_deb_txt = Time_txt[0];
+	time_end_txt = Time_txt[j-1];
+	
+	nmoy = 3;
+	if (appel == "root" && Yoyo_opt != "H" ) {
+		Dialog.create("Graph parameters ");
+		Dialog.addNumber("Enter MAXIMUM depth ",depthprop);
+		Dialog.addNumber("Enter depth intervalles",Zstep);
+		Dialog.addNumber("Enter number of images for smoothing",nmoy);
+		Dialog.show;
+		miniy = Dialog.getNumber();
+		Zstep = Dialog.getNumber();
+		nmoy = Dialog.getNumber();
+	}
+	else {	miniy = depthprop;	}
+	Zstep = abs(Zstep);
+	
+	// ------------- Echelles axe Y ---------------------
+	miniy = -1*abs(miniy);
+	maxiy = 	0;
+	
+	// ------------- Cas horizontal -----------------------------
+	if (Yoyo_opt == "H" ) {
+		timemax = time_end - time_deb;
+		timeprop = 600 *(1+ floor(timemax/600));
+		if (timeprop > 3600) 		Zstep = 1800;
+		else if (timeprop >= 1800) 	Zstep = 600;
+		else if (timeprop >= 60) 	Zstep = 60;
+		miniy = 0;
+		maxiy = timeprop;
+		nbgraph = 1;
+	} // if
+	
+	// ---------------------- suppression des valeurs nulles (remontee) et LISSAGE -------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	T_cameraj = 		newArray(j-nmoy);	
+	T_haute_peltierj = 	newArray(j-nmoy);	
+	Depthj = 		newArray(j-nmoy);
+	Timej =			newArray(j-nmoy);
+	/*for(i= j-nmoy -1 ; i < j-nmoy -1000 ; i--) {
+		Depthj[i] = 	Depth[i] ;
+		Timej[i] =	Time[i] ;
+		T_cameraj[i] = 	T_camera[i] ;
+		T_haute_peltierj[i] = T_haute_peltier[i] ;
+	}
+	*/
+	maxT_camera =0;
+	maxT_haute_peltier =0;
+	maxT_cameraj =0;
+	maxT_haute_peltierj =0;
+	
+	// -------------------------- Echelle heure -----------------------------------------
+	for (i = 0 ; i<j ; i++) {	Time_txt[i] = parseFloat(Time[i]) - parseFloat(time_deb);	 	};		
+	
+	// --------------- Lissage de base ------------------------------
+	for (i = 0 ; i < j-nmoy  ; i++) {
+		if (i/500 == floor(i/500) && i !=0 ) {	showStatus("Averaging data  : "+i+" /"+j);	} // if
+		depth = 	Depth[i];
+		depth = 	parseFloat(depth);
+		for (k = i+1;k<i+nmoy;k++) {	prof = Depth[k];		prof = parseFloat(prof);	depth = 	depth+prof;		} // for
+		depth = 	depth/nmoy;
+		Depthj[i] = 	depth;
+		
+		timef = 	Time[i];
+		time = 		parseFloat(timef) - parseFloat(time_deb);
+		for (k = i+1;k<i+nmoy;k++) {	tp = Time[k] - parseFloat(time_deb);			tp = parseFloat(tp);		time = 	time+tp;		} // for
+		time = 		time/nmoy;
+		Timej[i] = 	floor(time);
+		
+		data_prov = 	parseFloat(T_camera[i]);
+		maxT_camera = 	maxOf(maxT_camera,data_prov);
+		for (k = i+1;k<i+nmoy;k++) {	nb = T_camera[k];		nb = parseFloat(nb);		data_prov = data_prov+nb;	} // for
+		data_prov = 	data_prov/nmoy;
+		maxT_cameraj = 	maxOf(maxT_cameraj,data_prov);
+		T_cameraj[i] = 	data_prov;
+		
+		data_prov = 	parseFloat(T_haute_peltier[i]);
+		maxT_haute_peltier = 	maxOf(maxT_haute_peltier,data_prov);
+		for (k = i+1;k<i+nmoy;k++) {	nb = T_haute_peltier[k];		nb = parseFloat(nb);		data_prov = data_prov+nb;	} // for
+		data_prov = 	data_prov/nmoy;
+		maxT_haute_peltierj = 	maxOf(maxT_haute_peltierj,data_prov);
+		T_haute_peltierj[i] = 	data_prov;
+		
+	}
+	// --------------- Lissage plus important -----------------
+//	nmoy = nmoy * 2;
+	Bat_voltj = 	newArray(j-nmoy);	
+	T_cmj = 	newArray(j-nmoy);
+	Depthjb = 	newArray(j-nmoy);
+	Timejb =	newArray(j-nmoy);
+	Anglej = 	newArray(j-nmoy);
+	/*for(i = 0 ; i < 1000 ; i++) {
+		Bat_voltj[i] = 	Bat_volt[i] ;
+		T_cmj[i] =	T_cm[i] ;
+		Depthjb[i] = 	Depth[i] ;
+		Timejb[i] = 	Time[i] ;
+		Anglej[i] = 	Angle[i] ;
+	}
+	*/
+	maxAngle =0;	
+	maxBat_volt =0;
+	maxT_cm =0;
+	maxAnglej =0;	
+	maxBat_voltj =0;
+	maxT_cmj =0;
+	
+	for (i = 0 ; i<j-nmoy  ; i++) {	
+		
+		depth = 	Depth[i];
+		depth = 	parseFloat(depth);
+		for (k = i+1;k<i+nmoy;k++) {	prof = Depth[k];		prof = parseFloat(prof);	depth = 	depth+prof;		} // for
+		depth = 	depth/nmoy;
+		Depthjb[i] = 	depth;
+		
+		timef = 	Time[i];
+		time = 		parseFloat(timef) - parseFloat(time_deb);
+		for (k = i+1;k<i+nmoy;k++) {	tp = Time[k] - parseFloat(time_deb);			tp = parseFloat(tp);		time = 	time+tp;		} // for
+		time = 		time/nmoy;
+		Timejb[i] = 	floor(time);
+		
+		data_prov = 	parseInt(Angle[i]);
+		maxAngle = 	maxOf(maxAngle,data_prov);
+		for (k = i+1;k<i+nmoy;k++) {	nb = Angle[k];		nb = parseFloat(nb);		data_prov = data_prov+nb;	} // for
+		data_prov = 	data_prov/nmoy;
+		maxAnglej = 	maxOf(maxAnglej,data_prov);
+		Anglej[i] = 	data_prov;
+		
+		data_prov = 	parseFloat(Bat_volt[i]);	
+		maxBat_volt = 	maxOf(maxBat_volt,data_prov);
+		for (k = i+1;k<i+nmoy;k++) {	nb = Bat_volt[k];	nb = parseFloat(nb);		data_prov = data_prov+nb;	} // for
+		data_prov = 	data_prov/nmoy;
+		maxBat_voltj = 	maxOf(maxBat_voltj,data_prov);
+		Bat_voltj[i] = 	data_prov;
+		
+		data_prov = 	parseInt(T_cm[i]);
+		maxBat_volt = 	maxOf(maxT_cm,data_prov);
+		for (k = i+1;k<i+nmoy;k++) {	nb = T_cm[k];		nb = parseInt(nb);		data_prov = data_prov+nb;	} // for
+		data_prov = 	data_prov/nmoy;
+		maxT_cmj = 	maxOf(maxT_cmj,data_prov);
+		T_cmj[i] = 	data_prov;
+		
+	} // for
+	showStatus("DATA smoothed");		
+//	for (i = 0 ; i< T_cmj.length ; i++) {		print("depth = "+Depthjb[i]+" time = "+Timejb[i]+"  T camera = "+T_cameraj[i]+" T Peltier = "+T_haute_peltierj[i]+" Angle = "+Anglej[i]+" Batterie = "+Bat_voltj[i]+" T CM = "+T_cmj[i]);}
+//	print("-------------------------------------------------------");
+//	for (i = 0 ; i< T_cmj.length ; i++) {		print("depth = "+Depth[i]+" time = "+Time_txt[i]+"  T camera = "+T_camera[i]+" T Peltier = "+T_haute_peltier[i]+" Angle = "+Angle[i]+" Batterie = "+Bat_volt[i]+" T CM = "+T_cm[i]);}
+//	i = 0;
+////	aa = getBoolean("depth = "+Depth[i]+" time = "+Time_txt[i]+"  T camera = "+T_camera[i]+" T Peltier = "+T_haute_peltier[i]+" Angle = "+Anglej[i]+" Batterie = "+Bat_voltj[i]+" T CM = "+T_cmj[i]);
+	// ----------------- GRAPH --------------------------------------------------------------------------------------------
+	ecranw= screenWidth();
+	ecranh= screenHeight();
+	
+	//	final_hauteur = ecranh - 100;
+	final_hauteur = 1000;
+	final_largeur = floor(final_hauteur*2/3);
+	dimlegende = 210;
+	talon_gauche = 60;
+	talon_droite = 16;
+	talon_haut = 16;	// par Imagej
+	vertical_dif = 53;
+	hauteur_plot = final_hauteur - dimlegende;
+	largeur_plot = final_largeur - talon_gauche - talon_droite;
+	hauteur_remove_bas = 38;
+	//---------- Dimensions pour les données et le cadre -----------------------------
+	//run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 vertical interpolate");
+
+	run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 fixed vertical");	
+	maxT_camera = 	10 *(1+ floor(maxT_camera/10));
+	maxT_camera =	maxOf(25,maxT_camera);	
+	maxT_cameraj = 	10 *(1+ floor(maxT_cameraj/10));
+	maxT_cameraj =	maxOf(25,maxT_cameraj);
+	minT_camera = 	5;
+	
+	maxT_haute_peltier = 	10 *(1+ floor(maxT_haute_peltier/10));
+	maxT_haute_peltier =	maxOf(40,maxT_haute_peltier);
+	maxT_haute_peltierj = 	10 *(1+ floor(maxT_haute_peltierj/10));
+	maxT_haute_peltierj =	maxOf(40,maxT_haute_peltierj);
+	minT_haute_peltier = 	0;
+	
+	maxAngle = 	5 *(1+ floor(maxAngle/5));
+	maxAngle =	maxOf(215,maxAngle);	
+	maxAnglej = 	5 *(1+ floor(maxAnglej/5));
+	maxAnglej =	maxOf(215,maxAnglej);
+	minAngle = 	135;
+	
+	maxBat_volt = 	(1+ floor(maxBat_volt));
+	maxBat_volt =	maxOf(30,maxBat_volt);
+	maxBat_voltj = 	1 *(1+ floor(maxBat_voltj/1));
+	maxBat_voltj =	maxOf(30,maxBat_voltj);
+	minBat_volt = 	20;
+	
+	maxT_cm = 	(1+ floor(maxT_cm));
+	maxT_cm =	maxOf(45,maxT_cm);
+	maxT_cmj = 	(1+ floor(maxT_cmj));
+	maxT_cmj =	maxOf(45,maxT_cmj);
+	minT_cm = 	5;
+
+	// ------------ Mise au format de la date -------------------------
+	yymmdd = substring(time_deb_txt,0,8);
+	hh = substring(time_deb_txt,8,10);
+	mm = substring(time_deb_txt,10,12);
+	ss = substring(time_deb_txt,12,14);
+	//	ms = substring(time_deb_txt,16,19);
+	time_deb_txt = 	yymmdd+" "+hh+":"+mm+":"+ss;
+	yymmdd = substring(time_end_txt,0,8);
+	hh = substring(time_end_txt,8,10);
+	mm = substring(time_end_txt,10,12);
+	ss = substring(time_end_txt,12,14);
+	//	ms = substring(time_end_txt,16,19);
+	time_end_txt = 	yymmdd+" "+hh+":"+mm+":"+ss;
+	
+	// -------------------- Boucle sur les 2 graphes -------------------------
+	for (graph=0;graph < nbgraph;graph++) {
+		if (graph == 1) {	miniy = -200;		Zstep = 20;			}
+		// ------------ Les 3 courbes sont calées sur 0 ---------
+//		minix = 	0;
+		nbtics =  floor(abs(miniy)/Zstep);
+		if (miniy == 0) nbtics =  floor(abs(maxiy)/Zstep);
+		
+		// ------------------- LIssage ----------------------------
+		if (	lissage == true) {
+
+			// ---------------- #2 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_2",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_2",profile,"Time (sec)");	}
+			Plot.setLimits(minT_camera, maxT_cameraj, miniy, maxiy);
+			Plot.setColor("red");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_cameraj,Depthj);	}
+			else {			Plot.add("line", T_cameraj,Timej);	}
+			Plot.show();
+			setLineWidth(1);
+			run("Colors...", "foreground=black background=white selection=red");
+			selectImage(profile+"_2");
+//			saveAs("jpg", dirprocessed+"UVP5_"+profile+"_grey.jpg"); 
+			rename("All");
+			
+			// ---------------- #3 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_3",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_3",profile,"Time (sec)");	}
+			Plot.setLimits(minT_haute_peltier, maxT_haute_peltierj, miniy, maxiy);
+			Plot.setColor("blue");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_haute_peltierj,Depthj);	}
+			else {			Plot.add("line", T_haute_peltierj,Timej);	}	
+			Plot.show();
+			selectImage(profile+"_3");
+			rename("UVP5_"+profile+"_3.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_3.jpg");
+			
+			// ---------------- #4 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_4",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_4",profile,"Time (sec)");	}
+			Plot.setLimits(minAngle, maxAnglej, miniy, maxiy);
+			Plot.setColor("green");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", Anglej,Depthjb);	}
+			else {			Plot.add("line", Anglej,Timejb);	}	
+			Plot.show();
+			selectImage(profile+"_4");
+			rename("UVP5_"+profile+"_4.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_4.jpg");
+			
+			// ---------------- #5 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_5",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_5",profile,"Time (sec)");	}
+			Plot.setLimits(minBat_volt, maxBat_voltj, miniy, maxiy);
+			Plot.setColor("cyan");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", Bat_voltj,Depthjb);	}
+			else {			Plot.add("line", Bat_voltj,Timejb);	}	
+			Plot.show();
+			selectImage(profile+"_5");
+			rename("UVP5_"+profile+"_5.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_5.jpg");
+			
+			// ---------------- #6 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_6",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_6",profile,"Time (sec)");	}
+			Plot.setLimits(minT_cm, maxT_cmj, miniy, maxiy);
+			Plot.setColor("black");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_cmj,Depthjb);	}
+			else {			Plot.add("line", T_cmj,Timejb);	}	
+			Plot.show();
+			selectImage(profile+"_6");
+			rename("UVP5_"+profile+"_6.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_6.jpg");
+		}
+		else {
+			// ------------- PAS DE LISSAGE ----------------------------
+			
+			// ---------------- #2 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_2",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_2",profile,"Time (sec)");	}
+			Plot.setLimits(minT_camera, maxT_camera, miniy, maxiy);
+			Plot.setColor("red");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_camera,Depth);	}
+			else {			Plot.add("line", T_camera,Time_txt);	}
+			Plot.show();
+			selectImage(profile+"_2");
+			setLineWidth(1);
+			run("Colors...", "foreground=black background=white selection=red");
+//			saveAs("jpg", dirprocessed+"UVP5_"+profile+"_grey.jpg"); 
+			rename("All");
+			
+			// ---------------- #3 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_3",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_3",profile,"Time (sec)");	}
+			Plot.setLimits(minT_haute_peltier, maxT_haute_peltier, miniy, maxiy);
+			Plot.setColor("blue");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_haute_peltier,Depth);	}
+			else {			Plot.add("line", T_haute_peltier,Time_txt);	}	
+			Plot.show();
+			selectImage(profile+"_3");
+			rename("UVP5_"+profile+"_3.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_3.jpg");
+			
+			// ---------------- #4 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_4",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_4",profile,"Time (sec)");	}
+			Plot.setLimits(minAngle, maxAngle, miniy, maxiy);
+			Plot.setColor("green");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", Angle,Depth);	}
+			else {			Plot.add("line", Angle,Time_txt);	}	
+			Plot.show();
+			selectImage(profile+"_4");
+			rename("UVP5_"+profile+"_4.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_4.jpg");
+			
+			// ---------------- #5 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_5",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_5",profile,"Time (sec)");	}
+			Plot.setLimits(minBat_volt, maxBat_volt, miniy, maxiy);
+			Plot.setColor("cyan");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", Bat_volt,Depth);	}
+			else {			Plot.add("line", Bat_volt,Time_txt);	}	
+			Plot.show();
+			selectImage(profile+"_5");
+			rename("UVP5_"+profile+"_5.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_5.jpg");
+			
+			// ---------------- #6 -------------------------
+			if (Yoyo_opt != "H" ) {	Plot.create(profile+"_6",profile,"Z (m)");	}
+			else {			Plot.create(profile+"_6",profile,"Time (sec)");	}
+			Plot.setLimits(minT_cm, maxT_cm, miniy, maxiy);
+			Plot.setColor("black");
+			if (Yoyo_opt != "H" ) {	Plot.add("line", T_cm,Depth);	}
+			else {			Plot.add("line", T_cm,Time_txt);	}	
+			Plot.show();
+			selectImage(profile+"_6");
+			rename("UVP5_"+profile+"_6.jpg"); 
+			imageCalculator("AND", "All","UVP5_"+profile+"_6.jpg");
+		}
+		
+		// ------------- Traits horizontaux --------------------
+		hauteur_courante  = getHeight();
+		hauteur_plot_cor = hauteur_courante - vertical_dif;
+		setColor(0, 0, 0);
+		if (miniy == 0) {	ZZ = talon_haut + Zstep*hauteur_plot_cor/abs(maxiy);
+			for (i=1;i<nbtics;i++) {	drawLine(talon_gauche,ZZ,largeur_plot+talon_gauche,ZZ);	ZZ = ZZ+ Zstep*hauteur_plot_cor/abs(maxiy);	} // for
+		}
+		else {	ZZ = talon_haut + Zstep*hauteur_plot_cor/abs(miniy);
+			for (i=1;i<nbtics;i++) {	drawLine(talon_gauche,ZZ,largeur_plot+talon_gauche,ZZ);	ZZ = ZZ+ Zstep*hauteur_plot_cor/abs(miniy);	} // for
+		} // else
+		
+		// ----------------- Ajout des echelles sur graphe supperpose ----------
+		selectImage("All");
+		makeRectangle(0, hauteur_courante - hauteur_remove_bas, final_largeur, hauteur_remove_bas);
+		//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_temp.jpg"); 	rename("All");
+		run("Clear");
+		run("Select None");
+		hauteur_canvas = hauteur_courante + dimlegende;
+		text = 	 "width="+final_largeur+" height="+hauteur_canvas+" position=Top-Left";
+		run("Canvas Size...",text);
+		
+		// ------------------ Legende CRUISE STATION CAST TIME -----------
+		setFont("SansSerif" , 16);
+		setLineWidth(1);
+		setColor(0,0,0);
+		drawString("Project : "+Cruise+"  /  Stn Id : "+stationid, talon_gauche, hauteur_courante+134);	
+		drawString("Profile Id (cast) :  "+profile, talon_gauche, hauteur_courante+160);
+		setFont("SansSerif" , 12);
+		setFont("SansSerif" , 14);		
+		drawString("Start (UTC)  :  "+time_deb_txt,talon_gauche, hauteur_courante+180);	
+		drawString("End   (UTC)  :  "+time_end_txt,talon_gauche, hauteur_courante+200);	
+		setFont("SansSerif" , 12);
+		
+		if (	lissage == true) {	
+			// --------------- 1 (rouge) -----------------------
+			setColor(255, 0, 0);
+			drawLine(talon_gauche,hauteur_courante+1,largeur_plot+talon_gauche,hauteur_courante+1);
+			xstep = 1;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_cameraj)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+1,x_step,hauteur_courante+1-5);	x_step = x_step + xstep*largeur_plot/maxT_cameraj;	} // for
+			drawString("Temperature camera [°C]", 100, hauteur_courante+1-4);
+			drawString("0", talon_gauche, hauteur_courante+1-3);
+			drawString(maxT_cameraj, largeur_plot-20+talon_gauche, hauteur_courante+1-3);
+			
+			// --------------- 2 -------------------------------
+			setColor(0, 0, 255);
+			drawLine(talon_gauche,hauteur_courante+27,largeur_plot+talon_gauche,hauteur_courante+27);
+			xstep = 5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_haute_peltierj)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+27,x_step,hauteur_courante+27-5);	x_step = x_step + xstep*largeur_plot/maxT_haute_peltierj;	} // for
+			drawString("Temperature Peltier [°C]", 100, hauteur_courante+27-4);
+			drawString("0", talon_gauche, hauteur_courante+27-3);
+			maxixgrey = toString(maxixgrey);
+			drawString(" "+maxT_haute_peltierj, largeur_plot-20+talon_gauche, hauteur_courante+27-3);
+			
+			// --------------- 3 --------------------------------
+			setColor(0, 255, 0);
+			drawLine(talon_gauche,hauteur_courante+53,largeur_plot+talon_gauche,hauteur_courante+53);
+			xstep = 5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxAnglej)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+53,x_step,hauteur_courante+53-5);	x_step = x_step + xstep*largeur_plot/maxAnglej;	} // for
+			drawString("Angle [°]", 100, hauteur_courante+53-4);
+			drawString("0", talon_gauche, hauteur_courante+53-3);
+			maxixsize = toString(maxixsize);
+			drawString("  "+maxAnglej, largeur_plot-20+talon_gauche, hauteur_courante+53-3);
+			
+			// --------------- 4 -------------------------------
+			setColor(0, 255, 255);
+			drawLine(talon_gauche,hauteur_courante+80,largeur_plot+talon_gauche,hauteur_courante+80);
+			xstep = 0.5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxBat_voltj)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+80,x_step,hauteur_courante+80-5);	x_step = x_step + xstep*largeur_plot/maxBat_voltj;	} // for
+			drawString("Battery voltage [Volt]", 100, hauteur_courante+80-4);
+			drawString("0", talon_gauche, hauteur_courante+80-3);
+			maxixgrey = toString(maxixgrey);
+			drawString(" "+maxBat_voltj, largeur_plot-20+talon_gauche, hauteur_courante+80-3);
+			
+			// --------------- 5 --------------------------------
+			setColor(0, 0, 0);
+			drawLine(talon_gauche,hauteur_courante+107,largeur_plot+talon_gauche,hauteur_courante+107);
+			xstep = 1;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_cmj)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+107,x_step,hauteur_courante+107-5);	x_step = x_step + xstep*largeur_plot/maxT_cmj;	} // for
+			drawString("Temperature mother board [°C]", 100, hauteur_courante+107-4);
+			drawString("0", talon_gauche, hauteur_courante+107-3);
+			maxixsize = toString(maxixsize);
+			drawString("  "+maxT_cmj, largeur_plot-20+talon_gauche, hauteur_courante+107-3);
+		}
+		else {	// ----------------- Pas de lissage -----------------------
+			// --------------- 1 (rouge) -----------------------
+			setColor(255, 0, 0);
+			xstep = 1;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_camera)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+1,x_step,hauteur_courante+1-5); x_max = x_step;	x_step = x_step + xstep*largeur_plot/maxT_camera;	} // for
+			drawLine(talon_gauche,hauteur_courante+1,largeur_plot+talon_gauche,hauteur_courante+1);
+			drawString("Temperature camera [°C]", 100, hauteur_courante+1-4);
+			drawString("0", talon_gauche, hauteur_courante+1-3);
+			drawString(maxT_camera, largeur_plot-20+talon_gauche, hauteur_courante+1-3);
+			
+			// --------------- 2 -------------------------------
+			setColor(0, 0, 255);
+			xstep = 5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_haute_peltier)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+27,x_step,hauteur_courante+27-5); x_max = x_step;	x_step = x_step + xstep*largeur_plot/maxT_haute_peltier;	} // for
+			drawLine(talon_gauche,hauteur_courante+27,largeur_plot+talon_gauche,hauteur_courante+27);
+			drawString("Temperature Peltier [°C]", 100, hauteur_courante+27-4);
+			drawString("0", talon_gauche, hauteur_courante+27-3);
+			maxixgrey = toString(maxixgrey);
+			drawString(" "+maxT_haute_peltier, largeur_plot-20+talon_gauche, hauteur_courante+27-3);
+			
+			// --------------- 3 --------------------------------
+			setColor(0, 255, 0);
+			xstep = 5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxAngle)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+53,x_step,hauteur_courante+53-5); x_max = x_step;	x_step = x_step + xstep*largeur_plot/maxAngle;	} // for
+			drawLine(talon_gauche,hauteur_courante+53,largeur_plot+talon_gauche,hauteur_courante+53);
+			drawString("Angle [°]", 100, hauteur_courante+53-4);
+			drawString("0", talon_gauche, hauteur_courante+53-3);
+			maxixsize = toString(maxixsize);
+			drawString("  "+maxAngle, largeur_plot-20+talon_gauche, hauteur_courante+53-3);
+			
+			// --------------- 4 -------------------------------
+			setColor(0, 255, 255);
+			xstep = 0.5;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxBat_volt)/xstep)+1;			
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+80,x_step,hauteur_courante+80-5); x_max = x_step;	x_step = x_step + xstep*largeur_plot/maxBat_volt;	} // for
+			drawLine(talon_gauche,hauteur_courante+80,largeur_plot+talon_gauche,hauteur_courante+80);
+			drawString("Battery voltage [Volt]", 100, hauteur_courante+80-4);
+			drawString("0", talon_gauche, hauteur_courante+80-3);
+			maxixgrey = toString(maxixgrey);
+			drawString(" "+maxBat_volt, largeur_plot-20+talon_gauche, hauteur_courante+80-3);
+			
+			// --------------- 5 --------------------------------
+			setColor(0, 0, 0);
+			xstep = 1;
+			x_step = talon_gauche;
+			nbtics =  floor(abs(maxT_cm)/xstep)+1;
+			for (i=0;i<nbtics;i++) {	drawLine(x_step,hauteur_courante+107,x_step,hauteur_courante+107-5); x_max = x_step;	x_step = x_step + xstep*largeur_plot/maxT_cm;	} // for
+			drawLine(talon_gauche,hauteur_courante+107,largeur_plot+talon_gauche,hauteur_courante+107);
+			drawString("Temperature mother board [°C]", 100, hauteur_courante+107-4);
+			drawString("0", talon_gauche, hauteur_courante+107-3);
+			maxixsize = toString(maxixsize);
+			drawString("  "+maxT_cm, largeur_plot-20+talon_gauche, hauteur_courante+107-3);
+		}
+		
+		// ----------- Image finale -------------------------------------------------------
+		selectImage("All"); 
+		if (Yoyo_opt == "H" ) {	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_time_monitor.jpg"); 	}
+		else if (graph == 1) {	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_200m_monitor.jpg"); 	}
+		else {			saveAs("jpg", dirprocessed+"UVP5_"+profile+"_monitor.jpg"); 		}// else
+		
+		// ------------------ Fermeture des graphs -----------
+		selectImage("UVP5_"+profile+"_6.jpg");
+		close();
+		selectImage("UVP5_"+profile+"_3.jpg");
+		close();
+		selectImage("UVP5_"+profile+"_4.jpg");
+		close();
+		selectImage("UVP5_"+profile+"_5.jpg");
+		close();
+		if (Yoyo_opt == "H" ) {	selectImage("UVP5_"+profile+"_time_monitor.jpg"); 	}
+		else if (graph == 1) {	selectImage("UVP5_"+profile+"_200m_monitor.jpg"); 	}
+		else {			selectImage("UVP5_"+profile+"_monitor.jpg");	}// else	
+		if (appel != "root") 	{	wait(1000); close(); }
+	} // for
+} //for
+// ----------------------------- FIN ----------------------------------------------
+setTool(11);
+ret = "OK";
+return ret;

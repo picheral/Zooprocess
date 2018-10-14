@@ -1,0 +1,400 @@
+//-------------------Zooscan_edit_configuration---------------------------------
+version = "7.09";
+date = "2012/02/23";
+
+arg = getArgument(); 
+array = split(arg," ");
+chem= 		array[0]; 
+projfolder = 	array[1];
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+
+confrep = 		File.exists(chemconfig);
+if (confrep==0) { 	showMessage("WARNING : ",chemconfig," folder doesn't exist, process aborted  ");  		} // if
+else { 	//-------------- Choix du fichier CONFIG dans _config, Selection des fichiers dont le nom comporte le mot "config";
+	filelist  = 	getFileList(chemconfig);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"config");
+		ctrl1 = indexOf(filelist[i],"narrow");
+		ctrl2 = indexOf(filelist[i],"large");
+		ctrl3 = indexOf(filelist[i],"2003");
+		ctrl4 = indexOf(filelist[i],"both");
+		if (ctrl>0 && (ctrl1>0 || ctrl2>0 || ctrl3 >0  || ctrl4 >0) )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------
+	if ( j!= 0) {
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	}
+	if (j==0) { print("No valid configuration file in the "+projfolder);
+		configpres = 0;
+		getBoolean("No valid config file in "+projfolder+"                 ");
+	} //
+	else if (j == 1) {
+		// ---------------------- Un seul fichier -------------------------------------
+		configfile = listaff[0];
+		configpres = 1;
+	}
+	else { print(j+" configuration files in the "+projfolder);
+		configpres = 1;
+		// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+		Dialog.create("SELECT PROCESS CONFIG FILE to be EDITED ");
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Project :  "+proj);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "Configuration files from the project config folder can be edited here           " ;
+		Dialog.addMessage(message);
+
+		message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		configfile = Dialog.getChoice();
+	} // else
+
+		ctrl1 = indexOf(configfile,"narrow");
+		ctrl2 = indexOf(configfile,"large");
+		ctrl3 = indexOf(configfile,"2003");
+		ctrl4 = indexOf(configfile,"both");
+		if (ctrl1 >0) { 	frame = "narrow";			} // if
+		if (ctrl2 >0) { 	frame = "large";			} // if
+		if (ctrl3 >0) { 	frame = "2003";			} // if
+		if (ctrl4 >0) { 	frame = "both";			} // if
+
+		openconfig = chemconfig +configfile;
+		open(openconfig);
+		config = getInfo();
+
+		array = newArray(50);
+		conf  = split(config,"\n");
+		for (i=0; i<conf.length; i++)	{ texte = conf[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		} // for
+		background_process = array[0];			enhance_thumbnail = array[1];			calibration = array[2]; 	jpeg = array[3];
+		zip = array[4];		greycor = array[5];		resolution = array[6];	
+		greytaux = array[7];		yminref = array[8];		doyofset = array[9];		doxpos = array[10];		xdimref = array[11];
+		ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	method = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+		voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+		doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	
+		contrast= array[32];	doubloonxy_inch= array[33];	doubloonarea_pourcent= array[34];		greylimit= array[35];
+		// ---------------- Fermeure de la fenetre config
+		selectWindow(configfile);		run("Close");
+
+} // else
+
+if (configpres == 1) { //----------------Suite du process------------------------------------
+test = 1;
+conf = newArray(50);
+while (test ==1) {
+	check= 0;
+	message = "WARNING :                                                                                                                                                                                                                          \n \n";
+	Dialog.create("CONFIGURATION FILE    ");
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------        ");
+	Dialog.addMessage("Project folder is                      :     "+projfolder);
+	Dialog.addMessage("Opened configuration file is :     "+configfile);
+	Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------        ");
+
+	if (frame == "narrow") {	retrait = 18;	} // if
+	if (frame == "large") {	retrait = 17;	} // if
+	if (frame == "2003") {	retrait = 16;	} // if
+	if (frame == "both") {	retrait = 16;	} // if
+	fram = newArray(" ","both","narrow","large");
+	fram[0] = frame;
+	Dialog.addChoice("Frame selected for calibration of grey level ",fram);
+
+	Dialog.addString("Enter information on calibration ",calibration);
+
+	Dialog.addNumber("JPEG quality (100 should be used) ",jpeg);
+
+	zipe = newArray(zip,"yes","no");
+	if (zip == "1")	 { 	zipe[0] = "yes"; 		} // if
+	else		 { 	zipe[0] = "no"; 		} // else
+	Dialog.addChoice("''raw'' images (from ''_scan'' folder) ZIP compression allowed (if option selected during process) ",zipe);
+
+	background = newArray("Error","Rolling ball","Image, SELECT background","Image, CLOSEST background","Image, RECOVER (Closest if Scan)");
+	backtxt = newArray("roll","select","last","recover");
+	val = "no";
+	for (i=1; i<backtxt.length; i++) {	text = backtxt[i];
+		if (background_process == text) { val = "ok";	} // if
+	} // for
+	if (val == "ok" && background_process == "roll") { 		background[0] = "Rolling ball";			} // if
+	else if (val == "ok" && background_process == "select") { 	background[0] = "Image, SELECT background";		} // if
+	else if (val == "ok" && background_process == "last") { 		background[0] = "Image, CLOSEST background";	} // if
+	else if (val == "ok" && background_process == "recover") { 	background[0] = "Image, RECOVER (Closest if Scan)";		} // if
+	else { 							background[0] = "Rolling ball";			} // else
+	Dialog.addChoice("Background Subtract Method (''Rolling ball'' method may create artefacts on large organisms)  ",background);
+
+	process = newArray("Keep as before version 4","Keep as before version 4","log-gamma2","natural","log-gamma3");
+	backtxt = newArray("0","log-gamma2","neutral","log-gamma3");
+	val = "no";
+	for (i=1; i<backtxt.length; i++) {	text = backtxt[i];
+		if (method == text) val = "ok";
+	} // for
+	if (val == "ok" && method == "0") { 			process[0] = "Keep as before version 4";	} // if
+	else if (val == "ok" && method == "log-gamma2") { 	process[0] = "log-gamma2";			} // if
+	else if (val == "ok" && method == "std") { 		process[0] = "std";				} // if
+	else if (val == "ok" && method == "log-gamma3") { 	process[0] = "log-gamma3";			} // if
+	else if (val == "ok" && method == "neutral") { 		process[0] = "natural";			} // if
+	else { 						process[0] = "Keep as before version 4";			} // else
+	Dialog.addChoice("IMAGE PROCESS method (influences all the measurements) ?   ",process);
+
+	backval = newArray(backval,"50","100","150","200","250","300","350","400","450","500","550","600","650","700","750","800","850","900","950","1000");
+	Dialog.addChoice("Rolling ball value (used when background method is set to ''roll') ",backval);
+
+	if (greytaux == 0) {	greytaux = 0.9;		} // if
+	Dialog.addNumber("Grey level setting to clean the transparent frame borders (0.9 recommended & 0.01 to cancel) (%)",greytaux);
+
+	grey = newArray(6);
+	correc = newArray("Correct and remove right side of image","Correct and keep whole image","No correction","Correction for CNRS2003","Measure OD and remove right side of image");
+	grey[1] = correc[0];
+	grey[2] = correc[1];
+	grey[3] = correc[2];
+	grey[4] = correc[3];
+	grey[5] = correc[4];
+	if (greycor == "1") { grey[0] = correc[3];	} // if
+	if (greycor == "2") { grey[0] = correc[1];	} // if
+	if (greycor == "0") { grey[0] = correc[2];	} // if
+	if (greycor == "3") { grey[0] = correc[0];	} // if
+	if (greycor == "4") { grey[0] = correc[4];	} // if
+	Dialog.addChoice("Grey Level process option ",grey);
+
+	Dialog.addNumber("Reference grey level of the OD (see calibration) ",greyref);
+
+	Dialog.addNumber("Maximum grey level correction allowed (8 bits) ",greylimit);
+
+	dostd = newArray(dostd,"1","1.5","2","2.5","3");
+	Dialog.addChoice("Maximum std range in the OD area measured ",dostd);
+
+	doecart = newArray(doecart,"5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","23","26","29","32");
+	Dialog.addChoice("Maximum range of OD grey levels in the area measured ",doecart);
+
+	xdosize = newArray(xdimref,"0.025","0.05","0.06666667");
+	Dialog.addChoice("Width of the OD area (inch) ",xdosize);
+
+	ydosize = newArray(ydimref,"0.15","0.25");
+	Dialog.addChoice("Height of the OD area (inch) ",ydosize);
+
+	doxabspos_inch= doxabspos;
+	Dialog.addNumber("Distance of the OD center from the right side of the Zooscan scanning area (inch), see calibration ",doxabspos_inch);
+
+	doyabspos_inch= doyabspos;
+	Dialog.addNumber("Distance of the OD center from the top side of the Zooscan scanning area (inch), see calibration   ",doyabspos_inch);
+
+	upper= newArray(upper,"200","201","202","203","204","205","206","207","208","209","210","211","212","213","214","215","216","217","218","219","220","221","222","223","224","225","226","227","228","229","230","231","232","233","234","235","236","237","238","239","240","241","242","243","244","245","246","247","248","249","250","251","252","253","254");
+	Dialog.addChoice("Threshold for segmentation (upper)",upper);
+
+	minsizeesd_mm= minsize;
+	Dialog.addNumber("ESD min for organisms to be analyzed (mm), note : 0.3 should be a minimum ",minsizeesd_mm);
+
+	maxsizeesd_mm= maxsize;
+	Dialog.addNumber("ESD max for organisms to be analyzed (mm) ",maxsizeesd_mm);
+
+	Dialog.addNumber("Tolerance on the XY position for the detection of doubloons (inch) ",doubloonxy_inch);
+
+	Dialog.addNumber("Tolerance on the area of the organisms for the detection of doubloons (%) ",doubloonarea_pourcent);
+
+	enhance = enhance_thumbnail;
+	enhance_thumbnail = newArray(" ","yes","no");
+	enhance_thumbnail[0] = enhance;
+	Dialog.addChoice("Enhance contrast of vignettes ",enhance_thumbnail);
+
+	gamma= contrast;
+	Dialog.addNumber("Gamma for vignette display (0.5 - 5) (if set to ''yes'' above)  ",gamma);
+
+	longline_mm= newArray(longline,"1","10");
+	Dialog.addChoice("Length of the scale line to be displayed in vignettes (mm) ",longline_mm);
+
+	bleft= newArray(bleft,"16","12","10","8","4");
+	Dialog.addChoice("Value read when the LEFT   mouse button is pressed  ",bleft);
+
+	broll= newArray(broll,"16","12","10","8","4");
+	Dialog.addChoice("Value read when the ROLL   mouse button is pressed  ",broll);
+
+	bright= newArray(bright,"16","12","10","8","4");
+	Dialog.addChoice("Value read when the RIGHT mouse button is pressed  ",bright);
+
+	//=====================================================================================
+	Dialog.show;	
+	//=====================================================================================
+
+	frame = Dialog.getChoice();		
+	conf[36] = "frame= "+frame;
+	
+	calibration = Dialog.getString();
+	a= lengthOf(calibration);
+	if (a==0) {message = message+ "''Enter information on calibration'' is empty \n";	check = 1;		} // if
+	ind= indexOf(calibration," ");
+	if (ind != -1) { 	calibration = replace(calibration," ","_"); 						} // if
+	conf[2] = "calibration= "+calibration;
+
+	jpeg = Dialog.getNumber();
+	if (jpeg == 0) { message = message + "''JPEG'' is not a number or ''JPEG'' set to 0 \n"; 	check = 1; 	} // if
+	conf[3] = "jpeg= "+jpeg;
+
+	zip = Dialog.getChoice();		
+	if (zip=="yes") { 			conf[4] = "zip= 1";			}//
+	if (zip=="no") { 			conf[4] = "zip= 0";			}//
+
+	background_process = Dialog.getChoice();		
+	if (background_process==background[1]) { 		conf[0] = "background_process= "+"roll";			}//
+	else if (background_process==background[2]) { 	conf[0] = "background_process= "+"select";			}//
+	else if (background_process==background[3]) { 	conf[0] = "background_process= "+"last";			}//
+	else if (background_process==background[4]) { 	conf[0] = "background_process= "+"recover";			}//
+	else { 						conf[0] = "background_process= roll";				}//
+
+	method = Dialog.getChoice();		
+	if (method==process[2]) { 		conf[16] = "method= log-gamma2";			}//
+	else if (method==process[3]) { 	conf[16] = "method= neutral";			}//
+	else if (method==process[4]) { 	conf[16] = "method= log-gamma3";			}//
+	else if (method==process[1]) { 	conf[16] = "method= 0";			}//
+	else { 				conf[16] = "method= 0";					}//
+
+	backval = Dialog.getChoice();	
+	conf[23] = "backval= "+backval;
+
+	greytaux = Dialog.getNumber();
+	if (greytaux == 0) { message = message + "''Grey level pourcentage'' is not a number or set to 0 \n"; 	check = 1; 	} // if
+	if (greytaux >= 1) { message = message + "''Grey level pourcentage'' is above 0.99 % \n"; 		check = 1; 	} // if
+	conf[7] = "greytaux= "+greytaux;
+
+	grey = Dialog.getChoice();		
+	if (grey==correc[0]) { 		conf[5] = "greycor= 3";			}//
+	else if (grey==correc[1]) { 		conf[5] = "greycor= 2";			}//
+	else if (grey==correc[2]) { 		conf[5] = "greycor= 0";			}//
+	else if (grey==correc[3]) { 		conf[5] = "greycor= 1";			}//
+	else if (grey==correc[4]) { 		conf[5] = "greycor= 4";			}//
+	else	 { 			conf[5] = "greycor= 0";			}//
+
+	greyref = Dialog.getNumber();
+	if (greyref == 0) { message = message + "''Reference grey level of the OD'' is not a number or set to 0 \n"; 	check = 1; 	} // if
+	conf[18] = "greyref= "+greyref;
+
+	greylimit  = Dialog.getNumber();
+	if (greylimit== 0) { message = message + "''Tolerance on the grey level correction (8 bits)'' is not a number or set to 0 \n"; check = 1; 					} // if
+	if (greylimit>= 20) { message = message +greylimit + " tolerance on the grey level correction (8 bits) is above the maximum of 20           \n"; check = 1; 					} // if
+	conf[35] = "greylimit= "+greylimit;
+
+	dostd = Dialog.getChoice();	
+	conf[13] = "dostd= "+dostd;
+
+	doecart = Dialog.getChoice();	
+	conf[14] = "doecart= "+doecart;
+
+	xdos = Dialog.getChoice();		
+	if (xdos=="0.05") { 			conf[11] = "xdimref_inch= "+xdos;			}//
+	else if (xdos=="0.06666667") { 	conf[11] = "xdimref_inch= "+xdos;			}//	CNRS BCZ
+	else 	 { 			conf[11] = "xdimref_inch= 0.025";			}//
+
+	ydos = Dialog.getChoice();	
+	if (ydos==0.15) { 		conf[12] = "ydimref_inch= "+ydos;			}//
+	else { 			conf[12] = "ydimref_inch= 0.25";			}//
+
+	doxabspos_inch  = Dialog.getNumber();
+	if (doxabspos_inch== 0) { message = message + "''Distance of the OD center from the right side of the Zooscan scanning area'' is not a number or set to 0 \n"; check = 1; 	} // if
+	conf[27] = "doxabspos_inch= "+doxabspos_inch;
+
+	doyabspos_inch  = Dialog.getNumber();
+	if (doyabspos_inch== 0) { message = message + "''Distance of the OD center from the top side of the Zooscan scanning area'' is not a number or set to 0 \n"; check = 1; 	} // if
+	conf[28] = "doyabspos_inch= "+doyabspos_inch;
+
+	upper = Dialog.getChoice();	
+	conf[17] = "upper= "+upper;
+
+	minsizeesd_mm  = Dialog.getNumber();
+	if (minsizeesd_mm== 0) { message = message + "''ESD min for organisms to be analyzed (mm)'' is not a number or set to 0 \n"; check = 1; } // if
+	conf[24] = "minsizeesd_mm= "+minsizeesd_mm;
+
+	maxsizeesd_mm  = Dialog.getNumber();
+	if (maxsizeesd_mm== 0) { message = message + "''ESD max for organisms to be analyzed (mm)'' is not a number or set to 0 \n"; check = 1; } // if
+	conf[25] = "maxsizeesd_mm= "+maxsizeesd_mm;
+
+	doubloonxy_inch  = Dialog.getNumber();
+	if (doubloonxy_inch== 0) { message = message + "''Tolerance on the XY position for the detection of doubloons (inch)  (inch)'' is not a number or set to 0 \n"; 	check = 1; 	} // if
+	if (doubloonxy_inch>= 0.1) { message = message +doubloonxy_inch+ " tolerance on the XY position for the detection of doubloons (inch) is above the 0.1 inch limit             \n"; 	check = 1; 	} // if
+	conf[33] = "doubloonxy_inch= "+doubloonxy_inch;
+
+	doubloonarea_pourcent  = Dialog.getNumber();
+	if (doubloonarea_pourcent== 0) { message = message + "''Tolerance on the XY position for the detection of doubloons (inch)  (inch)'' is not a number or set to 0 \n"; check = 1; 	} // if
+	if (doubloonarea_pourcent>= 0.5) { message = message +doubloonarea_pourcent + " % tolerance on the XY position for the detection of doubloons (inch) is above the 0.5 % limit   \n"; check = 1; 	} // if
+	conf[34] = "doubloonarea_pourcent= "+doubloonarea_pourcent;
+
+	enhance_thumbnail = Dialog.getChoice();		
+	if (enhance_thumbnail=="yes") { 		conf[1] = "enhance_thumbnail= "+enhance_thumbnail;			}//
+	else if (enhance_thumbnail=="no") { 		conf[1] = "enhance_thumbnail= "+enhance_thumbnail;			}//
+	else 			 { 		conf[1] = "enhance_thumbnail= no";					}//
+
+	gamma  = Dialog.getNumber();
+	if (gamma < 0.5) { message = message + "Gamma is set below the 0.5 limit. \n"; check = 1; 			} // if
+	if (gamma > 5) { message = message + "Gamma is above the 5 limit. \n"; check = 1; 						} // if
+	conf[32] = "contrast_pourcent= "+gamma;
+
+	longline_mm = Dialog.getChoice();	
+	conf[26] = "longline_mm= "+longline_mm;
+
+	bleft = Dialog.getChoice();	
+	conf[29] = "bleft= "+bleft;
+
+	broll = Dialog.getChoice();	
+	conf[30] = "broll= "+broll;
+
+	bright = Dialog.getChoice();	
+	conf[31] = "bright= "+bright;
+
+	conf[6] = "resolution= 2400";			// CNRS 2003
+	conf[8] = "yminref= 0";			// CNRS 2003
+	conf[9] = "doyofset= 150";			// CNRS 2003
+	conf[10] = "doxpos= 2";			// CNRS 2003
+	conf[15] = "subimgx= 0";
+	conf[19] = "voxelwidth= 1";
+	conf[20] = "voxelheigth= 1";
+	conf[21] = "voveldepth= 1";
+	conf[22] = "voxelunit= pixel";
+	
+	if (check == 1) { message = message + " \n \nENTER SETTINGS AGAIN              ";	
+		showMessage(message); 
+		test = 1;
+	} // if
+	else { 	test = 0;			} 	// else
+} // while
+
+//-------------------Impression dans le LOG---------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+for (i=0; i<37; i++) {	text = conf[i];	print(text);	} // for
+
+//--------------------Save Options------------------------------------------
+boucle = false;
+while(boucle ==false) {
+	//----------------------- Suppression des info de type de fichier
+	long = lengthOf(configfile);
+	configred = substring(configfile, 0, long-retrait);
+	Dialog.create("SAVE CONFIGURATION FILE    ");
+	Dialog.addMessage("Enter the configuration filename.                         ");
+	Dialog.addMessage("Press OK to save file as "+configred+"_"+frame+"_config.txt");
+	Dialog.addMessage("Do not include   ''_"+frame+"_config.txt'' at the end of the filename           ");
+	Dialog.addString("   ",configred);
+	Dialog.show
+	newconfig = Dialog.getString;
+	configfilenew = newconfig+"_"+frame+"_config.txt";
+	//----------------Tests sur le fichier------------------------------------------
+	if (newconfig == configred) {//-------------------risque de confusion, on teste si les fichiers existent------------------
+		boucle = 1;
+		for (i=0; i<listaff.length ; i++) {		file = listaff[i];
+			if (file == configfilenew) { 	boucle = getBoolean(configfilenew+" already exists in                        \n"+chemconfig+ " folder.        \n \nDo you want to replace it ?");			} // if
+		} // for
+	 } // if
+	else { boucle = true;		} // eles
+} // while
+selectWindow("Log");
+
+sauve = "save=" + chemconfig+"\\" + configfilenew;
+run("Text...",sauve);
+run("Close");
+
+showMessage("End of process ","Configuration file :  \n"+configfilenew+"  \n \nsaved now in :  \n"+chemconfig+"                   ");
+ret = "1111";
+
+} // if configpres
+else { ret = "1";	} // else
+
+return ret;

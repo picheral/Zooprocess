@@ -1,0 +1,1418 @@
+// ----------------------Zooscan_create_project_5----------------------------------
+version = "7.21";
+date = "2015/09/07";
+
+// v800
+
+args = 	getArgument();
+arg = 	split(args," ");
+version = 	arg[0];
+chem = 	arg[1];
+check = 	arg[2];
+	
+scanner = 	"Biotom";
+vuescan = 	"8.4.57";
+sizelimit = 	800;	
+overlap = 	0.07;
+min = 		0;
+max = 		65536;
+ratio =		"1.15";
+gamma = 	1;
+odrange = 	"1.8";
+sens =		"before";
+adjust = 		"yes";
+medianchoice = 	"no";
+medianvalue = 	1;
+resolutionreduct = 2400;
+instrum = "zooscan";
+dpi4800 = 	false;
+narrow = 	false;	
+large = 	false;	
+largehd = 	false;	
+source = "1";
+ids = false;
+processnew = true;
+docu = 1;
+
+//---------------------Lecture fichier "Zooscan" ---------------------------------
+if (File.exists(chem+"\\Zooscan.txt") == 0) {
+	args = chem+" "+chem+" "+"Biotom";
+	ret = runMacro("Zooscan_select_system",args);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	showMessage("Warning message : ''Zooscan_select_system'' process aborted                       "); 	} // if
+} // if
+open(chem+"\\Zooscan.txt");
+wait(100);
+data = getInfo();
+run('Close');
+ligne = split(data,"\n");
+syst = ligne[0];
+// ---------- Si 2e ligne, lecture du champ source ------------------------------------------------------
+if (ligne.length == 3) source = ligne[2]; source = toString(source);
+
+
+// --------------------- Test de l'existence du logiciel vuescan------------------------------------------
+ret = runMacro("Zooscan_find_vuescan");
+flag=toString(ret);
+l= lengthOf(flag);
+if (l==1)  { getBoolean("Zooscan_find_vuescan macro aborted? \n \nPress Cancel to abort !    ");	} // if
+else {	argret = split(flag," ");	vuescan = argret[0];	flag = 	argret[1];		chemvue = argret[2];	vuescanexist = argret[3];	} // else
+
+// ---------------------- MODELS and VERSIONS --------------------------------------------------------
+if	 (vuescan == "8.3.23"  )		{  affscanner = newArray("Biotom","Hydroptic v1");				}
+else if 	(vuescan == "8.4.57")		{  affscanner = newArray("Biotom","Hydroptic v1","Hydroptic v2");		}
+else if 	(vuescan == "9.0.51")		{ affscanner = newArray("Hydroptic v3 Window7");				}
+else if 	(vuescan == "9.5.24")		{ affscanner = newArray("Hydroptic v4 Window7/8");				}
+else						{ getBoolean("No compatible Vuescan version \ Press Cancel to Abort !");}
+
+
+if ((syst == "Biotom" || syst == "Hydroptic v1") && (vuescan == "8.3.23" || vuescan == "8.4.57") ) 			scanner = "4990";	
+else if (syst == "Hydroptic v2" && vuescan == "8.4.57") 								scanner = "4490";
+else if (syst =="Hydroptic v3 Window7" && vuescan == "9.0.51")								scanner = "v700";
+else if (syst =="Hydroptic v4 Window7/8" && vuescan == "9.5.24")							scanner = "v800";
+else {getBoolean("No compatible Vuescan version for the installed Zooscan. \nPress Cancel to Abort !");}//
+
+
+//---------------------------------Liste les projets existants enregistres dans le fichier zooprocess.txt---------------------------
+// le premier enregistrement est reserve au dernier projet ouvert
+open(chem+"zooprocess.txt");
+wait(100);
+info = getInfo();
+data = split(info,"\n");
+fin = data.length;
+run("Close");
+pathlist = 	newArray(500);
+pathdisplay = 	newArray(1);
+prt = 		"all";
+doc = 		 "first_data_only";
+
+if (data[0] == "Test file used by ZooProcess to distinguish the Zooscan working directory from other Zooscan folders.") { 
+	Dialog.create("WARNING           ");
+	Dialog.addMessage("New version of Zooprocess creates now a project list in zooprocess.txt");
+	Dialog.addMessage("You have to create now some new folders for your files                    \nOnce created, please move all your images and files in the right folders   ");
+	Dialog.show();
+	pathdisplay[0] = "NEW";
+	prt = "first_data_only";
+} // if  
+else if (data[0] == "NEW") {	pathdisplay[0] = "NEW";	prt = "first_data_only";		} // else if 
+else {	pathdisplay = newArray(data.length+1);
+	for (i = 0;i<data.length;i++) { 	val = data[i];	end = lengthOf(val); 	pathdisplay[i] = substring(val,12,end);	pathlist[i] = val;	} // for
+	pathdisplay[data.length] = "NEW";
+} // else
+
+drives = newArray("C:\\","D:\\","E:\\","F:\\","G:\\","H:\\","I:\\","J:\\","K:\\","L:\\","M:\\","N:\\","O:\\","P:\\","Q:\\","R:\\","S:\\","T:\\","U:\\","V:\\","W:\\","X:\\","Y:\\","Z:\\");
+while (check != 1) {
+	affdrive = newArray(25);
+	ind = 0;
+	t= 0;
+	while (t<drives.length) {
+		if (File.exists(drives[t])) { 	ex = drives[t];	affdrive[ind] = ex;	ind++;	} // if
+		t++;
+	} // while
+	aff = newArray(ind);
+	for (r=0;r<ind;r++) { aff[r] = affdrive[r];	} // if
+	toto = 1;
+	while (toto == 1) {
+		Dialog.create("PROJECT MANAGER                version "+version);
+		Dialog.addMessage("------------------------------ NEW project --------------------------------               ");
+		Dialog.addMessage("ZOOSCAN model :  "+syst);	
+		if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN version : "+vuescan);
+		else {	Dialog.addMessage("VUESCAN is not installed. ");	} // else	
+		Dialog.addMessage("------------------------------------------------------------------------------- ");
+		Dialog.addMessage("To IMPORT EXISTING PROJECT: \nselect its drive and enter its name  (without ''Zooscan_'') !             ");
+		Dialog.addMessage("Select drive (Do not select CD drive) !               ");
+		Dialog.addChoice("           ",aff);
+		Dialog.addMessage("Enter project name               ");
+		Dialog.addString("           ","enter project name");    
+		Dialog.show();
+		drive = Dialog.getChoice();
+		proj = Dialog.getString();
+		proj = toLowerCase(proj);
+		proj = replace(proj," ","_");
+		proj = replace(proj,".","_");
+		proj = replace(proj,"/","_");
+		proj = replace(proj,";","_");
+		proj = replace(proj,"!","_");
+		if (proj != "enter_project_name") toto = 0;
+	} // while
+	path = drive+"Zooscan_"+proj;
+	pathconfig =	path+"\\"+"\\Zooscan_config";
+	pathmeta = 	path+"\\"+"\\Zooscan_meta\\";
+	pathback = 	path+"\\"+"\\Zooscan_back\\";
+	pathscan = 	path+"\\"+"\\Zooscan_scan";
+	pathwork = 	path+"\\"+"\\Zooscan_scan\\"+"\\_work";
+	pathraw = 	path+"\\"+"\\Zooscan_scan\\"+"\\_raw";
+	pathresults = 	path+"\\"+"\\Zooscan_results";
+	//------------------PID folders---------------------------------------
+	pathpid = 		path+"\\"+"\\PID_process";
+	pathlearn = 	path+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+	pathpidresults = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+	pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+	pathsortedvig = 	path+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+	pathpredic = 	path+"\\"+"\\PID_process\\"+"\\Prediction\\";
+	pathpidpredicted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+	pathdat1extracted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_extracted\\";
+	pathdat1validatted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+	pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+
+	//---------------------------- Tester le nom dans la liste et verifier les repertoires --------------------------------------	
+	for (i = 0;i<data.length;i++) { 
+		if (path == pathlist[i]) {//----------------------Le nom existe dans la liste ---------------------------------------------
+			if (File.exists(path) && File.exists(pathconfig) && File.exists(pathmeta) && File.exists(pathscan)   && File.exists(pathwork) && File.exists(pathraw) && File.exists(pathresults)) {
+				info = getBoolean(path+" already in list         \nPress YES to select this project          \nPress NO to choose another     ");
+				if (info == 1) { // Tout est correct, on le selectionne
+					doc = "do_not_add_to_list";
+					docu = 0;
+					check = 1;	
+					pathlist[0] = path;
+				} // if 
+				else {	//-------------On n' a pas selectionne ce projet, il faut donc en choisir un autre ---------------------
+					check = 2;	
+				} // else	
+			} // if	
+		} // if
+	} // for
+	if (check == 0 ) {  //-------------------Verifions toutefois que les repertoires n'existent pas deja meme si le nom n'est pas dans la liste----------------------
+		if (File.exists(path) && File.exists(pathconfig) && File.exists(pathmeta) && File.exists(pathscan)   && File.exists(pathwork) && File.exists(pathraw) && File.exists(pathresults)) {
+			//-----------Les repertoires existent mais le nom n'est pas dans la liste -----------------------------------------------------
+			info = getBoolean(path+" already exists on your computer                                \nPress YES to select this project and add it to the projects list         \nPress NO to create another     ");
+			if (info == 1) { // Tout est correct, on le selectionne mais on ajoutera son nom dans la liste
+				doc = "add_to_list";
+				docu = 0;
+				check = 1;	
+				e= substring(path,0,2);
+				c = lengthOf(path);
+				b = substring(path,3,c);
+				e = e+"\\";
+				path = e+"\\"+b;
+				pathlist[0] = path;
+			} // if 
+		} // if 
+		else {
+			// -------------------- Choix des options ----------------------------------------------------------
+			narrow = false;		large = false;	largehd = false;	dpi4800 = false;	processnew = true;
+			listaff = newArray("Create scanning file for LARGE     frame at 2400 dpi","Create scanning file for NARROW frame at 2400 dpi","Create scanning file for LARGE     frame at 1200 dpi","No scanning file");
+			if (scanner == "v700" || scanner == "v800") listaff = newArray("Create scanning file for LARGE     frame at 2400 dpi","Create scanning file for NARROW frame at 2400 dpi","Create scanning file for LARGE     frame at 1200 dpi","Create scanning file for NARROW frame at 4800 dpi","No scanning file");
+			Dialog.create("PROJECT MANAGER        version "+version);
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage("Project :  "+proj);
+			Dialog.addMessage("ZOOSCAN model :  "+syst);		
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN version : "+vuescan);
+			else {	Dialog.addMessage("VUESCAN is not installed, SCANNING FILES CANNOT BE CREATED !         ");	} // else		
+			if (vuescanexist == "1" ) {	
+				Dialog.addChoice("                Select scanning option     ",listaff);
+			} // if
+			else { Dialog.addMessage("Vuescan is NOT installed. \nScanning files are NOT created.  ");		} // else
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage("- WARNING : New PID files (containing new measurements) are not compatible in Plankton Identifier with the previous ones ! \n- Process again previous files if necessary after copying ''optionfile.txt'' into the config folder of the previous project.");
+			Dialog.addCheckbox("Process also new measurements (added in version 5.03) ? ", true);
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			process = newArray("natural","Keep as before version 4","log-gamma2","log-gamma3");
+//			Dialog.addChoice("        Image process method (influences all the measurements), should NOT be modified ",process);
+//			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+//			Dialog.addCheckbox("Create text file of basic Ids in config folder ? ", true);
+//			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.show();
+			if (vuescanexist == "1" ) {	
+				scanning = 	Dialog.getChoice();
+				if (scanning == listaff[0]) largehd = true;
+				if (scanning == listaff[1]) narrow = true;
+				if (scanning == listaff[2]) large = true;
+				if (scanner == "v700" || scanner == "v800"){
+					if (scanning == listaff[3]) dpi4800 = true;
+				}
+			} // if
+			processnew = 		Dialog.getCheckbox;
+//			method = 		Dialog.getChoice();
+			method = 		"natural";
+			if (method == "Keep as before version 4") 	method = "0";
+			if (method == "natural") 			method = "neutral";
+//			ids = 			Dialog.getCheckbox;
+			ids = true;	
+			check = 1;	
+		} // else
+	} // check = 0
+} // while
+
+// ---------------- Donnees de base ----------------------------------------------------------
+chemconfig =	chem+"\\Zooscan_config";
+chemN =	chemconfig + "\\vuescan_zooscan_calibration_OD_level_cadre1.ini";
+chemL =	chemconfig + "\\vuescan_zooscan_calibration_OD_level_cadre2.ini";
+chemODnarrow = 	chemconfig + "\\process_install_narrow_config.txt";
+chemODboth= 	chemconfig + "\\process_install_both_config.txt";
+if (File.exists(chemconfig)) {
+	//------------ Lecture des valeurs dans les fichiers
+	if (File.exists(chemODnarrow) || File.exists(chemODboth)) {
+		if (File.exists(chemODnarrow)) {		
+			open(chemODnarrow);
+			wait(100);	
+			configf = "process_install_narrow_config.txt";			
+			config = getInfo();
+			selectWindow(configf);		
+			run("Close");	
+		} // if
+		if (File.exists(chemODboth)) {		
+			open(chemODboth);	
+			wait(100);
+			configf = "process_install_both_config.txt";			
+			config = getInfo();
+			selectWindow(configf);		
+			run("Close");	
+		} // if
+		wait(500);
+		conf  = split(config,"\n");
+		for (i=0; i<conf.length; i++)	{ texte = conf[i];	
+			ssarray = split(texte," ");	
+			data = ssarray[1];		
+			if (startsWith(texte,"doxabspos_inch=")) {	Xpos = data;	} // if
+			if (startsWith( texte,"doyabspos_inch=")) {	Ypos = data;	} // if
+		} // for
+	} // if
+	else {	Xpos = 		0.3367;		
+		Ypos = 	3.9928;		
+	} // else
+	if (File.exists(chemN)) {
+		open(chemN);
+		wait(500);
+		config = getInfo();
+		selectWindow("vuescan_zooscan_calibration_OD_level_cadre1.ini");		
+		run("Close");
+		conf  = split(config,"\n");
+		for (i=0; i<conf.length; i++)	{ ssarray = conf[i];		
+			if (startsWith(ssarray,"XOffset")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				XOffsetN = data;	
+			} // if
+			if (startsWith(ssarray,"YOffset")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				YOffsetN = data;	
+			} // if
+			if (startsWith(ssarray,"XSize")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				XSizeN = data;		
+				} // if
+			if (startsWith(ssarray,"YSize")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				YSizeN = data;		
+			} // if
+		} // for
+	} // if
+	else { 	XOffsetN = 	10194;
+		YOffsetN = 	1393;
+		XSizeN = 		20911;
+		YSizeN = 	48502;
+	} // else 
+	if (File.exists(chemL)) { 
+		open(chemL);
+		wait(500);
+		config = getInfo();
+		selectWindow("vuescan_zooscan_calibration_OD_level_cadre2.ini");		
+		run("Close");
+		conf  = split(config,"\n");
+		for (i=0; i<conf.length; i++)	{ ssarray = conf[i];					
+			if (startsWith(ssarray,"XOffset")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				XOffsetL = data;	
+			} // if
+			if (startsWith(ssarray,"YOffset")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				YOffsetL = data;	
+			} // if
+			if (startsWith(ssarray,"XSize")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				XSizeL = data;		
+			} // if
+			if (startsWith(ssarray,"YSize")) {	deb= indexOf(ssarray,"=");	
+				long= lengthOf(ssarray); 	
+				data = substring(ssarray,deb+1,long);
+				YSizeL = data;		
+			} // if
+		} // for
+	} // if
+	else { 	XOffsetL = 	5663;
+		YOffsetL = 	1393;
+		XSizeL = 	29886;
+		YSizeL = 	48502;
+	} // else 
+} // if
+else { 	Xpos = 		0.3367;		
+	Ypos = 	3.9928;
+	XOffsetN = 	10194;
+	YOffsetN = 	1393;
+	XSizeN = 	20911;
+	YSizeN = 	48502;
+	XOffsetL = 	5663;
+	YOffsetL = 	1393;
+	XSizeL = 	29886;
+	YSizeL = 	48502;
+} // else
+
+// ---------------- Creation des fichiers de scan pour vuescan -------
+
+// aa = getBoolean(narrow+"   "+large+"   "+largehd+"   "+dpi4800+"   "+docu);
+
+if (narrow == true || large == true || largehd == true || dpi4800 == true ) {
+	dim_ok = false;
+	while (dim_ok == false) {
+		Dialog.create("Scanning area  for plankton imaging           ");
+		Dialog.addMessage("------------------------------------------------------------------------------------------------------------        ");
+		Dialog.addMessage("Zooscan version :  "+syst);	
+		if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN version : "+vuescan);
+		else {	Dialog.addMessage("VUESCAN is not installed. ");	} // else	
+		Dialog.addMessage("Default values are read from the Zooprocess installation settings.          \nChange them according to calibration sheet if necessary.    \nor \nChange them according to the needs of your project    ");
+		Dialog.addMessage("---------- Optical Density position -------------------------------------------------------------------        ");
+		Dialog.addNumber("              X position  ",Xpos);
+		Dialog.addNumber("              Y position  ",Ypos);
+		if (narrow == true || dpi4800 == true) {
+			Dialog.addMessage("---------- NARROW FRAME --------------------------------------------------------------------------        ");
+			Dialog.addNumber("              XOffset  ",XOffsetN);
+			Dialog.addNumber("              YOffset  ",YOffsetN);
+			Dialog.addNumber("              XSize ",XSizeN);
+			Dialog.addNumber("              YSize ",YSizeN);
+		} // if
+		if (large == true || largehd == true) {
+			Dialog.addMessage("---------- LARGE FRAME -----------------------------------------------------------------------------        ");
+			Dialog.addNumber("              XOffset  ",XOffsetL);
+			Dialog.addNumber("              YOffset  ",YOffsetL);
+			Dialog.addNumber("              XSize ",XSizeL);
+			Dialog.addNumber("              YSize ",YSizeL);
+			Dialog.addMessage("------------------------------------------------------------------------------------------------------------        ");
+		} // if
+		Dialog.show;
+		Xpos = 		Dialog.getNumber();
+		Ypos = 		Dialog.getNumber();
+		if (narrow == true || dpi4800 == true) {
+			XOffsetN = 	Dialog.getNumber();
+			YOffsetN = 	Dialog.getNumber();
+			XSizeN = 		Dialog.getNumber();
+			YSizeN = 	Dialog.getNumber();
+		} // if
+		if (large == true  || largehd == true) {
+			XOffsetL = 	Dialog.getNumber();
+			YOffsetL = 	Dialog.getNumber();
+			XSizeL = 	Dialog.getNumber();
+			YSizeL = 	Dialog.getNumber();
+		} // if
+		dim_ok = true;		
+		if (narrow == true || dpi4800 == true) {
+			img_dim = parseInt(XSizeN) * parseInt(YSizeN);
+			if (img_dim > 1032230000) {	
+				dim_ok = false;
+				aa = getBoolean("Overall image size (XSize * XSize) for narrow frame at 4800dpi exceed 1032230000. \nEnter new dimensions !\n \nCONTACT HYDROPTIC if necessary ! \n \nPress YES to enter again, Cancel to abort.");
+			}
+		}		
+	} // while
+} // if
+
+//---------------------Creation des repertoires------------------------------------------------------------	
+File.makeDirectory(path);
+File.makeDirectory(pathconfig);
+File.makeDirectory(pathmeta);
+File.makeDirectory(pathscan);
+File.makeDirectory(pathwork);
+File.makeDirectory(pathraw);
+File.makeDirectory(pathresults);
+File.makeDirectory(pathback);
+//-----------------PID folders-----------------------------------------------------------------------------
+File.makeDirectory(pathpid);
+File.makeDirectory(pathlearn);
+File.makeDirectory(pathpidresults);
+File.makeDirectory(pathvig);
+File.makeDirectory(pathsortedvig);
+path = drive+"Zooscan_"+proj;
+File.makeDirectory(pathpredic); 
+File.makeDirectory(pathpidpredicted); 
+File.makeDirectory(pathdat1extracted); 		
+File.makeDirectory(pathdat1validatted);	
+e= substring(path,0,2);
+c = lengthOf(path);
+b = substring(path,3,c);
+e = e+"\\";
+path = e+"\\"+b;
+pathlist[0] = path;
+doc = "add_to_list";
+//	docu = 1;
+pathlist[0] = path;
+
+// ------------------- Id list ---------------------------------------------------------------------------------
+if (ids == true) {
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("algues");
+	print("amphipods");
+	print("annelides");
+	print("appendicularia");
+	print("bad_focus");
+	print("bubbles");
+	print("chaetognatha");
+	print("clad_evadne");
+	print("clad_penillia");
+	print("copepoda");
+	print("copepoda_acartia");
+	print("copepoda_calanus");
+	print("copepoda_candacia");
+	print("copepoda_harpact");
+	print("copepoda_multiple");
+	print("copepoda_oithona");
+	print("copepoda_poecilo_corycaeus");
+	print("copepoda_poecilo_oncea");
+	print("copepoda_poecilo_sapphirini");
+	print("copepoda_temora");
+	print("crust_cut");
+	print("crust_euphausiids_larvae");
+	print("crust_nauplii");
+	print("crust_other");
+	print("crust_other_larvae");
+	print("det_aggregates");
+	print("det_aggregates_dark");
+	print("det_artefact");
+	print("det_fiber");
+	print("echinoderm");
+	print("egg");
+	print("egg_fish_egg");
+	print("fish");
+	print("gelatinous_medusae");
+	print("gelatinous_medusae_ephyrules");
+	print("gelatinous_sipho_cloche");
+	print("gelatinous_sipho_eudoxie");
+	print("gelatinous_sipho_physonect");
+	print("gelatinous_thaliacae_doliol");
+	print("gelatinous_thaliacae_pyrosom");
+	print("gelatinous_thaliacae_salp");
+	print("moll_bivalve");
+	print("moll_heteropod");
+	print("moll_limacina");
+	print("multiple");
+	print("ostracods");
+	print("other");
+	print("pteropoda");
+	print("pteropoda_cavolinia");
+	print("pteropoda_creseis_like");
+	print("radiolaria");
+	text =  "save=" + pathconfig+"\\"+instrum+"_liste_ident.txt";
+	selectWindow("Log");
+	run("Text...",text);	
+	run("Close");
+} // if
+
+if (docu == 1) { 
+	// -------------------------- Creation du "optionfile.txt" -------------------------------------------
+	if (processnew == true) {
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("option= A");
+		text =  "save=" + pathconfig + "\\optionfile.txt";
+		selectWindow("Log");
+		run("Text...",text);	
+	} // if
+	else {
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("option= B");
+		text =  "save=" + pathconfig + "\\optionfile.txt";
+		selectWindow("Log");
+		run("Text...",text);	
+	} // else
+	// ----------------- Fichier de MODE ---------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("Do not delete");
+	selectWindow("Log");
+	text =  "save=" + pathconfig + "\\mode_file_user.txt";
+	run("Text...",text);	
+	run("Close");
+
+// --------------------------Affichage de la date et de l'heure ------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+message = "INFORMATION : \n     ";
+// ------------------ Creation du fichier LUT ------------------------------
+lutfile = 	File.exists(pathconfig+"\\lut.txt");
+if (lutfile != 1) { 
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	if (scanner == "v700" || scanner == "v800")		sizelimit = 3000;
+	print(min);
+	print(max);
+	print(gamma);
+	print(sens);
+	print(adjust);
+	print(odrange);
+	print(ratio);
+	print(sizelimit);
+	print(overlap);
+	if (scanner == "4490") medianchoice = "yes";
+	print(medianchoice);
+	print(medianvalue);
+//	if (scanner == "4490") resolutionreduct = 1200;
+	print(resolutionreduct);
+	selectWindow("Log");
+	text =  "save=" + pathconfig + "\\lut.txt";
+	run("Text...",text);	
+} // if
+else { message = message+"\n ''lut.txt'' file not replaced.         ";	} // else
+
+// ----------------- Creation d'un fichier config du traitement -------
+conffilen = 	File.exists(pathconfig+"\\process_install_narrow_config.txt");
+conffileb = 	File.exists(pathconfig+"\\process_install_both_config.txt");
+if (conffilen != 1 || conffileb != 1) { 
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("background_process= last");
+	print("enhance_thumbnail= no");
+	print("calibration= created_"+dateheure);
+	print("jpeg= 100");
+	print("zip= 0");
+	print("greycor= 4");
+	print("resolution= 2400");
+	if (scanner == "4490") {	print("greytaux= 0.85");	} // if
+	else { 			print("greytaux= 0.9");	} //  else	
+	print("yminref= 0");
+	print("doyofset= 150");
+	print("doxpos= 2");
+	print("xdimref_inch= 0.025");
+	print("ydimref_inch= 0.25");
+	print("dostd= 2.0");
+	print("doecart= 20.0");
+	print("subimgx= 0");
+	print("method= "+method);
+	if (method == "0") 			upper = 250;
+	else if (method == "neutral") 	upper = 243;
+	else if (method == "log-gamma2") 	upper = 250;
+	else {				upper = 250;	} // else
+	print("upper= "+upper);
+	print("greyref= 174");
+	print("voxelwidth= 1");
+	print("voxelheigth= 1");
+	print("voveldepth= 1");
+	print("voxelunit= pixel");
+	print("backval= 100.0");
+	print("minsizeesd_mm= 0.3");
+	print("maxsizeesd_mm= 100");
+	print("longline_mm= 1.0");
+	print("doxabspos_inch= "+Xpos);
+	print("doyabspos_inch= "+Ypos);
+	print("bleft= 16.0");
+	print("broll= 8");
+	print("bright= 4.0");
+	print("contrast_pourcent= 1.3");
+	print("doubloonxy_inch= 0.05");
+	print("doubloonarea_pourcent= 0.1");
+	print("greylimit= 10");
+	print("frame= both");
+	selectWindow("Log");
+	text =  "save=" + pathconfig + "\\process_install_both_config.txt";
+	run("Text...",text);	
+	wait(100);
+	run("Close");
+} // if
+else { message = message+"\n ''process_install_*_config.txt'' file not replaced.                    ";	} // else
+
+// ---------------- Narrow --------------------
+if (narrow == true && (scanner == "4490" || scanner == "4990")) {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame1_narrow.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+			print("Media=1");
+			print("Quality=4");
+			print("BitsPerPixel=3");
+			print("MakeGrayFrom=2");
+			if (vuescan == "8.4.57" && scanner == "4990") 	print("PreviewResolution=8");
+			else {					print("PreviewResolution=6");		} // else
+			print("ScanResolution=3");
+			print("Rotation=3");
+			print("Mirror=1");
+		print("[Input]");
+			print("Options=2");
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+			print("AutoOffset=0");
+			print("AutoRotate=0");
+			print("CropSize=0");
+			print("XSize="+XSizeN);
+			print("YSize="+YSizeN);
+			print("PreviewArea=0");
+			print("PreviewXOffset="+XOffsetN);
+			print("PreviewYOffset="+YOffsetN);
+			print("PreviewXSize="+XSizeN);
+			print("PreviewYSize="+YSizeN);
+		print("[Crop]");
+			print("Options=2");
+		print("[Filter]");
+			print("Options=2");
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+			print("ColorBalance=0");
+			print("WhitePoint=0");
+			print("WhitePointRed=236");
+			print("WhitePointGreen=236");
+			print("WhitePointBlue=236");
+			print("Brightness=900");
+		print("[Color]");
+			print("PixelColors=1");
+			print("Options=2");
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+			print("PrintedUnits=0");
+		print("[Output]");
+			print("JPEGFile=0");
+			print("DefaultFolder=E:\\Zooscan_pointb_rg\\Zooscan_scan");
+			print("RawFile=1");
+			print("RawFileName=sample_1=.tif");
+			print("RawFileType=2");
+			print("RawCompression=0");
+			print("Copyright=Zooscan_CNRS_2006");
+			print("LogFile=0");
+			print("Options=2");
+		print("[Prefs]");
+			print("GraphType=2");
+			print("ExternalViewer=0");
+			print("ExternalEditor=0");
+			print("WindowXOffset=10");
+			print("WindowYOffset=10");
+			print("WindowXSize=1008");
+			print("WindowYSize=990");
+			print("GuidedMode=0");
+			print("EnablePopupTips=0");
+			print("StartupTip=0");
+			selectWindow("Log");
+		if (scanner == "v700") {
+			print("[Prefs-PerfectionV700-Flatbed]");
+			print("CropUnits=0");
+			print("PrintedUnits=0");
+		} // if v700
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame1_narrow.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else if (narrow == true && scanner == "v700") {		// Narrow 2400dpi
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame1_narrow.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		print("[Input]");
+			print("Source="+source);
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=3");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeN);
+		print("YSize="+YSizeN);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeN);
+		print("PreviewYSize="+YSizeN);
+		print("PreviewXOffset="+XOffsetN);
+		print("PreviewYOffset="+YOffsetN);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetN);
+		print("YOffset="+YOffsetN);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame1_narrow.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else if (narrow == true && scanner == "v800") {		// Narrow 2400dpi
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame1_narrow.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		print("[Input]");
+			print("Source="+source);	
+			print("Options=2");
+			print("DefaultFolder=C:");
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=3");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeN);
+		print("YSize="+YSizeN);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeN);
+		print("PreviewYSize="+YSizeN);
+		print("PreviewXOffset="+XOffsetN);
+		print("PreviewYOffset="+YOffsetN);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		print("PDFFile=0");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetN);
+		print("YOffset="+YOffsetN);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		print("SplashScreen=0");
+
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame1_narrow.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else { message = message+"\n ''vuescan_zooscan_4800dpi_frame1_narrow.ini'' file not replaced/created.                    ";	} // else
+
+// ---------------- LARGE 1200 dpi --------------------
+if (large == true  && (scanner == "4490" || scanner == "4990")) {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_1200dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+			print("Media=1");
+			print("Quality=4");
+			print("BitsPerPixel=3");
+			print("MakeGrayFrom=2");
+			if (vuescan == "8.4.57" && scanner == "4990") 	print("PreviewResolution=8");
+			else {					print("PreviewResolution=6");		} // else
+			print("ScanResolution=4");
+			print("Rotation=3");
+			print("Mirror=1");
+		print("[Input]");
+			print("Options=2");
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+			print("AutoOffset=0");
+			print("AutoRotate=0");
+			print("CropSize=0");
+			print("XSize="+XSizeL);
+			print("YSize="+YSizeL);
+			print("PreviewArea=0");
+			print("PreviewXOffset="+XOffsetL);
+			print("PreviewYOffset="+YOffsetL);
+			print("PreviewXSize="+XSizeL);
+			print("PreviewYSize="+YSizeL);
+		print("[Crop]");
+			print("Options=2");
+		print("[Filter]");
+			print("Options=2");
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+			print("ColorBalance=0");
+			print("WhitePoint=0");
+			print("WhitePointRed=236");
+			print("WhitePointGreen=236");
+			print("WhitePointBlue=236");
+			print("Brightness=900");
+		print("[Color]");
+			print("PixelColors=1");
+			print("Options=2");
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+			print("PrintedUnits=0");
+		print("[Output]");
+			print("JPEGFile=0");
+			print("DefaultFolder=E:\\Zooscan_pointb_rg\\Zooscan_scan");
+			print("RawFile=1");
+			print("RawFileName=sample_1=.tif");
+			print("RawFileType=2");
+			print("RawCompression=0");
+			print("Copyright=Zooscan_CNRS_2006");
+			print("LogFile=0");
+			print("Options=2");
+		print("[Prefs]");
+			print("GraphType=2");
+			print("ExternalViewer=0");
+			print("ExternalEditor=0");
+			print("WindowXOffset=10");
+			print("WindowYOffset=10");
+			print("WindowXSize=1008");
+			print("WindowYSize=990");
+			print("GuidedMode=0");
+			print("EnablePopupTips=0");
+			print("StartupTip=0");
+		if (scanner == "v700") {
+			print("[Prefs-PerfectionV700-Flatbed]");
+			print("CropUnits=0");
+			print("PrintedUnits=0");
+		} // if v700
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_1200dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if large
+} // if
+else if (large == true && scanner == "v700") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_1200dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");		
+			print("[Input]");
+			print("Source="+source);
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=4");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeL);
+		print("YSize="+YSizeL);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeL);
+		print("PreviewYSize="+YSizeL);
+		print("PreviewXOffset="+XOffsetL);
+		print("PreviewYOffset="+YOffsetL);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetL);
+		print("YOffset="+YOffsetL);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_1200dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else if (large == true && scanner == "v800") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_1200dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");		
+			print("[Input]");
+			print("Source="+source);
+			print("Options=2");
+			print("DefaultFolder=C:");
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=4");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeL);
+		print("YSize="+YSizeL);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeL);
+		print("PreviewYSize="+YSizeL);
+		print("PreviewXOffset="+XOffsetL);
+		print("PreviewYOffset="+YOffsetL);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		print("PDFFile=0");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetL);
+		print("YOffset="+YOffsetL);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		print("SplashScreen=0");
+		
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_1200dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else { message = message+"\n ''vuescan_zooscan_1200dpi_frame2_large.ini'' file not replaced/created.                    ";		} // else
+
+// ---------------- LARGE 2400 dpi --------------------
+if (largehd == true  && (scanner == "4490" || scanner == "4990")) {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		if (vuescan == "8.4.57" && scanner == "v700") {
+			print("[Input]");
+			if (syst == affscanner[3]) 	print("Source="+source);
+		} // if
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+			print("Media=1");
+			print("Quality=4");
+			print("BitsPerPixel=3");
+			print("MakeGrayFrom=2");
+			if (vuescan == "8.4.57" && (scanner == "4990" || scanner == "v700")) 	print("PreviewResolution=8");
+			else {					print("PreviewResolution=6");		} // else
+			print("ScanResolution=3");
+			print("Rotation=3");
+			print("Mirror=1");
+		print("[Input]");
+			print("Options=2");
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+			print("AutoOffset=0");
+			print("AutoRotate=0");
+			print("CropSize=0");
+			print("XSize="+XSizeL);
+			print("YSize="+YSizeL);
+			print("PreviewArea=0");
+			print("PreviewXOffset="+XOffsetL);
+			print("PreviewYOffset="+YOffsetL);
+			print("PreviewXSize="+XSizeL);
+			print("PreviewYSize="+YSizeL);
+		print("[Crop]");
+			print("Options=2");
+		print("[Filter]");
+			print("Options=2");
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+			print("ColorBalance=0");
+			print("WhitePoint=0");
+			print("WhitePointRed=236");
+			print("WhitePointGreen=236");
+			print("WhitePointBlue=236");
+			print("Brightness=900");
+		print("[Color]");
+			print("PixelColors=1");
+			print("Options=2");
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+			print("PrintedUnits=0");
+		print("[Output]");
+			print("JPEGFile=0");
+			print("DefaultFolder=E:\\Zooscan_pointb_rg\\Zooscan_scan");
+			print("RawFile=1");
+			print("RawFileName=sample_1=.tif");
+			print("RawFileType=2");
+			print("RawCompression=0");
+			print("Copyright=Zooscan_CNRS_2006");
+			print("LogFile=0");
+			print("Options=2");
+		print("[Prefs]");
+			print("GraphType=2");
+			print("ExternalViewer=0");
+			print("ExternalEditor=0");
+			print("WindowXOffset=10");
+			print("WindowYOffset=10");
+			print("WindowXSize=1008");
+			print("WindowYSize=990");
+			print("GuidedMode=0");
+			print("EnablePopupTips=0");
+			print("StartupTip=0");
+		if (scanner == "v700") {
+			print("[Prefs-PerfectionV700-Flatbed]");
+			print("CropUnits=0");
+			print("PrintedUnits=0");
+		} // if v700
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if large
+} // if
+else if (largehd == true &&  scanner == "v700") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		
+			print("[Input]");
+			print("Source="+source);
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=3");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeL);
+		print("YSize="+YSizeL);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeL);
+		print("PreviewYSize="+YSizeL);
+		print("PreviewXOffset="+XOffsetL);
+		print("PreviewYOffset="+YOffsetL);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetL);
+		print("YOffset="+YOffsetL);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else if (largehd == true &&  scanner == "v800") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_2400dpi_frame2_large.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		
+			print("[Input]");
+			print("Source="+source);
+			print("Options=2");
+			print("DefaultFolder=C:");
+			
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=3");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeL);
+		print("YSize="+YSizeL);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeL);
+		print("PreviewYSize="+YSizeL);
+		print("PreviewXOffset="+XOffsetL);
+		print("PreviewYOffset="+YOffsetL);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		print("PDFFile=0");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetL);
+		print("YOffset="+YOffsetL);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		print("SplashScreen=0");
+		
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_2400dpi_frame2_large.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if
+else { message = message+"\n ''vuescan_zooscan_2400dpi_frame2_large.ini'' file not replaced/created.                    ";		} // else
+
+// ------------------------- NARROW 4800 dpi -------------------------------------------------------------------
+if (dpi4800 == true &&  scanner == "v700") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_4800dpi_frame1_narrow.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		
+			print("[Input]");
+			print("Source="+source);
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=2");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeN);
+		print("YSize="+YSizeN);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeN);
+		print("PreviewYSize="+YSizeN);
+		print("PreviewXOffset="+XOffsetN);
+		print("PreviewYOffset="+YOffsetN);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetN);
+		print("YOffset="+YOffsetN);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_4800dpi_frame1_narrow.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if 4800dpi
+if (dpi4800 == true &&  scanner == "v800") {
+	conffile = 	File.exists(pathconfig+"\\vuescan_zooscan_4800dpi_frame1_narrow.ini");
+	if (conffile != 1) { 
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("[VueScan]");
+		
+			print("[Input]");
+			print("Source="+source);
+			print("Options=2");
+			print("DefaultFolder=C:");
+		print("[Input-Perfection"+scanner+"-Flatbed]");
+		print("Media=1");
+		print("BitsPerPixel=3");
+		print("MakeGrayFrom=2");
+		print("PreviewResolution=8");
+		print("ScanResolution=2");
+		print("Rotation=3");
+		print("Mirror=1");
+		
+		print("[Crop-Perfection"+scanner+"-Flatbed]");
+		print("CropSize=0");
+		print("XSize="+XSizeN);
+		print("YSize="+YSizeN);		
+		print("AutoOffset=0");
+		print("PreviewArea=0");		
+		print("PreviewXSize="+XSizeN);
+		print("PreviewYSize="+YSizeN);
+		print("PreviewXOffset="+XOffsetN);
+		print("PreviewYOffset="+YOffsetN);
+		
+		print("[Color-Perfection"+scanner+"-Flatbed]");
+		print("ColorBalance=0");
+		
+		print("[Output]");
+		print("JPEGProfile=0");
+		print("RawCompression=0");
+		print("LogFile=0");
+		print("Copyright=Zooscan_CNRS_2011_calibration");	
+		
+		print("[Output-Perfection"+scanner+"-Flatbed]");
+		print("JPEGFile=0");
+		print("RawFile=1");
+		print("PDFFile=0");
+		
+		print("[Prefs-Perfection"+scanner+"-Flatbed]");
+		print("CropUnits=0");
+		print("PrintedUnits=0");
+		
+		print("[Prefs]");
+		print("XOffset="+XOffsetN);
+		print("YOffset="+YOffsetN);
+		print("StartupTip=0");
+		print("WindowXOffset=10");
+		print("WindowYOffset=10");
+		print("WindowXSize=1008");
+		print("WindowYSize=990");
+		print("GuidedMode=0");
+		print("Options=1");
+		print("FontSize=10");
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print("ImageMemory=8000");
+		print("BeepWhenDone=1");	
+		print("GraphType=2");
+		print("SplashScreen=0");
+		
+		selectWindow("Log");
+		text =  "save=" + pathconfig + "\\vuescan_zooscan_4800dpi_frame1_narrow.ini";
+		run("Text...",text);	
+		run("Close");
+	} // if narrow
+} // if 4800dpi
+else { message = message+"\n ''vuescan_zooscan_4800dpi_frame1_narrow.ini'' file not replaced/created.                    ";		} // else
+//	if (message != "Information on files") { showMessage(message);	} // else
+} // doc
+//	else {showMessage("Configuration files NOT modified/replaced.                  ");	} // 
+
+// -------------------------- FIN ----------------------------------------------------------------------------
+docu = toString(docu);
+ret = docu+" "+check+" "+proj+" "+doc+" "+prt+" "+path+" "+fin;
+return ret;

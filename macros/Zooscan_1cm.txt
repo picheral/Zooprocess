@@ -1,0 +1,675 @@
+// --------------------------- Saisie des entetes --------------------------------
+date = "2011/12/08";
+version = "7.07";
+
+// --------------------------------------------------------------------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+savetag;
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		param= array[3]; 	titre= array[4]; 
+tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	scan=array[22];	savetag= array[23];
+projfolder = array[26];
+
+// ----------------  Suppression des info de type de fichier ---------------------------------------------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+replace(titrered,".","_");
+drive = substring(chem,0,2);
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathpidpredicted = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+pathvig = 		projfolder+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+
+// --------------- si chemconfig == "edit", alors edition du meta a partir du raw du projet ----------------
+if (chemconfig == "edit") {
+	chemraw = projfolder + "\\Zooscan_scan\\_raw\\";
+	filelist  = 	getFileList(chemraw);
+	//--------------- Selection des fichiers dont le nom finit par le mot "meta.txt" -------------------
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	ctrl = endsWith(filelist[i],"meta.txt");
+		if (ctrl == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { print("No valid metadata file in the "+chemraw);
+		configpres = 0;
+		getBoolean("No valid config file in "+chemraw+"                 ");
+	} //
+	else { print(j+" metadata files in the "+projfolder);
+		configpres = 1;
+		// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		// ------------------ Boucle sur les répertoires, attribution code --------------------
+		list_val = newArray(j);
+		list_aff_sorted = newArray(j);
+		for (k = 0;k<j;k++) { 		
+			texte_to_sort = listaff[k];
+			long = lengthOf(texte_to_sort);
+			hh = 0;
+			for (tt = 0; tt < long ; tt++) { 	hh = hh + tt*100*charCodeAt(texte_to_sort,tt);		}// for
+			list_val[k] = hh;
+		//	getBoolean("k= "+k+"   hh= "+hh+"   "+listaff[k]);
+		}// for
+		// ------------------------ Valeur MAX ---------------------------------------
+		max_val = 0;
+		for (k = 0;k<j;k++) {	 max_val = maxOf(list_val[k],max_val);	} // for
+		//getBoolean("max_val= "+max_val);		
+		// --------------------------- Tri des répertoires ---------------------------------------
+		for (index_list = 0; index_list < j ;index_list++) {
+			mm = 0;
+			while (mm<j) { 
+				// --------------- Si valeur est max, on le met à zéro -------------------------
+				gg = list_val[mm];
+		//		getBoolean(gg+"  max_val="+max_val);
+				if (gg == max_val) {	hh = listaff[mm];	list_aff_sorted[index_list] = hh; 
+					list_val[mm] = 0; 
+					mm = j;	
+		//			getBoolean("OK "+hh);
+				} // if
+				// ------------------------ Nouveau Valeur MAX ---------------------------------------
+				max_val = 0;
+				for (k = 0;k<j;k++) {	 max_val = maxOf(list_val[k],max_val);	} // for
+				mm++;
+			} // while
+		} // for				
+		
+		
+		
+		Dialog.create("METADATA EDITOR    "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Project :  "+proj);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "All META, LOG, PID files from the project will be upgraded. \n \nCHECK the list of the modified files at the end of the process !";
+		Dialog.addMessage(message);
+		message = "SELECT Metadata FILE to EDIT             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", list_aff_sorted);
+		Dialog.show();
+		metafile = Dialog.getChoice();
+		long = lengthOf(metafile);
+		titrered = substring(metafile, 0, long-9);
+		metafilered = metafile;
+		chemfile = chemraw+titrered;
+	} // else
+} // if
+else { long = lengthOf(titre);
+	titrered = substring(titre, 0, long-4);
+	replace(titrered,".","_");
+	chemwork = 	chemwork1+titrered+"\\";
+	chemfile = 	chemwork + titrered;
+} // else
+
+
+
+chemtemp = 	projfolder + "\\Zooscan_temp\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+//------------------------------------------------------------------------------------------------------------------
+ret = "0";
+//------------  Effacement de la fenetre LOG
+print("A purger");	selectWindow("Log");		run("Close");
+
+// -----------------Le fichier meta existe dans _work -----------------------------------------------------
+if (meta=="1") {	metafile = chemfile + "_meta.txt";
+	open(metafile);  
+	wait(100);
+	metadata = getInfo();
+	array = split(metadata,"\n");
+	for (i=0; i<array.length; i++)	{ texte = array[i]; 	 ssarray = split(texte," "); 	array[i] = ssarray[1];	   }
+	SampleId = array[0]; 	Scanop = array[1]; 		Ship = array[2]; 		Scientificprog = array[3];
+	StationId = array[4]; 		Date = array[5]; 		Latitude = array[6]; 		Longitude = array[7];
+	Depth = array[8]; 		CTDref = array[9]; 		Otherref = array[10]; 		Townb = array[11];
+	Towtype = array[12]; 		Nettype =array[13]; 		Netmesh = array[14]; 	Netsurf = array[15];
+	Zmax = array[16]; 		Zmin = array[17]; 		Vol = array[18]; 		FracId = array[19];
+	Fracmin = array[20]; 		Fracsup = array[21]; 		Fracnb = array[22]; 		Observation = array[23];
+	Code= array[24];		SubMethod= array[25]; 	CellPart= array[26];		Replicates= array[27]; 
+	VolIni= array[28]; 		VolPrec= array[29]; 	
+	run("Close");	
+} // meta==1
+else if (meta=="0")	{ 
+	print("Le fichier ",titrered,"_meta.txt de l'image n'existe pas dans le _work");
+	// --------------------- Chargement du generique s'il existe, sinon creation --------	
+	fileex= File.exists(chemmeta+"metadata.txt");
+	// Le metadata generique existe, lecture des info stockees pour le precedent fichier
+	if ( fileex == 1) 	{					
+		print("Metadata exists");
+		open(chemmeta+"metadata.txt");
+		wait(100);
+		metadata = getInfo();
+		array = split(metadata,"\n");
+		for (i=0; i<array.length; i++) 	{ texte = array[i]; ssarray = split(texte," "); array[i] = ssarray[1];	}
+		SampleId = array[0]; 	Scanop = array[1]; 		Ship = array[2]; 		Scientificprog = array[3];
+		StationId = array[4]; 		Date = array[5]; 		Latitude = array[6]; 		Longitude = array[7];
+		Depth = array[8]; 		CTDref = array[9]; 		Otherref = array[10]; 		Townb = array[11];
+		Towtype = array[12]; 		Nettype =array[13]; 		Netmesh = array[14]; 	Netsurf = array[15];
+		Zmax = array[16]; 		Zmin = array[17]; 		Vol = array[18]; 		FracId = array[19];
+		Fracmin = array[20]; 		Fracsup = array[21]; 		Fracnb = array[22]; 		Observation = array[23];
+		Code= array[24];		SubMethod= array[25]; 	CellPart= array[26];		Replicates= array[27]; 
+		VolIni= array[28]; 		VolPrec= array[29]; 	
+		//---------------------------  Fermeure de la fenetre METADATA de l'image ------------------------
+		run("Close");
+		//---------------------------- CAS SCAN ---------------------------------------------------------------------
+		if (scan==1) { SampleId = titrered; }	
+	} // if 
+	else 	{ print ("Metadata.txt introuvable");
+		// ------------------------- Le metadata generique n'existe pas, utilisation de valeurs generiques-----------------------
+		SampleId = "To fill";		Scanop = "GG"; 			Ship = "999";	Scientificprog = "Zooscan";
+		StationId = 999;		Date = "20000101-1200";		Latitude = 99.99;	Longitude = -999.99;	Depth = 999;
+		CTDref = "CTDfilename";	Otherref = "Other reference name";	Townb = 999;	Towtype = 999;
+		Nettype = "999";		Netmesh = 999;			Netsurf = 999;	Zmax = 999;		Zmin = 999;		Vol = 999;
+		FracId = "FractionId";	Fracmin = 999;			Fracsup = 999;	Fracnb = 999;		Observation = "NaN";	
+		Code= "A";		SubMethod= "motoda"; 		CellPart= 1;	Replicates= 1; 
+		VolIni= 1; 			VolPrec= 1; 	
+		//------------------------------  CAS SCAN -----------------------------------------------------------------------
+		if (scan==1) { SampleId = titrered; }	
+	} // else
+	// --------------------------------- Complement pour les champs qui existent dans le PAR ---------------------------------------------------
+	if (maskpar==1 && par==1) { print("Le PAR existe et on a decide de l'inclure");
+		openpar = titrered + ".tif-zoo2.par";			
+		open(chemscan+openpar);
+		wait(100);
+		metadata = getInfo();
+		array = split(metadata,"\n");
+		remligne = 0;
+		remark = "NaN";
+		for (i=0; i<array.length ; i++) {
+			//SampleId; 
+			sampleflag= startsWith(array[i], "Sample=");
+			if (sampleflag==1) { 
+				long =  lengthOf(array[i]); 
+				deb = indexOf(array[i],"=")+1; 
+				SampleId = substring(array[i],deb,long); 
+				print("SampleId= ",SampleId);
+			} // if
+			
+			//Nettype	
+			netflag= startsWith(array[i], "NetType=");
+			if (netflag==1) { 
+				long =  lengthOf(array[i]); 
+				deb = indexOf(array[i],"=")+1; 
+				Nettype = substring(array[i],deb,long); 
+				print("Nettype= ",Nettype);
+			} // if
+			//Netsurf	
+			surfflag= startsWith(array[i], "NetDiam=");
+			if (surfflag==1) { 
+				long =  lengthOf(array[i]); 
+				deb = indexOf(array[i],"=")+1; 
+				Netsurf = substring(array[i],deb,long); 
+				print("Netsurf= ",Netsurf);
+			} // if
+
+			//Netmesh
+			meshflag= startsWith(array[i], "NetMesh=");
+			if  (meshflag==1) { 
+				long =  lengthOf(array[i]); deb = indexOf(array[i],"=")+1; Netmesh = substring(array[i],deb,long); print("Netmesh= ",Netmesh);
+			} // if
+			//----------------------Date
+			dateflag= startsWith(array[i], "Date=");
+			if  (dateflag==1) { 
+				long =  lengthOf(array[i]); deb = indexOf(array[i],"=")+1; d = substring(array[i],deb,long); day = substring(d,0,2); month = substring(d,3,5); 
+				if (long < 14) { year = substring(d,6,8); 	yeart = parseInt(year);
+					if (yeart < 11 ) {	year = "200"+yeart;	}
+					else {		year = "19"+yeart;	}					
+				} // if
+				else {	year = substring(d,6,10); 		} // else
+				Date = year + month + day +"-0000"; 
+				print("Date= ",Date);
+			} // if
+			//Zmax
+			zmaxflag= startsWith(array[i], "DepthMax=");
+			if (zmaxflag==1) { 
+				long =  lengthOf(array[i]); deb = indexOf(array[i],"=")+1; Zmax = substring(array[i],deb,long); print("Zmax= ",Zmax); 
+			}  // if
+			//Fracnb
+	 		fracflag= startsWith(array[i], "Fraction=");
+			if (fracflag==1) { 
+				long =  lengthOf(array[i]); deb = indexOf(array[i],"=")+1; Fracnb = substring(array[i],deb,long); print("Fracnb= ",Fracnb);
+			} // if
+			//StationId
+			staflag= startsWith(array[i], "Station=");
+			if (staflag==1) { 
+				long =  lengthOf(array[i]); deb = indexOf(array[i],"=")+1; StationId = substring(array[i],deb,long); print("StationIdb= ",StationId); 
+			} // if
+			staflag= startsWith(array[i], "ATTENTION");
+			if (staflag==1&& remligne == 0) { 	remark = array[i];	remligne = i;	} // if
+		} // for
+		while (remligne !=0 && remligne < array.length-1){
+			remligne++;
+			remark = remark+ "+" + array[remligne];
+		} 
+		Observation = replace(remark," ","_");
+		print(Observation);
+	} // if maskpar==1 et par==1
+} // else if meta==0
+else {
+	// Noting to do
+} // else
+
+// --------------------- Alors on peut completer manuellement --------------------------------------------------------------------
+if (param=="1") 	{ 
+	check= 1;
+	while (check ==1) {check= 0;
+	message = "Warning : \n";
+	Dialog.create(titrered+" METADATA    ");
+	Dialog.addMessage("----------------------- Please ENTER or CHECK the informations -----------------------");
+	Dialog.create("Project  : "+proj+"              Image  : "+titrered);
+	Dialog.addString("Sample Id ",SampleId);
+	Dialog.addString("Zooscan Operator ",Scanop);
+	Dialog.addString("Ship ",Ship);
+	Dialog.addString("Scientific program ",Scientificprog);
+	Dialog.addString("Station Id (''NaN'' if unknown) ",StationId);
+	Dialog.addString("Sampling date (YYYYMMDD-HHMM) ",Date);
+	Dialog.addNumber("Latitude    (DD.MM for North,   -DD.MM for South) ",Latitude);
+	Dialog.addNumber("Longitude (DDD.MM for West, -DDD.MM for Est)   ",Longitude);
+	Dialog.addNumber("Bottom Depth (m) ",Depth);
+	Dialog.addString("CTD reference (filename) ",CTDref);
+	Dialog.addString("Other reference ",Otherref);
+	Dialog.addNumber("Number of tow in the same sample ",Townb);
+	Dialog.addNumber("Tow type (Oblique = 1, Horizontal = 2, Vertical = 3) ",Towtype);
+	Dialog.addString("Net type (WP2, JB, Omori...) ",Nettype);
+	Dialog.addNumber("Net mesh (cod end) µm",Netmesh);
+	Dialog.addNumber("Net opening surface (m2)",Netsurf);
+	Dialog.addNumber("Maximum Depth  (m) : Z max",Zmax);
+	Dialog.addNumber("Minimum Depth  (m) : Zmin",Zmin);
+	Dialog.addNumber("Filtered volume (m3) ",Vol);
+	Dialog.addString("Fraction Id ",FracId);
+	Dialog.addNumber("Fraction min mesh (µm) ",Fracmin);
+	Dialog.addNumber("Fraction max mesh (µm) ",Fracsup);
+	Dialog.addNumber("Fraction spliting ratio x (1/x) ",Fracnb);
+	Dialog.addString("Remark (no special char !) ",Observation);
+//	Dialog.addString("Code", Code);
+	Dialog.addString("SubMethod",SubMethod);
+//	Dialog.addNumber("CellPart",CellPart);
+//	Dialog.addNumber("Replicates",Replicates);
+//	Dialog.addNumber("VolIni",VolIni);
+//	Dialog.addNumber("VolPrec",VolPrec);
+
+	Dialog.show;
+
+	SampleId = Dialog.getString();
+	a= lengthOf(SampleId);
+	if (a==0) {message = message+ "Sample Id empty \n";		check = 1;		} // if
+	ind= indexOf(SampleId," ");
+	if (ind != -1) { SampleId = replace(SampleId," ","_"); 				 	}
+
+	Scanop = Dialog.getString();
+	a= lengthOf(Scanop);
+	if (a==0) {message = message+ "Zooscan Operator empty \n";	check = 1;		} // if
+	ind= indexOf(Scanop," ");
+	if (ind != -1) { Scanop = replace(Scanop," ","_"); 					 }
+
+	Ship = Dialog.getString();
+	a= lengthOf(Ship);
+	if (a==0) {message = message+ "Zooscan Operator empty \n";	check = 1;		} // if
+	ind= indexOf(Ship," ");
+	if (ind != -1) { Ship = replace(Ship," ","_"); 						 }
+
+	Scientificprog = Dialog.getString();
+	a= lengthOf(Scientificprog);
+	if (a==0) {message = message+ "Scientific program empty \n";	check = 1;		} // if
+	ind= indexOf(Scientificprog," ");
+	if (ind != -1) { Scientificprog = replace(Scientificprog," ","_"); 				 }
+
+	StationId = Dialog.getString();
+	a= lengthOf(StationId);
+	if (a==0) {message = message+ "Station Id empty \n";		check = 1;		} // if
+	ind= indexOf(StationId," ");
+	if (ind != -1) { StationId = replace(StationId," ","_"); 					 }
+
+	Date = Dialog.getString();
+	a= lengthOf(Date);
+	if (a == 0) {		message = message+ "Date field empty \n  ";			check = 1;		} // if
+	else if (a == 13) { //---------------------- Remplacement de l'espace eventuel ------------------------------
+		ind= indexOf(Date," ");
+		if (ind != -1) { Date = replace(Date," ","-"); 									} // if
+		// --------------------- Test sur la postion du ''-'' --------------------------------------------		
+		place = indexOf(Date, "-");
+		if (place !=8) {		message = message+ "Date incorrect \n  ";			check = 1;		} // if
+		else {	// --------------------- Annee ----------------------------
+			an = substring(Date,0,4);
+			an = parseInt(an);
+			if (isNaN(an) == true) {	message = message+ "YEAR incorrect \n  ";			check = 1;		} // if
+			if (an > 2020) {		message = message+ "YEAR > 2020 \n  ";			check = 1;		}// if
+			// --------------------- Mois ----------------------------
+			mois = substring(Date,4,6);
+			mois = parseInt(mois);
+			if (isNaN(mois) == true) {	message = message+ "MONTH incorrect \n  ";			check = 1;		} // if
+			if (mois > 12) {		message = message+ "MONTH >12 ! \n  ";			check = 1;		} // if
+			// --------------------- Jour ----------------------------
+			jour = substring(Date,6,8);
+			jour = parseInt(jour);
+			if (isNaN(jour) == true) {	message = message+ "DAY incorrect \n  ";			check = 1;		} // if
+			if (jour > 31) {		message = message+ "DAY > 31 \n  ";			check = 1;		} // if
+			// --------------------- Heure ----------------------------
+			heure= substring(Date,9,13);
+			if (isNaN(heure) == true) {	message = message+ "TIME incorrect \n  ";			check = 1;		}//if
+			if (heure > 2400) {		message = message+ "TIME > 2400 \n  ";			check = 1;		} // if
+		} // else
+	} // else if
+	else {		message = message+ "Date format incorrect \n  ";					check = 1;		} // else
+
+	Latitude = Dialog.getNumber();
+	if (Latitude == 0) { message = message + "Latitude is not a number \n  "; check = 1; } // if
+	if ((Latitude < -90 || Latitude > 90) && Latitude != 99.990) { message = message + "Latitude is out of limits (-90 +90) \n  "; check = 1; } // if
+
+	Longitude = Dialog.getNumber();
+	if (Longitude == 0) { message = message + "Longitude is not a number \n  "; check = 1; } // if
+	if ((Longitude < -180 || Longitude > 180) && Longitude != -999.990) { message = message + "Longitude is out of limits (-180 +180) \n  "; check = 1; } // if
+
+	Depth = Dialog.getNumber();
+	if (Depth == 0) { message = message + "Depth is not a number  or Depth set to 0   \n  "; check = 1;		} // if
+
+	CTDref = Dialog.getString();
+	a= lengthOf(CTDref );
+	if (a==0) {message = message+ "CTDref empty \n";		check = 1;		} // if
+	ind= indexOf(CTDref ," ");
+	if (ind != -1) { CTDref  = replace(CTDref ," ","_"); 					 }
+
+	Otherref = Dialog.getString();
+	a= lengthOf(Otherref );
+	if (a==0) {message = message+ "Other reference empty \n";		check = 1;		} // if
+	ind= indexOf(Otherref ," ");
+	if (ind != -1) { Otherref  = replace(Otherref ," ","_"); 					 }
+
+	Townb = Dialog.getNumber();
+	if (Townb == 0) { message = message + "Townb is not a number  or Townb set to 0   \n  "; check = 1;} // if
+
+	Towtype = Dialog.getNumber();
+	if (Towtype == 0) { message = message + "Towtype is not a number  or Townb set to 0   \n  "; check = 1;} // if
+
+	Nettype =Dialog.getString();
+	a= lengthOf(Nettype );
+	if (a==0) {message = message+ "Net type empty \n";		check = 1;		} // if
+	ind= indexOf(Nettype ," ");
+	if (ind != -1) { Nettype  = replace(Nettype ," ","_"); 					 }
+
+	Netmesh = Dialog.getNumber();
+	if (Netmesh == 0) { message = message + "Net mesh is not a number  or Net mesh set to 0   \n  "; check = 1;} // if
+
+	Netsurf = Dialog.getNumber();
+	if (Netsurf == 0) { message = message + "Net surface is not a number  or Net surface set to 0   \n  "; check = 1;} // if
+
+	Zmax = Dialog.getNumber();
+	if (Zmax == 0) { message = message + "Zmax is not a number  or Zmax set to 0   \n  "; check = 1;} // if
+
+	Zmin = Dialog.getNumber();
+
+	Vol = Dialog.getNumber();
+	if (Vol == 0) { message = message + "Filtered volume is not a number  or Filtered volume set to 0   \n  "; check = 1;} // if
+
+	FracId = Dialog.getString();
+	a= lengthOf(FracId);
+	if (a==0) {message = message+ "Fraction Id empty \n";		check = 1;		} // if
+	ind= indexOf(FracId," ");
+	if (ind != -1) { FracId  = replace(FracId," ","_"); 					 }
+
+	Fracmin = Dialog.getNumber();
+	if (Fracmin == 0) { message = message + "Fraction min mesh is not a number  or Fraction min mesh set to 0   \n  "; check = 1;} // if
+
+	Fracsup = Dialog.getNumber();
+	if (Fracsup == 0) { message = message + "Fraction max mesh is not a number  or Fraction max mesh set to 0   \n  "; check = 1;} // if
+	if (Fracsup != 0 && Fracmin != 0 && Fracmin > Fracsup) { message = message + "Fraction min mesh (µm) should be less than Fraction max mesh (µm) \n  "; check = 1;} // if
+
+	Fracnb = Dialog.getNumber();
+	if (Fracnb == 0) { message = message + "Fracnb is not a number  or Fracnb set to 0   \n  "; check = 1;} // if
+
+	Observation = Dialog.getString();
+	a= lengthOf(Observation);
+	if (a==0) {message = message+ "Observation empty \n";		check = 1;		} // if
+	Observation  = replace(Observation," ","_"); 				
+	Observation  = replace(Observation,"?","_"); 
+	Observation  = replace(Observation,",","_"); 
+	Observation  = replace(Observation,"/","_"); 
+	Observation  = replace(Observation,":","_"); 
+	Observation  = replace(Observation,"!","_"); 
+	Observation  = replace(Observation,"-","_"); 				
+	Observation  = replace(Observation,"+","_"); 
+	Observation  = replace(Observation,"°","_"); 
+	Observation  = replace(Observation,"%","_"); 
+	Observation  = replace(Observation,">","_"); 
+	Observation  = replace(Observation,"<","_"); 
+
+	Code = 1;
+//	Code= Dialog.getString();
+
+	SubMethod= Dialog.getString();
+	a= lengthOf(SubMethod);
+	if (a==0) {message = message+ "SubMethod empty \n";		check = 1;		} // if
+	ind= indexOf(SubMethod," ");
+	if (ind != -1) { SubMethod  = replace(SubMethod," ","_"); 				 }
+
+	CellPart = 1;
+//	CellPart= Dialog.getNumber();
+//	if (CellPart == 0) { message = message + "CellPart is not a number  or CellPart set to 0   \n  "; check = 1;} // if
+
+	Replicates = 1;
+//	Replicates= Dialog.getNumber();
+//	if (Replicates == 0) { message = message + "Replicates is not a number  or Replicates set to 0   \n  "; check = 1;} // if
+
+	Vollni =1;
+//	VolIni= Dialog.getNumber();
+//	if (VolIni == 0) { message = message + "VolIni is not a number  or VolIni set to 0   \n  "; check = 1;} // if
+
+	VolPrec = 1;
+//	VolPrec= Dialog.getNumber();
+//	if (VolPrec == 0) { message = message + "VolPrec is not a number  or VolPrec set to 0   \n  "; check = 1;} // if
+	
+	if (check == 1) { message = message + " \nEnter values again              ";		showMessage(message); 	} // if
+
+	} // while
+
+} // if param =1
+
+// ------------------- Effacement du LOG ------------------------------------------------
+print("A purger");	selectWindow("Log");	run('Close');
+
+metadatamat = newArray(30);
+metadatamat[0] = 	"SampleId= "+SampleId;
+metadatamat[1] = 	"Scanop= "+Scanop;
+metadatamat[2] = 	"Ship= "+Ship;
+metadatamat[3] = 	"Scientificprog= "+Scientificprog;
+metadatamat[4] = 	"StationId= "+StationId;
+metadatamat[5] = 	"Date= "+Date;
+metadatamat[6] = 	"Latitude= "+Latitude;
+metadatamat[7] = 	"Longitude= "+Longitude;
+metadatamat[8] = 	"Depth= "+Depth;
+metadatamat[9] = 	"CTDref= "+CTDref;
+metadatamat[10] = 	"Otherref= "+Otherref;
+metadatamat[11] = 	"Townb= "+Townb;
+metadatamat[12] = 	"Towtype= "+Towtype;
+metadatamat[13] = 	"Nettype= "+Nettype;
+metadatamat[14] = 	"Netmesh= "+Netmesh;
+metadatamat[15] = 	"Netsurf= "+Netsurf;
+metadatamat[16] = 	"Zmax= "+Zmax;
+metadatamat[17] = 	"Zmin= "+Zmin;
+metadatamat[18] = 	"Vol= "+Vol;
+metadatamat[19] = 	"FracId= "+FracId;
+metadatamat[20] = 	"Fracmin= "+Fracmin;
+metadatamat[21] = 	"Fracsup= "+Fracsup;
+metadatamat[22] = 	"Fracnb= "+Fracnb;
+metadatamat[23] = 	"Observation= "+Observation;
+metadatamat[24] = 	"Code= "+Code;
+metadatamat[25] = 	"SubMethod= "+SubMethod;
+metadatamat[26] = 	"CellPart= "+CellPart;
+metadatamat[27] = 	"Replicates= "+Replicates;
+metadatamat[28] = 	"VolIni= "+VolIni;
+metadatamat[29] = 	"VolPrec= "+VolPrec;
+
+for (i=0; i<30 ; i++) { data = metadatamat[i]; 	print(data);	} // for
+
+// -------------------- Rapport --------------------------------------------------------------------------------------------------
+message = "Metadata modified in the following files : \n ";
+
+// ----------------------- Sauvegarde des infos dans un fichier des metadata du nom de l'image -----------------
+selectWindow("Log");
+sauvemeta = "save=" + chemfile + "_meta.txt";
+run("Text...",sauvemeta);
+message = message+"\n- "+chemfile + "_meta.txt \n ";
+
+// -------------------- Sauvegarde des infos dans un fichier de Backup des metadata ------------------------------
+if (chemconfig != "edit") {
+	selectWindow("Log");
+	sauvebu= "save="+chemmeta+ "metadata.txt";
+	run("Text...",sauvebu);
+} // if 
+
+// -------------------- Mise a jour du/des PID, du/des LOG, du/des META ---------------------------------------------
+if (chemconfig == "edit") {
+	long = lengthOf(metafilered);
+	titrered1 = substring(metafilered, 0, long-9);
+	sample =substring(metafilered, 0, long-11);
+	titrered2 = substring(metafilered, 0, long-11)+"_2";
+	chem = projfolder + "\\Zooscan_scan\\_work\\";
+
+	// ----------------------- META ----------------------------------------------------
+	imagemeta1 = 	chem+"\\"+titrered1+"\\"+titrered1+"_meta.txt";
+	if ( File.exists(imagemeta1)) {
+		run("Text...","save="+imagemeta1);			
+		message = message+"\n- "+chem+"\\"+titrered1+"\\"+titrered1+"_meta.txt";
+	} // if
+	imagemeta2 = 	chem+"\\"+titrered2+"\\"+titrered2+"_meta.txt";
+	if ( File.exists(imagemeta2)) {
+		run("Text...","save="+imagemeta2);	
+		message = message+"\n- "+chem+"\\"+titrered2+"\\"+titrered2+"_meta.txt";
+	} // if
+
+	// ----------------------- LOG et PID -----------------------------------------------------
+	// ----------------- Liste des fichiers qui doivent être recherches -----------------
+	filelist = newArray(50000);
+	j = 0;
+	// ----------------- Repertoires et noms fixes ------------------------------------------
+	if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_log.txt")){ 		filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_log.txt";		j++;		} // if
+	if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid";	j++;		} // if	
+	if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_log.txt")){		filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_log.txt";		j++;		} // if
+	if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid";	j++;		} // if
+
+	// ----------------- Liste des repertoires à tester pour dat1.pid et dat1.txt des 2 frames ------------------------------------------------
+	repliste = newArray(4);
+	repliste[0] = projfolder+"\\PID_process\\"+"\\Prediction\\";
+	repliste[1] = projfolder+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+	repliste[2] = projfolder+"\\PID_process\\"+"\\Pid_results\\";
+	repliste[3] = projfolder+"\\PID_process\\"+"\\Sorted_vignettes\\";
+
+	// ------------------------- Boucle sur les répertoires et sous-répertoires -------------------------
+	for (t = 0;t<4;t++) {
+		path = repliste[t];
+		// ---------------- Recherche des fichiers dat1.pid et dat1.txt dans path --------------------
+		sorted = getFileList(path);
+		if (sorted.length >=1) {	
+			// ---------------------------- Boucle sur les fichiers et repertoires --------------------------------
+			for (i=0; i<sorted.length ; i++) {	  
+				replist = newArray(1000);
+				rr = sorted[i];
+
+				// -----------------Fichiers ----------------------------------------------------------------------------------
+				if (endsWith(rr,titrered1+"_dat1.pid"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered2+"_dat1.pid"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered1+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else if (endsWith(rr,titrered2+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+				else { 
+					// nothing to do...
+				} // 
+				// ----------------- Sous repertoire ----------------------------------------------------------------------
+				if (endsWith(rr,"/"))	 {
+					subpath = path+rr+"\\";
+					rep =  getFileList(subpath);
+					if (rep.length >=1) {
+						// ----------------- Boucle sur les fichiers ---------------------------------------		
+						for (x=0;x<rep.length ;x++) {
+							gg = rep[x];
+							if (endsWith(gg,titrered1+"_dat1.pid"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered2+"_dat1.pid"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered1+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else if (endsWith(gg,titrered2+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+							else {
+								// Nothing to do
+							} //  else
+						} // for
+					} // if
+				} // for
+			} // if
+		} // if
+	} // for
+	// ------------------------- Reduction taille vecteur ------------------------------------------------
+	listprocess  = newArray(j); 
+	for (k = 0;k<j;k++) { 
+		rr = filelist[k]; 	
+		listprocess[k] = rr;	
+//		getBoolean(rr);
+	} // for
+
+	// ----------------- SYNTHESE ------------------------------------------------------------
+	for (k = 0;k<j;k++) {	
+		text = listprocess[k];
+		//	showMessage(text);
+		// --------------- Effacement du log --------------------------------	
+		print("A purger");	selectWindow("Log");	run('Close');
+		open(text);  
+		wait(100);
+		data = getInfo();
+		array = split(data,"\n");
+		run("Close");
+		index = 0;
+		fin = array.length;
+		// ------------------ Recherche de la fin de la section metadata pour raccourcir le process --------------------
+		while (index < array.length) {data = array[index];
+			if (startsWith(data,"[Process]")) { 	fin = index;	index = array.length;	} // if
+			index++;
+		} // while
+		// ---------------- Remplacement -----------------------------------------
+		for (i=0; i<fin ; i++) {	
+			data = array[i];
+			if (startsWith(data,"SampleId="))	array[i] = metadatamat[0];
+			if (startsWith(data,"Scanop=") )	array[i] = metadatamat[1];
+			if (startsWith(data,"Ship= ") )	array[i] = metadatamat[2];
+			if (startsWith(data,"Scientificprog=")) 	array[i] = metadatamat[3];
+			if (startsWith(data,"StationId=")) 	array[i] = metadatamat[4];
+			if (startsWith(data,"Date="))	 	array[i] = metadatamat[5];
+			if (startsWith(data,"Latitude=")) 	array[i] = metadatamat[6];
+			if (startsWith(data,"Longitude=")) 	array[i] = metadatamat[7];
+			if (startsWith(data,"Depth=") )	array[i] = metadatamat[8];
+			if (startsWith(data,"CTDref=")) 	array[i] = metadatamat[9];
+			if (startsWith(data,"Otherref=") )	array[i] = metadatamat[10];
+			if (startsWith(data,"Townb=")) 	array[i] = metadatamat[11];
+			if (startsWith(data,"Towtype=")) 	array[i] = metadatamat[12];
+			if (startsWith(data,"Nettype=")) 	array[i] = metadatamat[13];
+			if (startsWith(data,"Netmesh=")) 	array[i] = metadatamat[14];
+			if (startsWith(data,"Netsurf=")) 	array[i] = metadatamat[15];
+			if (startsWith(data,"Zmax=") )	array[i] = metadatamat[16];
+			if (startsWith(data,"Zmin=")) 		array[i] = metadatamat[17];
+			if (startsWith(data,"Vol=")) 		array[i] = metadatamat[18];
+			if (startsWith(data,"FracId=")) 	array[i] = metadatamat[19];
+			if (startsWith(data,"Fracmin=")) 	array[i] = metadatamat[20];
+			if (startsWith(data,"Fracsup=")) 	array[i] = metadatamat[21];
+			if (startsWith(data,"SubPart=")) {	
+				dd = split(metadatamat[22],"\ ");
+				array[i] = "SubPart="+toString(dd[1]);
+			} //
+			if (startsWith(data,"Observation=")) 	array[i] = metadatamat[23];
+			if (startsWith(data,"Code= ")) 	array[i] = metadatamat[24];
+			if (startsWith(data,"SubMethod= ")) 	array[i] = metadatamat[25];
+			if (startsWith(data,"CellPart= ")) 	array[i] = metadatamat[26];
+			if (startsWith(data,"Replicates= ")) 	array[i] = metadatamat[27];
+			if (startsWith(data,"VolIni= ")) 	array[i] = metadatamat[28];
+			if (startsWith(data,"VolPrec= ")) 	array[i] = metadatamat[29];
+		} // for
+		for (i=0; i<array.length ; i++) {	data = array[i];	print(data);	} // for
+		// ----------------- Enregistrement ----------------------------------------
+		selectWindow("Log");
+		run("Text...","save="+text);
+		message = message+"\n- "+text;
+	} // for
+	print("A purger");	selectWindow("Log");	run('Close');
+	showMessage("NORMAL END of EDIT METADATA        ",message);
+} // if edit
+// -------------------------- FIN --------------------------------------------------------------
+ret = "OK";
+return ret;
+
+
+

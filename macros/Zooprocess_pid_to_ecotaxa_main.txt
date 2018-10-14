@@ -1,0 +1,93 @@
+// ----------------------- Zooprocess_pid_to_ecotaxa_main --------------------
+version = "7.23";
+date = "2017/02/04";
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+projfolder= 		array[0];
+instrum = 	array[1];
+outlines = false;
+
+// ----------------- Choix répertoire de travail ---------------------
+options = newArray(2);
+//	options[0] = "ONE folder manually";
+options[0] = "ALL unpredicted/validated vignettes from ''work'' subfolders (requires vignettes in work folders) ";
+options[1] = "ALL sorted vignettes (uses *_dat1.txt files from ''dat1_validated'' folder and vignettes from ''sorted_vignettes'')";
+
+Dialog.create("MAKE TABLE FOR ECOTAXA          version : "+version);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("Project folder :       "+projfolder);
+Dialog.addMessage("Instrument :           "+instrum);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("SELECT OPTION :   ");
+Dialog.addChoice("       ", options);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addString("   Enter link to be added to the vignettes ","http://www.zooscan.obs-vlfr.fr//");
+Dialog.addCheckbox("Create additional vignette with B&W mask (valid ONLY for TSV from sorted vignettes) ",false);
+Dialog.addCheckbox("Set Status to ''prediced'' instead of ''Validated'' (for sorted vignettes imported from Zooprocess) ",true);
+Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.show();
+option = 		Dialog.getChoice();
+link = 			Dialog.getString();
+outlines = 		Dialog.getCheckbox();
+status = 		Dialog.getCheckbox();
+
+//	if (option == options[0]) { 					path_job = getDirectory("SELECT FOLDER");		}// if
+if (option == options[1]) {					path_job = projfolder+"\\PID_process\\Pid_results\\Dat1_validated";	}
+else if (option == options[0] && instrum == "zooscan") {	path_job = projfolder+"\\Zooscan_scan\\_work";	
+	aa = getBoolean("If ANY vignette of a scan is not present in the sample folder, ALL vignettes of the sample will be extracted !\n \nPress YES to continue \nPress CANCEL to abort");
+}
+else if (option == options[0]) {				path_job = projfolder+"\\work";				}
+
+//	if (option == options[0]) showMessage("IMPORTANT NOTE", " \nTSV tables are saved : \n - in the Sample/profile folders along with the vignettes if exists\n - in the ecotaxa folder for Validated data ");
+
+// -------------- Liste des sous-repertoires ----------------------------------------
+filelist = getFileList(path_job);
+j = 0;
+list_fold = newArray(filelist.length);
+if (option == options[0]) {
+	for (i = 0;i<filelist.length;i++) {
+		file =filelist[i];
+		pos_fold =  endsWith(file,"/");
+		if (pos_fold == true  )  {rr = filelist[i]; 	list_fold[j] = rr; 	j++;		} // if
+	} // for
+}//
+list_fold_comp = newArray(j+1);
+for (i = 0;i<j;i++) {	list_fold_comp[i] = list_fold[i];	}
+list_fold_comp[j] = path_job;
+
+// -------------- Recherche des fichiers PID ou DAT1.txt dans le répertoire ----------
+for (k = 0; k < list_fold_comp.length ; k++) {
+	showProgress((k+1)/list_fold_comp.length);
+	folder = path_job+"\\"+list_fold_comp[k];
+	if (option == options[1]) folder = path_job;	
+	filelist = getFileList(folder);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i = 0;i<filelist.length;i++) {
+		file =filelist[i];
+		pos_pid = endsWith(file,"dat1.pid");
+		pos_txt = endsWith(file,"dat1.txt");
+		if (pos_pid == true || pos_txt == true  )  {rr = filelist[i]; 	list[j] = rr; 	j++;			} // if
+	} // for
+	// -------------- Boucle sur les fichiers du répertoire ---------------------------
+	for (i = 0; i<j ;i++) {
+		if (instrum == "uvp5" || instrum == "flowcam" || instrum == "generic") {
+			if (endsWith(list[i],"dat1.pid")) {		process_opt = "pid";	} //if
+			else if (endsWith(list[i],"dat1.txt")) {	process_opt = "text";	} //if
+			ret = runMacro("Zooprocess_pid_to_ecotaxa_flowcam_uvp5_generic",projfolder+" "+folder+" "+list[i]+" "+process_opt+" "+outlines+" "+status+" new "+link);
+		}// if
+		else if (instrum == "zooscan") {
+			if (endsWith(list[i],"dat1.pid")) {		process_opt = "pid";	} //if
+			else if (endsWith(list[i],"dat1.txt")) {	process_opt = "text";	} //if
+			ret = runMacro("Zooprocess_pid_to_ecotaxa_zooscan",projfolder+" "+folder+" "+list[i]+" "+process_opt+" "+outlines+" "+status+" new "+link);
+		}// if
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message : ''Zooprocess_pid_to_ecotaxa'' process aborted for "+list[i]+".                       "); 	} // if
+	} // for
+}//
+
+// ----------------------- END ----------------------
+ret = "OK";
+return ret;

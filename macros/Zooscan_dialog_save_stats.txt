@@ -1,0 +1,11 @@
+//-------------------Zooscan_dialog_save_stats
+sauve = getArgument();
+
+info = getBoolean("Do you want to save stats as a text file ?            ");
+
+if (info == true) {
+	// ------------Save Log---------------
+	selectWindow("Log");
+	run("Text...",sauve);
+}  // if
+

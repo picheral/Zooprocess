@@ -1,0 +1,138 @@
+// ---------------------- Zooprocess_uvp5_uplink_graph ----------------------
+version = "7.20";
+date = "2015/03/20";
+
+args = getArgument();
+//	args = "uvp5 toto 1200 30 2000 200 30 depth";
+arg = split(args," ");
+uvp_sn = arg[0];
+path = arg[1];
+zmax = parseInt(arg[2]);
+if (zmax != 100 * round(zmax/100)) 	{	zmax = 100 * (1 +floor(zmax/100));	}
+tmax = parseInt(arg[3]);
+if (tmax != 10 * round(tmax/10))	{	tmax = 10 *(1+ floor(tmax/10));		}
+maxixab = parseInt(arg[4]);
+maxixsize = parseInt(arg[5]);
+maxixgrey = parseInt(arg[6]);
+type = arg[7];
+
+// ---------------- Si graphe NON ouvert ----------------------------------------
+	Dialog.create("UVP5 DATA VISUALIZATION from SERIAL data     version :  "+version);
+	
+	// --------------- Choix profile TIME / DEPTH ------------------------------------
+	Dialog.addMessage("-------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  UVP5sn"+uvp_sn);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("-------------------------------------------------------------------------------      ");
+	listsel = newArray("DEPTH profile","DEPTH profile","TIME profile");
+	if (type == "time") listsel[0] = "TIME profile";
+	Dialog.addChoice("       SELECT profile type        ",       listsel           );
+	Dialog.addMessage("-------------------------------------------------------------------------------      ");
+	Dialog.show;
+	graph_type = 		Dialog.getChoice();
+	if (graph_type == listsel[1]) 	{	type = "depth";	}
+	else				{ 	type = "time";	}
+	
+	// ------------------ DEPTH & TIME ----------------------	
+	Dialog.create("Graph parameters ");
+	Dialog.addMessage("-------------------------------------------------------------------------------      ");
+	if (type == "depth") {		Dialog.addNumber("     Enter MAXIMUM Profile depth [m]  ",zmax);		}
+	else {		Dialog.addNumber("     Enter MAXIMUM Profile duration [min]  ",tmax);				}
+	Dialog.addNumber("     Enter MAXIMUM LPM [#/L]  ",maxixab);
+	Dialog.addNumber("     Enter MAXIMUM LPM size [µm]  ",maxixsize);
+	Dialog.addMessage("-------------------------------------------------------------------------------      ");
+	Dialog.show;
+	if (type == "depth") {		zmax = Dialog.getNumber();	
+		if (zmax != 100 * round(zmax/100)) 	{	zmax = 100 * (1 +floor(zmax/100));	}
+	}
+	else { tmax = Dialog.getNumber(); 	
+		if (tmax != 10 * round(tmax/10))	{	tmax = 10 *(1+ floor(tmax/10));		}
+	}
+	maxixab = Dialog.getNumber();
+	if (maxixab != 100 * round(maxixab/100)) 	{	maxixab = 100 *(1+ floor(maxixab/100));	}
+	maxixsize = Dialog.getNumber();
+	if (maxixsize != 100 * round(maxixsize/100)) 	{	maxixsize = 100 *(1+ floor(maxixsize/100));	}
+		
+	// ---------------------- CREATION de l'IMAGE --------------------------
+	ecranw= screenWidth();
+	ecranh= screenHeight();
+	img_larg = ecranw /2;
+	plot_larg = img_larg - 50;
+	img_haut = ecranh / 1.5;
+	plot_haut = img_haut - 85;
+	x_offset = 40;
+	y_offset = 25;
+	newImage("UVP5 profile", "RGB Black", img_larg , img_haut, 1);
+	setLineWidth(1);
+	setFont("SansSerif" , 12);
+	run("Colors...", "foreground=yellow background=white selection=red");
+	makeRectangle(x_offset, y_offset, plot_larg , plot_haut);
+	run("Draw");
+	run("Select None");
+	// ---------------------- TITRE ----------------------------------------------
+	setFont("SansSerif" , 16);
+	drawString("UVP5sn"+uvp_sn+"  "+ toUpperCase(type) +" PLOT (from serial link) ", 0.5 * plot_larg-70, y_offset -1 );
+	setFont("SansSerif" , 12);
+	
+	// ---------------------- axes depth -----------------------------------------
+	if (type == "depth") {
+		nb_int = (zmax/100);
+		z_tick = plot_haut / nb_int;
+		for ( i = 0; i < nb_int ; i++) {	
+			drawLine(x_offset, y_offset + z_tick * i ,x_offset+5,y_offset + z_tick * i );	
+			if (floor(i/5) == i/5 ) drawString(toString(i * 100)+"m",1, 6 + y_offset + z_tick * i );	
+		}
+		drawString(toString(zmax)+"m",1, 6 + y_offset + z_tick * nb_int );
+	}// if
+	else {
+		nb_int = (tmax/10);
+		z_tick = plot_haut / nb_int;
+		for ( i = 0; i < nb_int ; i++) {	
+			drawLine(x_offset, y_offset + z_tick * i ,x_offset+5,y_offset + z_tick * i );	
+			if (floor(i/6) == i/6 ) drawString(toString(i * 10)+"mn",1, 6 + y_offset + z_tick * i );	
+		}
+		drawString(toString(tmax)+"mn",1, 6 + y_offset + z_tick * nb_int );
+	}
+	
+	// ---------------------- axes LPM -------------------------------------------
+	// --------------- Abundance (rouge) -----------------------
+	hauteur_courante = y_offset + plot_haut - 1 ;
+	setColor(255, 0, 0);
+	drawLine(x_offset, hauteur_courante ,x_offset + plot_larg , hauteur_courante);
+	xstep = 100;
+	x_step = x_offset;
+	nbtics =  floor(abs(maxixab)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante , x_step , hauteur_courante - 5);	x_step = x_step + xstep*plot_larg/maxixab;	} // for
+	drawString("LPM ABUNDANCE (# / L)", 100, hauteur_courante-3 + 18);
+	drawString("0", x_offset, hauteur_courante-3 + 18);
+	drawString(maxixab, plot_larg-25+x_offset, hauteur_courante-3+ 18);
+	
+	// --------------- Grey -------------------------------
+	hauteur_courante = y_offset + plot_haut -1 + 21 ;
+	setColor(0, 0, 255);
+	drawLine(x_offset, hauteur_courante ,x_offset + plot_larg , hauteur_courante);
+	xstep = 10;
+	x_step = x_offset;
+	nbtics =  floor(abs(maxixgrey)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante,x_step,hauteur_courante-5);	x_step = x_step + xstep*plot_larg/maxixgrey;	} // for
+	drawString("LPM Mean Grey Level (8bits)", 100, hauteur_courante-3 + 18);
+	drawString("0", x_offset, hauteur_courante-3 + 18);
+	maxixgrey = toString(maxixgrey);
+	drawString(" "+maxixgrey, plot_larg-20+x_offset, hauteur_courante-3 + 18);
+	
+	// --------------- Size --------------------------------
+	hauteur_courante = y_offset + plot_haut -1 + 42;
+	setColor(0, 255, 0);
+	drawLine(x_offset, hauteur_courante ,x_offset + plot_larg , hauteur_courante);
+	xstep = 50;
+	x_step = x_offset;
+	nbtics =  floor(abs(maxixsize)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante,x_step,hauteur_courante-5);	x_step = x_step + xstep*plot_larg/maxixsize;	} // for
+	drawString("LPM Mean ESD ( µm )", 100, hauteur_courante-3 + 18);
+	drawString("0", x_offset, hauteur_courante-3 + 18);
+	maxixsize = toString(maxixsize);
+	drawString("  "+maxixsize, plot_larg-25+x_offset, hauteur_courante-3 + 18);
+	
+// ---------------------- FIN -------------------------
+ret = uvp_sn +" "+ path +" "+ zmax +" "+ tmax +" "+ maxixab +" "+ maxixsize +" "+ maxixgrey +" "+ type +" "+ plot_larg +" "+ plot_haut +" "+ x_offset +" "+ y_offset;
+return ret;

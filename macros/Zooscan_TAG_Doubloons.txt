@@ -1,0 +1,124 @@
+//----------------------Zooscan_TAG_Doubloons----------------------------
+version = "3.10";
+date = "2007/05/17";
+
+// RESULTS de l'image 2 est OUVERT
+// Comparaison sur BX, BY et Area
+// Parametrisation des intervalles dans le fichier CONFIG...............
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+savetag+" "+XSpacing+" " +XSize;
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  		par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];	xxx= array[21];		resolution=array[22];	savetag= array[23];
+XOffset=array[27];		XSize = array[28];		ratio = array[29];		PreviewXOffset= array[30];
+
+ratio = 		parseInt(ratio);
+XOffset = 	parseInt(XOffset);
+XSize= 		parseInt(XSize);
+PreviewXOffset= 	parseInt(PreviewXOffset);
+XOffset = 	XOffset/ratio;
+XSize = 		XSize/ratio;
+PreviewXOffset= 	PreviewXOffset/ratio;
+
+//	showMessage(XSize+" "+XOffset+" "+PreviewXOffset+" "+ratio);
+// -----------------------------Ouverture et chargement des configurations---------------------------------------
+// 	Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+selectWindow(configfile);
+run("Close");
+array = split(config,"\n");
+for (i=0; i<array.length; i++)	{	texte = array[i];	ssarray = split(texte," ");	array[i] = ssarray[1];	} // for
+vuescanrep = array[2]; 	jpeg = array[3];
+zip = array[4];		greycor = array[5];		// resolution = array[6];	
+xminref = array[7];		yminref = array[8];		doyofset = array[9];		doxpos = array[10];	xdimref = array[11];
+ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+doubloonxy = array[33];	doubloonarea= array[34];
+
+doubloonarea = 	parseFloat(doubloonarea);
+doubloonxy= 	parseFloat(doubloonxy);
+
+long= lengthOf(titre);
+val = substring(titre,0,long-6);
+chemworka = chemwork1+val+"_1\\";
+
+// -------------------------- Ouverture et lecture du pid issu d'un traitement precedent ---------------------
+//	showMessage(chemworka+val+"_1_dat1.pid");
+open(chemworka+val+"_1_dat1.pid");
+wait(500);
+data = getInfo();
+selectWindow(val+"_1_dat1.pid");
+run("Close");
+pid = split(data,"\n");
+
+//-----------------Recherche DATA section--------------------------
+for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+	if (ctrl1>=0) deb=i+1;
+} // for
+
+// ---------------------- Determination des colonnes -----------------------------------
+coltag = 0;
+a= replace(pid[deb],";"," ");
+entete = split(a,"\ ");
+for (i=0; i<entete.length ; i++) {	ee = entete[i];
+	if (ee=="BX") { 	colbx = i;		} // if
+	if (ee=="BY") { 	colby = i; 	} // if
+	if (ee=="Area") { 	colarea = i; 	} // if
+} // for
+
+//----------------Boucle de controle des doublons ----------------------------------------
+updateResults();
+nbblobs = nResults;
+
+//----------------------------------Reset des Tags a 1-----------------------------------------
+selectWindow("Results");
+for (j=0;j<nbblobs;j++) {	setResult("Tag",j,1);		} // for
+start = deb+1;
+nbtag = 0;
+for (i=start; i<pid.length; i++)	{
+	mat = 	pid[i];
+	mat = 	replace(mat,";"," ");
+	item = 	split(mat,"\ ");
+	long =	 item.length;
+	bx1=	item[colbx];
+	bx1=	parseInt(bx1);
+	bxmin= 	bx1- resolution*doubloonxy; 			// (0.02 = 0.5 mm  a 2400 dpi)
+	bxmax= 	bx1+ resolution*doubloonxy; 	
+	by1=	item[colby];
+	by1=	parseInt(by1);
+	// -------------------- Correction du decalage vertical entre les images
+	by1 = 	by1 + XOffset;			//	+PreviewXOffset;
+	bymin= 	by1- resolution*doubloonxy; 			// (0.02 = 0.5 mm  a 2400 dpi)
+	bymax= 	by1+ resolution*doubloonxy; 	
+	area1=		item[colarea];
+	area1=		parseInt(area1);
+	areamin = 	area1*(1-doubloonarea);
+	areamax= 	area1*(1+doubloonarea);
+	// ------------ On teste POSITION (BX, BY) et l'aire (AREA)
+	for (j=0;j<nbblobs;j++) {
+		Area= 	getResult("Area", j);
+		BX= 	getResult("BX", j);
+		BY= 	getResult("BY", j);
+		//	print(i,j,area1,Area,bx1,BX,by1,BY,ratio,XOffset);
+		if (BY<bymax && BY >bymin &&  BX<bxmax && BX>bxmin && Area<areamax && Area>areamin  ) { // --- On suppose que c'est le MEME objet---------------
+			selectWindow("Results");
+			setResult("Tag",j,2);
+			nbtag++;
+		} // if
+	} // for j
+} // for i
+updateResults();
+print("Doubloons_tagged= ",nbtag);
+
+ret = arg;
+return ret;
+
+

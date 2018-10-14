@@ -1,0 +1,261 @@
+// --------------------------- Zooprocess_update_metadata_from_all_meta_files --------------------------------
+date = "2011/12/09";
+version = "7.07";
+
+// --------------------------------------------------------------------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+savetag;
+arg = getArgument(); 
+array = split(arg," ");
+optionprocess= array[0]; 	chem= array[1]; 		param= array[3]; 	titre= array[4]; 
+tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	scan=array[22];	savetag= array[23];
+projfolder = array[26];
+
+chemraw = 		projfolder + "\\Zooscan_scan\\_raw\\";
+chem = 		projfolder + "\\Zooscan_scan\\_work\\";
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathpidpredicted = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+pathvig = 		projfolder+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+// ----------------- Liste des repertoires à tester pour dat1.pid et dat1.txt des 2 frames ------------------------------------------------
+repliste = newArray(4);
+repliste[0] = projfolder+"\\PID_process\\"+"\\Prediction\\";
+repliste[1] = projfolder+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+repliste[2] = projfolder+"\\PID_process\\"+"\\Pid_results\\";
+repliste[3] = projfolder+"\\PID_process\\"+"\\Sorted_vignettes\\";
+
+nbfiles = 0;
+nbscans = 0;
+
+message = "This tool will read the metadata from all the META.TXT files of the "+chemraw+" directory. \n";
+message = message+"It will copy these metadata in the meta.txt, log.txt, dat1.txt and dat1.pid of the directories : "
+message = message+"\n  - "+projfolder + "\\Zooscan_scan\\_work\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Pid_results\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Pid_results\\Dat1_extracted\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Pid_results\\Dat1_validated\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Pid_results\\Pid_predicted\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Prediction\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Sorted_vignettes\\";
+message = message+"\n  - "+projfolder+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+getBoolean(message);
+
+// --------------- si chemconfig == "edit", alors edition du meta a partir du raw du projet ----------------
+if (optionprocess == "editall") {
+	metafilelist  = 	getFileList(chemraw);
+	//--------------- Selection des fichiers dont le nom finit par le mot "meta.txt" -------------------
+	list = newArray(metafilelist.length);
+	for (h=0;h<metafilelist.length ;h++) {	
+		ctrl = endsWith(metafilelist[h],"meta.txt");
+		if (ctrl == 1)	{
+			nbscans++;
+			// --------------------------- Traitement du fichier ------------------------------------
+			// ----------- Noms de fichiers ---------------------------------------------------------
+			metafile = metafilelist[h];
+			long = lengthOf(metafile);
+			titrered = substring(metafile, 0, long-9);
+			metafilered = metafile;
+			chemfile = chemraw+"\\"+titrered;
+			long = lengthOf(metafilered);
+			titrered1 = substring(metafilered, 0, long-9);
+			sample =substring(metafilered, 0, long-11);
+			titrered2 = substring(metafilered, 0, long-11)+"_2";
+			
+			// ---------------- Chargement du META dans RAW -------------------------------
+			metafile = chemfile + "_meta.txt";
+			open(metafile);  
+			wait(100);
+			metadata = getInfo();
+			run("Close");	
+			array = split(metadata,"\n");
+			for (i=0; i<array.length; i++)	{ texte = array[i]; 	 ssarray = split(texte," "); 	array[i] = ssarray[1];	   }
+			SampleId = array[0]; 	Scanop = array[1]; 		Ship = array[2]; 		Scientificprog = array[3];
+			StationId = array[4]; 		Date = array[5]; 		Latitude = array[6]; 		Longitude = array[7];
+			Depth = array[8]; 		CTDref = array[9]; 		Otherref = array[10]; 		Townb = array[11];
+			Towtype = array[12]; 		Nettype =array[13]; 		Netmesh = array[14]; 	Netsurf = array[15];
+			Zmax = array[16]; 		Zmin = array[17]; 		Vol = array[18]; 		FracId = array[19];
+			Fracmin = array[20]; 		Fracsup = array[21]; 		Fracnb = array[22]; 		Observation = array[23];
+			Code= array[24];		SubMethod= array[25]; 	CellPart= array[26];		Replicates= array[27]; 
+			VolIni= array[28]; 		VolPrec= array[29]; 	
+
+			metadatamat = newArray(30);
+			metadatamat[0] = 	"SampleId= "+SampleId;
+			metadatamat[1] = 	"Scanop= "+Scanop;
+			metadatamat[2] = 	"Ship= "+Ship;
+			metadatamat[3] = 	"Scientificprog= "+Scientificprog;
+			metadatamat[4] = 	"StationId= "+StationId;			
+			metadatamat[5] = 	"Date= "+Date;
+			metadatamat[6] = 	"Latitude= "+Latitude;
+			metadatamat[7] = 	"Longitude= "+Longitude;
+			metadatamat[8] = 	"Depth= "+Depth;
+			metadatamat[9] = 	"CTDref= "+CTDref;
+			metadatamat[10] = 	"Otherref= "+Otherref;
+			metadatamat[11] = 	"Townb= "+Townb;
+			metadatamat[12] = 	"Towtype= "+Towtype;
+			metadatamat[13] = 	"Nettype= "+Nettype;
+			metadatamat[14] = 	"Netmesh= "+Netmesh;
+			metadatamat[15] = 	"Netsurf= "+Netsurf;
+			metadatamat[16] = 	"Zmax= "+Zmax;
+			metadatamat[17] = 	"Zmin= "+Zmin;
+			metadatamat[18] = 	"Vol= "+Vol;
+			metadatamat[19] = 	"FracId= "+FracId;
+			metadatamat[20] = 	"Fracmin= "+Fracmin;
+			metadatamat[21] = 	"Fracsup= "+Fracsup;
+			metadatamat[22] = 	"Fracnb= "+Fracnb;
+			metadatamat[23] = 	"Observation= "+Observation;
+			metadatamat[24] = 	"Code= "+Code;
+			metadatamat[25] = 	"SubMethod= "+SubMethod;
+			metadatamat[26] = 	"CellPart= "+CellPart;
+			metadatamat[27] = 	"Replicates= "+Replicates;
+			metadatamat[28] = 	"VolIni= "+VolIni;
+			metadatamat[29] = 	"VolPrec= "+VolPrec;
+			//------------  Effacement de la fenetre LOG ---------------------------------------
+			print("A purger");	selectWindow("Log");		run("Close");
+			for (i=0; i<30 ; i++) { data = metadatamat[i]; 	print(data);	} // for
+
+			// ----------------------- Enregistrement des META ----------------------------------------------------
+			imagemeta1 = 	chem+"\\"+titrered1+"\\"+titrered1+"_meta.txt";
+			if ( File.exists(imagemeta1)) {
+				selectWindow("Log");
+				run("Text...","save="+imagemeta1);	
+				nbfiles++;		
+			} // if
+			imagemeta2 = 	chem+"\\"+titrered2+"\\"+titrered2+"_meta.txt";
+			if ( File.exists(imagemeta2)) {
+				run("Text...","save="+imagemeta2);	
+				nbfiles++;
+			} // if
+
+			// ----------------------- LOG et PID -----------------------------------------------------
+			// ----------------- Liste des fichiers qui doivent être recherches -----------------
+			filelist = newArray(50000);
+			j = 0;
+			// ----------------- Repertoires et noms fixes ------------------------------------------
+			if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_log.txt")){ 		filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_log.txt";		j++;		} // if
+			if (File.exists(chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered1+"\\"+titrered1+"_dat1.pid";	j++;		} // if	
+			if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_log.txt")){		filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_log.txt";		j++;		} // if
+			if (File.exists(chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid"))	{	filelist[j] = 	chem+"\\"+titrered2+"\\"+titrered2+"_dat1.pid";	j++;		} // if
+
+			// ------------------------- Boucle sur les répertoires et sous-répertoires -------------------------
+			for (t = 0;t<4;t++) {
+				path = repliste[t];
+				// ---------------- Recherche des fichiers dat1.pid et dat1.txt dans path --------------------
+				sorted = getFileList(path);
+				if (sorted.length >=1) {	
+				// ---------------------------- Boucle sur les fichiers et repertoires --------------------------------
+					for (i=0; i<sorted.length ; i++) {	  
+						replist = newArray(1000);
+						rr = sorted[i];
+
+						// -----------------Fichiers ----------------------------------------------------------------------------------
+						if (endsWith(rr,titrered1+"_dat1.pid"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+						else if (endsWith(rr,titrered2+"_dat1.pid"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+						else if (endsWith(rr,titrered1+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+						else if (endsWith(rr,titrered2+"_dat1.txt"))	 {	rr = 	path+rr;	filelist[j] = rr;		j++;		} // if
+						else { 
+							// nothing to do...
+						} // 
+						// ----------------- Sous repertoire ----------------------------------------------------------------------
+						if (endsWith(rr,"/"))	 {
+							subpath = path+rr+"\\";
+							rep =  getFileList(subpath);
+							if (rep.length >=1) {
+								// ----------------- Boucle sur les fichiers ---------------------------------------		
+								for (x=0;x<rep.length ;x++) {
+									gg = rep[x];
+									if (endsWith(gg,titrered1+"_dat1.pid"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+									else if (endsWith(gg,titrered2+"_dat1.pid"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+									else if (endsWith(gg,titrered1+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+									else if (endsWith(gg,titrered2+"_dat1.txt"))	 {	gg = 	subpath+gg;	filelist[j] = gg;		j++;		} // if
+									else {
+										// Nothing to do
+									} //  else
+								} // for
+							} // if
+						} // for
+					} // if
+				} // if
+			} // for
+			// ------------------------- Reduction taille vecteur ------------------------------------------------
+			listprocess  = newArray(j); 
+			for (k = 0;k<j;k++) { 
+				rr = filelist[k]; 	
+				listprocess[k] = rr;	
+//				getBoolean(rr);
+			} // for
+//			message = "Metadata modified in the following files : \n ";
+			// ----------------- Ecriture des fichiers selectionnes ------------------------------------------------------------
+			for (k = 0;k<j;k++) {	
+				text = listprocess[k];
+				//	showMessage(text);
+				// --------------- Effacement du log --------------------------------	
+				print("A purger");	selectWindow("Log");	run('Close');
+				open(text);  
+				wait(100);
+				data = getInfo();
+				array = split(data,"\n");
+				run("Close");
+				index = 0;
+				fin = array.length;
+				// ------------------ Recherche de la fin de la section metadata pour raccourcir le process --------------------
+				while (index < array.length) {data = array[index];
+					if (startsWith(data,"[Process]")) { 	fin = index;	index = array.length;	} // if
+					index++;
+				} // while
+				// ---------------- Remplacement -----------------------------------------
+				for (i=0; i<fin ; i++) {	
+					data = array[i];
+					if (startsWith(data,"SampleId="))	array[i] = metadatamat[0];
+					if (startsWith(data,"Scanop=") )	array[i] = metadatamat[1];
+					if (startsWith(data,"Ship= ") )	array[i] = metadatamat[2];
+					if (startsWith(data,"Scientificprog=")) 	array[i] = metadatamat[3];
+					if (startsWith(data,"StationId=")) 	array[i] = metadatamat[4];
+					if (startsWith(data,"Date="))	 	array[i] = metadatamat[5];
+					if (startsWith(data,"Latitude=")) 	array[i] = metadatamat[6];
+					if (startsWith(data,"Longitude=")) 	array[i] = metadatamat[7];
+					if (startsWith(data,"Depth=") )	array[i] = metadatamat[8];
+					if (startsWith(data,"CTDref=")) 	array[i] = metadatamat[9];
+					if (startsWith(data,"Otherref=") )	array[i] = metadatamat[10];
+					if (startsWith(data,"Townb=")) 	array[i] = metadatamat[11];
+					if (startsWith(data,"Towtype=")) 	array[i] = metadatamat[12];
+					if (startsWith(data,"Nettype=")) 	array[i] = metadatamat[13];
+					if (startsWith(data,"Netmesh=")) 	array[i] = metadatamat[14];
+					if (startsWith(data,"Netsurf=")) 	array[i] = metadatamat[15];
+					if (startsWith(data,"Zmax=") )	array[i] = metadatamat[16];
+					if (startsWith(data,"Zmin=")) 		array[i] = metadatamat[17];
+					if (startsWith(data,"Vol=")) 		array[i] = metadatamat[18];
+					if (startsWith(data,"FracId=")) 	array[i] = metadatamat[19];
+					if (startsWith(data,"Fracmin=")) 	array[i] = metadatamat[20];
+					if (startsWith(data,"Fracsup=")) 	array[i] = metadatamat[21];
+					if (startsWith(data,"SubPart=")) {	
+						dd = split(metadatamat[22],"\ ");
+						array[i] = "SubPart="+toString(dd[1]);
+					} //
+					if (startsWith(data,"Observation=")) 	array[i] = metadatamat[23];
+					if (startsWith(data,"Code= ")) 	array[i] = metadatamat[24];
+					if (startsWith(data,"SubMethod= ")) 	array[i] = metadatamat[25];
+					if (startsWith(data,"CellPart= ")) 	array[i] = metadatamat[26];
+					if (startsWith(data,"Replicates= ")) 	array[i] = metadatamat[27];
+					if (startsWith(data,"VolIni= ")) 	array[i] = metadatamat[28];
+					if (startsWith(data,"VolPrec= ")) 	array[i] = metadatamat[29];
+				} // for
+				for (i=0; i<array.length ; i++) {	data = array[i];	print(data);	} // for
+				// ----------------- Enregistrement ----------------------------------------
+				selectWindow("Log");
+				run("Text...","save="+text);
+				nbfiles++;
+//				message = message+"\n- "+text;
+			} // for
+			print("A purger");	selectWindow("Log");	run('Close');
+//			showMessage("NORMAL END of EDIT METADATA        ",message);
+		} // if
+	} // for	
+} // if
+message = "\n"+nbscans+" SCANS processed.\n"+nbfiles+" FILES corrected !                                                                           ";
+showMessage("NORMAL END of UPDATE METADATA        ",message);	
+
+// -------------------------- FIN --------------------------------------------------------------
+ret = "OK";
+return ret;
+
+
+

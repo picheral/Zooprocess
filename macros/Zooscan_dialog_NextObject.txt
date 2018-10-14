@@ -1,0 +1,5 @@
+Dialog.create("NEXT OBJECT");
+Dialog.addMessage("INSTRUCTIONS : \nUtilize ZOOM & MOVE tools to go to the object to split.    \nPress Roll Mouse Button before drawing line \n \nOK : to draw another line \n \nPRESS CANCEL : to END drawing lines");
+Dialog.show();
+ret = "1";
+return ret;

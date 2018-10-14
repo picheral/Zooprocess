@@ -1,0 +1,1098 @@
+// -------------------------- UVP5_process_vignette_PID --------------------------
+version = "1.03";
+date = "2009/07/19";
+
+args = 	getArgument();
+arg = 	split(args," ");
+dirprocessed = 	arg[0];
+datfilename = 	arg[1];
+profile = 		arg[2];
+firstimg = 	arg[3];
+firstimg = parseInt(firstimg);
+processvignettes = arg[4];
+processpid = 	arg[5];
+dirprofile =	arg[6];
+dircruise = 	arg[7];
+
+dirpid = dircruise+"\\PID_process\\pid_results\\";
+if (File.exists(dirpid) == 0) File.makeDirectory(dirpid);
+
+dirpred = dircruise+"\\PID_process\\prediction\\";
+if (File.exists(dirpred) == 0) File.makeDirectory(dirpred);
+
+print("A purger");	selectWindow("Log");		run("Close");
+run("Colors...", "foreground=black background=white selection=red");
+
+// -------------------- Mode TEST ---------------------------------------
+test = 		"0";
+if (test == "1")  { batch =		"false";	getBoolean("MODE TEST ! Continue ?");	} // if
+
+// ----------------- Parametres ----------------------
+longline = 	64;
+gamma = 	"value=4.000";		// precedement a 3 jusqu'au 2/10/2008
+echelle = 	"5 mm ";
+voxelwidth= 	1;
+voxelheigth= 	1;
+voxeldepth= 	1;
+voxelunit = 	"pixel";
+upper = 		252;
+option =		"A";
+param = 		"1";
+TAG = 		0;
+batch =		true;
+profmax = 0.5;
+//	profmax = 31.0;
+
+// ----------------------- Pixel size ---------------------
+pixel = 0.174;
+Spmin = 20;
+Spmax = 100000;
+
+//------------- Ouverture du fichier  DAT reduit dans le repertoire final du profil ----------------
+open(dirprocessed +datfilename);
+wait(100);
+data = getInfo();
+wait(100);
+run("Close");
+ligne = split(data,"\n");
+
+//	getBoolean(datfilename);
+
+// -------------- Liste des fichiers BMP -----------------------------------
+filelist = getFileList(dirprofile);
+j = 0;
+pos = 0;
+flag = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	path = dirprofile+"\\"+nomvig;
+	size = File.length(path);
+	size = parseInt(size);
+	pos = endsWith(nomvig,".bmp");
+	if (pos == true  )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+	if (pos == true && size == 1311798) 	flag = 1;
+} // for
+if (j >= 1) {
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	} // for
+} // if
+
+// ---------------- liste des images pour lesquelles une vignette existe Indexation profondeur -------------------------
+vignumber = 0;
+nn = 5*j;				// Par precaution, car on a enleve des vignettes en surface !
+Vigname = 	newArray(nn);
+Vigdepth = 	newArray(nn);
+Vigimg =		newArray(nn);
+
+for (i=0; i<ligne.length ; i++) {
+	dataline = 	ligne[i];
+	dataline = 	replace(dataline,";"," ");
+	dataline = 	split(dataline,"\ ");
+	noimg = 		dataline[0];
+	noimg = 		parseInt(noimg);
+	vigname = 	dataline[1];			// Nom image source
+	vigdepth =	dataline[2];			// Immersion
+	vignb = 		dataline[17];			// Nombre de vignettes dans l'image
+	vignb = 		parseInt(vignb);
+	// --------------- Nom de la premiere image a conserver ------------------
+	if (noimg == firstimg) { image0 = substring(vigname,0,14);	} // if
+	if (vignb != 0) {
+		for (m = 0;m<vignb;m++) {
+			Vigname[vignumber] = 	vigname;			// Nom image source
+			vigdepth =		parseFloat(vigdepth);	// Immersion
+			Vigdepth[vignumber] =	vigdepth/10;
+			Vigimg[vignumber] = 	noimg;			// N° de l'image dans le datfile
+			vignumber++;	
+		} // for
+	} // if
+} // for
+
+//	getBoolean("CONTINUE ?    "+dirprofile+"          ");
+
+//	getBoolean("vignumber= "+vignumber+"    nbvignettes= "+j);
+// ----------- detection VIGNETTE / IMAGE entiere -------------------------
+if (flag == 1) { 
+	//	getBoolean("Full images have been saved. \nDo you want to process them or Cancel ? ");
+	// -------------------- Process images entieres -----------------------------
+	ret = runMacro("UVP5_vignettes_from_image",args);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	getBoolean("Image to vignette process aborted. \nPress Cancel to abort !    ");		} // if
+} // if
+
+
+// -------------- Liste des vignettes -----------------------------------
+filelist = getFileList(dirprofile);
+j = 0;
+pos = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	pos = endsWith(nomvig,".bmp");
+	path = dirprofile+"\\"+nomvig;
+	size = File.length(path);
+	size = parseInt(size);
+	//	showMessage(nomvig+"        "+size);	
+	if (pos == true  && size < 1311798)  {rr = filelist[i]; 	list[j] = rr; 	j++;			} // if
+} // for
+if (j >= 1) {
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	} // for
+} // if
+
+// --------------- Process PID vignette par vignette ---------------------
+
+if (processpid == 1 ) {
+	// -------------- Vecteurs -------------------------------
+	nbblobs = 	j;
+	Img = 		newArray(nbblobs);
+	XSTART = 	newArray(nbblobs);
+	YSTART = 	newArray(nbblobs);
+	BX = 		newArray(nbblobs);
+	BY = 		newArray(nbblobs);
+	WIDTH = 		newArray(nbblobs);
+	HEIGTH = 	newArray(nbblobs);
+	Area = 		newArray(nbblobs);
+	Mean =		newArray(nbblobs);
+	StdDev = 		newArray(nbblobs);
+	Mode = 		newArray(nbblobs);
+	Min = 		newArray(nbblobs);
+	Max = 		newArray(nbblobs);
+	X = 		newArray(nbblobs);
+	Y = 		newArray(nbblobs);
+	XM = 		newArray(nbblobs);
+	YM = 		newArray(nbblobs);
+	Perim = 		newArray(nbblobs);
+	Major = 		newArray(nbblobs);
+	Minor = 		newArray(nbblobs);
+	Angle = 		newArray(nbblobs);
+	Circ = 		newArray(nbblobs);
+	Feret = 		newArray(nbblobs);
+	IntDen = 		newArray(nbblobs);
+	Median = 		newArray(nbblobs);
+	Skew = 		newArray(nbblobs);
+	Kurt = 		newArray(nbblobs);
+	PArea = 		newArray(nbblobs);
+	Area_exc = 	newArray(nbblobs);
+	Fractal = 		newArray(nbblobs);
+	Skelarea = 	newArray(nbblobs);
+
+	Slope = 		newArray(nbblobs);
+	Histcum1 =	newArray(nbblobs);		
+	Histcum2 =	newArray(nbblobs);
+	Histcum3 =	newArray(nbblobs);
+	XMg5 = 		newArray(nbblobs);
+	YMg5 = 		newArray(nbblobs);
+	nbA =		newArray(nbblobs);
+	nbB =		newArray(nbblobs);
+	nbC =		newArray(nbblobs);
+	compentropy =	newArray(nbblobs);
+	compmean = 	newArray(nbblobs);
+	compslope = 	newArray(nbblobs);
+	compm1 =	newArray(nbblobs);
+	compm2 =	newArray(nbblobs);
+	compm3 =	newArray(nbblobs);
+	symetrieh =	newArray(nbblobs);
+	symetriev =	newArray(nbblobs);
+	symetriehc =	newArray(nbblobs);
+	symetrievc =	newArray(nbblobs);
+	convperim =	newArray(nbblobs);
+	convarea =	newArray(nbblobs);
+	fcons =		newArray(nbblobs);
+	ratio = 		newArray(nbblobs);
+	Depth = 		newArray(nbblobs);
+
+	// -------------------- BOUCLE PRINCIPALE sur les vignettes ------------------------------------------------------------------------------------
+	setBatchMode(batch);
+	totalvig = 0;
+	for (i=0; i<listaff.length ; i++) {
+//	for (i=0; i<800 ; i++) {
+		image = listaff[i];
+		path = dirprofile+"\\"+image;
+		// ------------ Recherche de la profondeur -------------
+		vignette = substring(image, 0, 18);
+		depth = 0;
+		flag = 0;
+		for (index=0; index<vignumber ; index++) { 
+			vig = Vigname[index];					//  Nom image source
+			vig = replace(vig,"_",".");
+			vignette = replace(vignette,"_",".");
+			vig = parseFloat(vig);
+			vignette = parseFloat(vignette);				// Nom Image source (valide pour plusieurs vignettes)
+			if (vig == vignette) {	depth = Vigdepth[index];		} // if
+		} // for
+		// ---------------- Nom vignette ---------------------------------
+		vignette = substring(image, 0, 23);
+
+		// ----------------- TEST premiere image ---------------------
+		facteuri = 1;
+		image0 = parseInt(image0);
+		if ((image0/20000000000000)<1) {	facteuri = 10;	} // if
+		image0date = 	image0 * facteuri;
+
+		facteurv = 1;
+		vignettedate = 	substring(vignette,0,14);
+		vignettedate = 	parseInt(vignettedate);
+		if ((vignettedate/20000000000000)<1) {	facteurv = 10;	} // if
+		vignettedate = 	vignettedate * facteurv;
+
+		showStatus("Skip vignette "+ i +"/"+listaff.length+"  WAIT !");
+		profimg = parseFloat(depth);
+		
+
+		//	getBoolean(path);
+	// ------------------ Vignette existe et apres FIRSTIMGOK et inf a profmax  -------------------------
+	if (File.exists(path) && vignettedate >= image0date && profimg >= profmax) { 
+		profmax = maxOf(profimg,profmax);
+		//	getBoolean("   image0= "+image0+"   image0dat = "+image0date+" facteuri="+facteuri+"    vignette= "+vignette+"    vignettedate= "+vignettedate+" facteurv="+facteurv);			
+		// +++++++++++++++++++++
+		Depth[totalvig] = depth;
+		// +++++++++++++++++++++
+		//	depth = parseInt(depth);
+		//	depth = toString(depth);
+		//	if (lengthOf(depth) == 1) depth = "000"+depth;
+		//	if (lengthOf(depth) == 2) depth = "00"+depth;
+		//	if (lengthOf(depth) == 3) depth = "0"+depth;
+
+		//	titrered = profile+"_pid_"+depth+"_"+vignette;
+		titrered = profile;
+
+		// --------------- Ouverture vignette -----------
+if (test == "1") 	print("NEW vignette    "+i);
+		open(path);
+
+if (test == "2")	saveAs("bmp", path); 
+
+		rename(titrered);
+
+		HH = 	getHeight();		WW = 	getWidth();
+		// --------- Inversion ------------------------------
+		run("Invert");
+		// -------------- Sauvegarde vignette -----------------------------------------------------
+		if (processvignettes == 1 ) {
+			run("Duplicate...", "title=vignette to save");
+			// --------- Gamma -------------------------------
+			run("Gamma...", gamma);
+			// --------- Resize --------------------------------
+			Wfinal = 	WW*2;
+			Hfinal = 	HH*2;
+			text = 	"width="+Wfinal+" height="+Hfinal+" constrain interpolate";
+			run("Size...", text);
+			// -------- Ajout de l'echelle 5 mm -----------------------------
+			setLineWidth(2);
+			setFont("SansSerif", 9);
+			Wfinal =	maxOf(Wfinal,longline+30);
+			H = 	Hfinal+31;
+			text = "width="+Wfinal+" height="+H+" position=Top-Left";
+			run("Canvas Size...", text);
+			drawString(echelle,25,Hfinal+10);
+			drawLine(10,Hfinal+10,10+longline,Hfinal+10);
+			drawLine(10,Hfinal+10,10,Hfinal+7);
+			drawLine(10+longline,Hfinal+10,10+longline,Hfinal+7);
+			drawString(profile,10,Hfinal+21);
+//			drawString(vignette,10,Hfinal+21);
+			vignette = substring(image, 0, 23);
+			depth = parseFloat(depth);
+			depth = toString(depth);
+			//	if (lengthOf(depth) == 1) depth = "000"+depth;
+			//	if (lengthOf(depth) == 2) depth = "00"+depth;
+			//	if (lengthOf(depth) == 3) depth = "0"+depth;
+			Imagenb = Vigimg[i];
+			Imagenb = toString(Imagenb);
+			drawString(Imagenb+"   "+depth+" m",10,Hfinal+30);
+			// -------- Enregistrement et fermeture ---------------
+			norecord = totalvig+1;
+			saveAs("jpg", dirprocessed+titrered+"_"+norecord+".jpg"); 
+			//	showMessage(dirprocessed+titrered+"_"+index+".jpg"); 
+			close();
+		} // if
+		selectImage(titrered);
+		// +++++++++++++++++++++
+		listaff[totalvig] = titrered;
+		// +++++++++++++++++++++
+		image = titrered;
+		setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+		run("Duplicate...", "title=vignette");
+		run("Duplicate...", "title=vignette_msk");
+		run("8-bit");
+		setVoxelSize(1,1,1,voxelunit);
+		setThreshold(0, upper);
+		run("Threshold", "thresholded remaining black");
+		if (isOpen("Results")) { selectWindow("Results");		run('Close');	}
+
+		// ---------------------- Nettoyage de la vignette "vignette_msk" et premieres mesures -----------------------------------
+		run("Set Measurements...", "area centroid center bounding area_fraction fit limit redirect=[vignette_msk] decimal=2");
+		//	analysis1 =  "size=0-Infinity circularity=0.00-1.00 bins=20 show=Nothing include exclude flood record";
+		analysis1 =  "size=1-Infinity circularity=0.00-1.00 bins=20 show=Nothing include flood record";
+		run("Analyze Particles...",analysis1);
+		updateResults();
+		nbobj = nResults;
+		ligne = 0;		g = 0;		
+		// ---------------------- Recherche plus gros -----------------------------------
+		if (nbobj == 0) {	print("Error : "+titrered+"  "+i);		getBoolean("Error "+titrered+"  "+i);		} // if
+		areainit = 0;
+		while (g<nbobj) {		area = getResult("Area", g);
+			bx = 	getResult("BX", g);
+			by = 	getResult("BY", g);
+			w = 	getResult("Width", g);
+			h = 	getResult("Height", g);
+			x = 	getResult("X", g);
+			y = 	getResult("Y", g);
+//			if (bx != 0 && by != 0 && h != 0 && x != 0 && y != 0 ) {
+			if (h != 0 && x != 0 && y != 0 ) {
+				if (area > areainit ) 	{	
+					ligne = g;	
+if (test == "1") 				print("1    bx =  "+bx+"   by = "+by+"   h = "+h+"   x = "+x+"   y = "+y+"    CONTINUE ?");			
+				} // if
+				areainit = maxOf(area,areainit);
+			} // if	
+			g++;
+		} // for
+		bx = 	getResult("BX", ligne);
+		by = 	getResult("BY", ligne);
+		w = 	getResult("Width", ligne);
+		h = 	getResult("Height", ligne);
+		x = 	getResult("X", ligne);
+		y = 	getResult("Y", ligne);
+		area = 	getResult("Area", ligne);
+		major = 	getResult("Major", ligne);
+		angle = 	getResult("Angle", ligne);
+		xstart = 	getResult("XStart", ligne);
+		ystart = 	getResult("YStart", ligne);
+		parea = 	getResult("%Area", ligne);
+		// ++++++++++++++++++++++++++
+		Area[totalvig] = 		area;
+		PArea[totalvig] = 	parea;
+		Area_exc[totalvig] = 	area - area* (0.01 * parea);	
+		BX[totalvig] = 		bx;
+		BY[totalvig] = 		by;
+		WIDTH[totalvig] =	w;	
+		HEIGTH[totalvig] =	h;
+		XSTART[totalvig] = 	xstart;
+		YSTART[totalvig] =	ystart;
+		// ++++++++++++++++++++++++++
+		//	print("Image = "+i);
+		// --------------- nettoyage autour du plus gros objet -------------
+		selectImage("vignette_msk");
+if (test == "1") 	print("2    Area =  "+area+"   xstart = "+xstart+"   ystart = "+ystart+"    CONTINUE ?");
+		DEBX = xstart;
+		DEBY= ystart;
+		doWand(DEBX,DEBY);
+		run("Clear Outside");
+if (test == "1") 	print("3    End of CLEAR outside. CONTINUE ?");
+
+		// ------------------- symétrie brute et Ratio  ----------------------	
+		image = "vignettesym";
+		selectImage("vignette_msk");
+		if(isOpen("vignettesym")) { selectImage("vignettesym"); close();	} // if
+		run("Duplicate...", "title=vignettesym");
+		if (isOpen("Results")) { selectWindow("Results");		run('Close');	}			
+		// --------------- Agrandissement de l'image -------------------------
+		largeursym = 	WW*1.2;
+		hauteursym = 	HH*1.2;
+		canvas = "width="+largeursym+" height="+hauteursym+" position=Center";
+		selectImage("vignettesym");	
+		run("Canvas Size...", canvas);
+
+		// ----------------------- Nettoyage vignette "vignette_sym" -------------------------------
+if (test == "1") 	print("10    End of Agrandissement. CONTINUE ?");
+		if (isOpen("Results")) { selectWindow("Results");		run('Close');	}
+		run("Set Measurements...", "area centroid bounding fit redirect=[vignettesym] decimal=2");
+		selectImage("vignettesym");
+		run("Analyze Particles...", "size=0-Infinity circularity=0.00-1.00 show=Nothing include record");
+		// ------------------ Symetrie du plus gros objet de la vignette ---------------------------
+if (test == "1") 	print("Debut Symetrie. CONTINUE ?");
+		updateResults();
+		nbobj = nResults;
+		ligne = 0;		g = 0;		Ratio = 0;
+		if (nbobj == 0) {		print("Error Debut Symetrie : "+titrered+"  "+i);	setBatchMode("exit and display");	getBoolean("Error Debut Symetrie : "+titrered+"  "+i);		} // if
+
+//		areainit = getResult("Area", ligne);
+		areainit = 0;
+		while (g<nbobj) {		area = getResult("Area", g);
+			bx = 	getResult("BX", g);
+			by = 	getResult("BY", g);
+			w = 	getResult("Width", g);
+			h = 	getResult("Height", g);
+			x = 	getResult("X", g);
+			y = 	getResult("Y", g);
+//			if (bx != 0 && by != 0 && h != 0 && x != 0 && y != 0 ) {
+			if (h != 0 && x != 0 && y != 0 ) {
+				if (area > areainit ) 	{	
+					ligne = g;	
+if (test == "1") 				print("bx =  "+bx+"   by = "+by+"   h = "+h+"   x = "+x+"   y = "+y+"    CONTINUE ?");			
+				} // if
+				areainit = maxOf(area,areainit);
+			} // if	
+			g++;
+		} // for
+		bx = 	getResult("BX", ligne);
+		by = 	getResult("BY", ligne);
+		w = 	getResult("Width", ligne);
+		h = 	getResult("Height", ligne);
+		x = 	getResult("X", ligne);
+		y = 	getResult("Y", ligne);
+		area = 	getResult("Area", ligne);
+		major = 	getResult("Major", ligne);
+		angle = 	getResult("Angle", ligne);
+		xstart = 	getResult("XStart", ligne);
+		ystart = 	getResult("YStart", ligne);
+		angle = 	angle +180;
+		angle = 	toString(angle);
+			// --------------- nettoyage autour du plus gros objet -------------
+		selectImage("vignettesym");
+		DEBX = xstart;
+		DEBY= ystart;
+		doWand(DEBX,DEBY);
+		run("Clear Outside");
+			// ---------------- centrage ----------------------
+		sum = w*w + h*h;
+		diag = pow(sum, 0.5);
+		diag = diag * 1.2;
+		makeRectangle(bx,by,w,h);
+		run("Copy");
+		newImage("vignetteA", "8-bit White",diag, diag, 1);
+		x = x-bx;
+		y = y-by;
+		posx = (diag/2)-x;
+		posy = (diag/2)-y;
+		makeRectangle(posx,posy,w,h);
+		run("Paste");
+		selectImage("vignetteA");
+		run("Make Binary");
+		run("Select None");
+		rotation = "angle="+angle+" interpolate";
+		rotation = "angle="+angle+" grid=1 fill";
+		run("Arbitrarily...", rotation);
+
+
+		//---------------- Vignette A est horizontale sur son grand axe -------------------
+		W = diag;		H = diag;
+		getHistogram(0, hist, 256);
+if (test == "1") 	print("End of Histogram. CONTINUE ?");
+		S = newArray(250);
+		F = 0;	pa = 0;	pb = 0;	pd = 0;	flag = 0;	max = 0;	min = 1000;	c = 0;		count = 1;
+		// ---------  Normalisation de l'intervalle par la taille pixel --------------
+		step = floor(0.1/pixel);
+		step = maxOf(step,1);
+		pointA = newArray(1+W/step);
+		pointB = newArray(1+W/step);
+		dif = newArray(1+W/step);
+if (test == "1") 	print("End of Array. CONTINUE ?");
+		//-------- start--vertical search---------------
+		for(x=0;x<W;x=x+step)	{
+			for(y=0;y<H-1;y=y+1) {
+				pa = getPixel(x,y);
+                     	  			pb = getPixel(x,y+1);
+				pd = abs(pa-pb);
+				if(pd > 100 && flag == 0) { 	flag = 1;	pd = 0;		pointA[c]=y;     			} // if
+                                			if(pd > 100 && flag == 1) {	pointB[c]=y;		flag = 3;		c++;		} // if
+			} // for
+			flag = 0;		pd = 0;
+		}  // for
+if (test == "1") 	print("End of Vertical. CONTINUE ?");
+		//-------- end -- vertical search -----------------
+		for(k=0;k<c;k=k+1) {	dif[k]= pointB[k]-pointA[k];	}
+		// ---------- max et moyenne de la difference -----------
+		meandif = 0;
+		for(k=0;k<c-1;k=k+1) {	meandf = meandf + dif[k];	
+			if(dif[k]> max) 	max = dif[k];	
+		} // for
+if (test == "1") 	print("End of Vertical2. CONTINUE ?");
+		meandf = meandf/c;
+		Ratio = max/meandf;
+		wait(50);
+		run("Duplicate...", "title=vignetteB");
+		selectImage(image);		close();
+		// ------------- axe 1 ----------------------------
+		run("Flip Horizontally");
+		run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+		selectImage("Result of vignetteA");
+		getHistogram(0, hist, 256);
+		areasym = hist[0];
+		ratio1 = (areasym/2)/area;
+		selectImage("Result of vignetteA");	close();
+		// ------------- axe 2 ----------------------------
+		selectImage("vignetteB");
+		run("Make Binary");
+		run("Flip Horizontally");
+		selectImage("vignetteB");
+		run("Flip Vertically");
+		run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+		selectImage("Result of vignetteA");
+		//	run("Make Binary");
+		getHistogram(0, hist, 256);
+		areasym2 = hist[0];
+		ratio2 = (areasym2/2)/area;
+		ratioh = toString(ratio1);
+		ratiov = toString(ratio2);
+		// ------------------ Fermeture des vignettes -------------------------------------
+		selectImage("Result of vignetteA");		close();
+		selectImage("vignetteA");			close();
+		selectImage("vignetteB");			close();
+		if (isOpen("Results")) { selectWindow("Results");		run('Close');	}// if
+		// ++++++++++++++++++++++++++
+		symetrieh[totalvig] = 	ratio1;	
+		symetriev[totalvig] = 	ratio2;	
+		ratio[totalvig] = 		Ratio;	
+		// ++++++++++++++++++++++++++
+if (test == "1") 	print("End of Symetry1. CONTINUE ?");
+
+		// ---------------- La vignette utilisee est nettoyee ------------------------------------------
+		selectImage("vignette_msk");
+
+		// ------------------- Mesures principales en niveaux de gris -----------------------------------------
+		parametres2 = "area mean standard modal min centroid center perimeter bounding fit circularity feret's integrated median skewness kurtosis area_fraction limit redirect="+titrered+" decimal=2";
+		parametres3 = "centroid center redirect=vignette decimal=2";
+
+		run("Set Measurements...",parametres2 );
+		run("Measure");
+		run("Select None");
+		//-----------------------Recuperation des mesures complementaires a celles de la 1ere analyse-------------------
+		updateResults();
+		area_exc = 	getResult("Area", 0);
+		mean = 		getResult("Mean", 0);
+		stddev = 		getResult("StdDev", 0);
+		mode = 		getResult("Mode", 0);
+		min = 		getResult("Min", 0);
+		max = 		getResult("Max", 0);
+		x = 		getResult("X", 0);
+		y = 		getResult("Y", 0);
+		xm = 		getResult("XM", 0);
+		ym = 		getResult("YM",0);
+		perim = 		getResult("Perim.",0);
+		bx = 		getResult("BX", 0);
+		by = 		getResult("BY", 0);
+		l = 		getResult("Width", 0);
+		h = 		getResult("Height", 0);
+		major = 		getResult("Major",0);
+		minor = 		getResult("Minor", 0);
+		angle = 		getResult("Angle",0);
+		circ = 		getResult("Circ.", 0);
+		feret = 		getResult("Feret", 0);
+		intden = 		getResult("IntDen", 0);
+		median = 	getResult("Median",0);
+		skew = 		getResult("Skew", 0);
+		kurt = 		getResult("Kurt", 0);
+		Mean[totalvig]=		mean;
+		StdDev[totalvig]=	stddev;
+		Mode[totalvig]=		mode;
+		Min[totalvig]=		min;
+		Max[totalvig]=		max;
+		X[totalvig]=		x;
+		Y[totalvig]=		y;
+		XM[totalvig]=		xm;
+		YM[totalvig]=		ym;
+		Perim[totalvig]=		perim;
+		Major[totalvig]=		major;
+		Minor[totalvig]=		minor;
+		Angle[totalvig]=		angle;
+		Circ[totalvig]=		circ;
+		Feret[totalvig]=		feret;
+		IntDen[totalvig]=	intden;
+		Median[totalvig]=	median;
+		Skew[totalvig]=		skew;
+		Kurt[totalvig]=		kurt;
+   		run("Clear Results");
+
+if (test == "1") 	print("End of grey measurements. CONTINUE ?");
+		// ------------------------ Mesure de la pente et des parametres de l'histogramme des niveaux de gris --------------
+		selectImage(titrered);
+		run("Image Calculator...", "image1="+titrered+" operation=Add image2=vignette_msk");
+       	     	//------------------------ convex perimeter calculation ----------------------------
+          	   	selectImage("vignette_msk");
+	     	run("Duplicate...","title=convexim");
+          	 	run("Convex Hull esmer", "mode=[Draw Convex Hull]");
+                  	run("my Bin");
+	     	run("Fill Holes");
+	    	getHistogram(0, hist, 256);
+	     	Convarea = hist[0];
+		// +++++++++++++++++++++++++
+	     	convarea[totalvig] = Convarea;
+		// +++++++++++++++++++++++++
+	     	run("Outline");
+  	     	getHistogram(0, hist, 256);
+	     	Convperim = hist[0];
+	     	// ++++++++++++++++++++++++++
+		convperim[totalvig] = Convperim;
+	     	// ++++++++++++++++++++++++++
+		selectImage("convexim");	     	close();
+		selectImage(titrered);
+		getHistogram(0, hist, 256);
+		sumg = 0;	suma = 0;	hh = 0;		secartg = 0;	secarta = 0;
+		// ----------------------- On ne prend pas les pixels à 255 ! -----------------------------------------
+		Histcum = 	newArray(255);
+		for (k=0; k<255; k++) {	sumg = sumg+hist[k];	Histcum[k] = sumg;		suma = suma+k;		} // for
+		while (hh < 256) {	dat = Histcum[hh]/sumg;
+		     	// ++++++++++++++++++++++++++
+			if (dat < 0.25 ) Histcum1[totalvig] = hh;
+			if (dat < 0.50 ) Histcum2[totalvig] = hh;
+			if (dat < 0.75 ) Histcum3[totalvig] = hh;
+			// ++++++++++++++++++++++++++	
+			if (dat > 0.75) 	hh = 256;
+			hh++;
+		} // for
+		moyenneg = sumg/255;	moyennea = suma/255;
+		//---------Calcul de la pente de la regression  : stda/stdg -------------------
+		for (t =0;t<255;t++) { 
+			ecartgcar = pow(hist[t]-moyenneg,2);
+			secartg = secartg+ecartgcar;
+			ecartacar = pow(t-moyennea,2);
+			secarta = secarta+ecartacar;
+		} // for
+		stdg = secartg*1/(255-1) ;
+		stdg = pow(stdg,0.5);
+		stda = secarta*1/(255-1) ;
+		stda = pow(stda,0.5);
+	     	// ++++++++++++++++++++++++++
+		Slope[totalvig] = stdg/stda;
+	     	// ++++++++++++++++++++++++++
+		// --------------------- Contrast --------------------------------------------
+                  	S = newArray(256);
+ 		F = 0;                  	count = 1;
+		// ------------- Correction seuils ----------------------------------
+		AAA = 0;	BBB = 0;	CCC = 0;
+		for (k=0; k<255; k++) {	data = hist[k];
+			if (hist[k] !=0 && hist[k] < Histcum1[totalvig]) 		AAA = k;
+			if (hist[k] !=0 && hist[k] < Histcum2[totalvig]) 		BBB = k;
+			if (hist[k] !=0 && hist[k] < Histcum3[totalvig]) 		CCC = k;
+		} // for
+		selectImage(titrered);
+                     	for(x=1;x<l-1;x=x+1)	{
+                         		for(y=1;y<h-1;y=y+1)	{        		
+				p = getPixel(x,y);
+                               		if(p==AAA || p==BBB || p==CCC )	{	p1 = getPixel(x-1,y-1);
+                                   			p2 = getPixel(x-1,y);
+                                   			p3 = getPixel(x-1,y+1);
+                                   			p4 = getPixel(x,y-1);
+                                   			p5 = getPixel(x,y+1);
+                                  			p6 = getPixel(x+1,y-1);
+                                   			p7 = getPixel(x+1,y);
+                                   			p8 = getPixel(x+1,y+1);
+                                   			A= (p1+p2+p3+p4+p5+p6+p7+p8)/8;
+                                   			S[p]=S[p]+ abs(p-A);
+                                   			count = count + 1;
+					F = F + S[p]*hist[p]/256;
+                        			} // if
+	                      	} // for
+		} // for
+                 	Fcons = F/count;
+		// ++++++++++++++++++++++++++
+		fcons[totalvig] = Fcons;	
+		// ++++++++++++++++++++++++++
+if (test == "1") 	print("End of Slope. CONTINUE ?");
+
+		// ------------------------ Calcul du nombre d'objets restant apres differents thresholds -----------------------------
+		run("Set Measurements...", "area limit redirect=None decimal=0");
+		// -------------- Mesure A ----------------------------
+		selectImage(titrered);
+		run("Duplicate...",titrered+"-1");
+		setThreshold(0, Histcum1[totalvig]);
+		run("Threshold", "thresholded remaining black");
+		run("Erode");
+		if (option == "C") {			saveAs("Tif",chemwork+titrered+"_"+i+"_A1");			rename(titrered+"-1");		} // if
+//		run("Analyze Particles...", "size=5-1095635 circularity=0.00-1.00 show=Nothing exclude include");
+		run("Analyze Particles...", "size=1-1095635 circularity=0.00-1.00 show=Nothing include");
+		updateResults();
+		if (isOpen("Results")) { 
+			// ++++++++++++++++++++++++++
+			nbA[totalvig] = nResults;	
+	     		// ++++++++++++++++++++++++++
+			run("Clear Results");	
+		} // if
+if (test == "1") 	print("End of mesureA. CONTINUE ?");
+		selectImage(titrered+"-1");		close();
+		// -------------- Mesure B ----------------------------
+		selectImage(titrered);
+		run("Duplicate...",titrered+"-1");
+		setThreshold(0, Histcum2[totalvig]);
+		run("Threshold", "thresholded remaining black");
+		run("Erode");
+//		run("Analyze Particles...", "size=5-1095635 circularity=0.00-1.00 show=Nothing exclude include");
+		run("Analyze Particles...", "size=1-1095635 circularity=0.00-1.00 show=Nothing include");
+
+		updateResults();
+		if (isOpen("Results")) { 
+			// ++++++++++++++++++++++++++
+			nbB[totalvig] = nResults;	
+			// ++++++++++++++++++++++++++
+			run("Clear Results");	
+		} // if
+if (test == "1") 	print("End of mesureB. CONTINUE ?");
+		selectImage(titrered+"-1");		close();
+		// -------------- Mesure C et symétrie C ----------------------------
+		selectImage(titrered);
+		run("Duplicate...",titrered+"-1");
+		// --------------- Correction de Histcum3 si aucun pixel de cette valeur -----------------------------------------
+		threshold3 = Histcum3[totalvig];
+		while (hist[threshold3]== 0) {data3 = Histcum3[totalvig]; 	Histcum3[totalvig] = data3+1;		threshold3 = Histcum3[totalvig];	} // while
+		setThreshold(0, Histcum3[totalvig]);
+		run("Threshold", "thresholded remaining black");
+		// ------------------- symétrie brute ----------------------
+		image = "vignettesym";
+		selectImage(titrered+"-1");
+		HH = 	getHeight();		WW = 	getWidth();
+		if(isOpen("vignettesym")) { selectImage("vignettesym"); close();	} // if
+		run("Duplicate...", "title=vignettesym");
+if (test == "1") 	print("End of duplicateC. CONTINUE ?");
+		// --------------- Agrandissement de l'image -------------------------
+	//	newImage("vignetteag", "8-bit White",WW*1.2, HH*1.2, 1);
+		selectImage("vignettesym");		
+		largeursym = 	WW*1.2;
+		hauteursym = 	HH*1.2;
+		canvas = "width="+largeursym+" height="+hauteursym+" position=Center";
+		run("Canvas Size...", canvas);
+		run("Set Measurements...", "area centroid bounding fit redirect=["+image+"] decimal=2");
+		run("Analyze Particles...", "size=0-Infinity circularity=0.00-1.00 show=Nothing include record");
+		// ------------------ Symetrie du plus gros objet de la vignette ---------------------------
+		updateResults();
+if (test == "1") 	print("End of duplicateC2. CONTINUE ?");
+		nbobj = nResults;
+		ligne = 0;		g = 0;		Ratio = 0;
+		// ---------------------- Si probleme de vignette blanche -----------------------------------
+		if (nbobj == 0) {
+			print(titrered+"  "+i+" " +Histcum3[totalvig]);
+			selectImage(titrered);
+			saveAs("Tif",chemwork+titrered+"_"+i+"_sympb");			
+			rename(titrered);
+			showMessage(titrered+"  "+i+" " +Histcum3[i]);
+		} //
+		areainit = getResult("Area", ligne);
+		while (g<nbobj) {		area = getResult("Area", g);
+			if (area > areainit) ligne = g;
+			areainit = maxOf(area,areainit);
+			g++;
+		} // for
+
+		if (areainit > 1) {
+if (test == "1") 		print("Area = "+areainit);
+
+			bx = 	getResult("BX", ligne);
+			by = 	getResult("BY", ligne);
+			w = 	getResult("Width", ligne);
+			h = 	getResult("Height", ligne);
+			x = 	getResult("X", ligne);
+			y = 	getResult("Y", ligne);
+			area = 	getResult("Area", ligne);
+			major = 	getResult("Major", ligne);
+			angle = 	getResult("Angle", ligne);
+			xstart = 	getResult("XStart", ligne);
+			ystart =	getResult("YStart", ligne);
+			angle = 	angle +180;
+			angle = 	toString(angle);
+
+			// --------------- nettoyage autour du plus gros objet -------------
+			selectImage(image);
+			DEBX = xstart;
+			DEBY= ystart;
+			doWand(DEBX,DEBY);
+			run("Clear Outside");
+
+			// ---------------- centrage ----------------------
+			sum = w*w + h*h;
+			diag = pow(sum, 0.5);
+			diag = diag * 1.2;
+		//	makeRectangle(bx,by,w,h);
+		//	run("Copy");
+		//	newImage("vignetteA", "8-bit White",diag, diag, 1);
+		//	x = x-bx;
+		//	y = y-by;
+		//	posx = (diag/2)-x;
+		//	posy = (diag/2)-y;
+		//	makeRectangle(posx,posy,w,h);
+		//	run("Paste");
+
+			selectImage(image);
+			rename("vignetteA");
+			canvas = "width="+diag+" height="+diag+" position=Center";
+			run("Canvas Size...", canvas);
+
+			selectImage("vignetteA");
+			run("Make Binary");
+			run("Select None");
+			rotation = "angle="+angle+" interpolate";
+			rotation = "angle="+angle+" grid=1 fill";
+			run("Arbitrarily...",rotation );
+			run("Duplicate...", "title=vignetteB");
+
+		//	selectImage(image);			close();
+
+
+if (test == "1") 		print("End of centrage. CONTINUE ?");
+
+			// ------------- axe 1 ----------------------------
+			run("Flip Horizontally");
+			run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+			selectImage("Result of vignetteA");
+			getHistogram(0, hist, 256);
+			areasym = hist[0];
+			ratio1 = (areasym/2)/area;
+			selectImage("Result of vignetteA");		close();
+if (test == "1") 		print("End of sym1. CONTINUE ?");
+			// ------------- axe 2 ----------------------------
+			selectImage("vignetteB");
+			run("Make Binary");
+			run("Flip Horizontally");
+			selectImage("vignetteB");
+			run("Flip Vertically");
+			run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+			selectImage("Result of vignetteA");
+			//	run("Make Binary");
+			getHistogram(0, hist, 256);
+			areasym2 = hist[0];
+			ratio2 = (areasym2/2)/area;
+if (test == "1") 		print("End of sym2. CONTINUE ?");
+			// ------------------ Fermeture des vignettes -------------------------------------
+			selectImage("Result of vignetteA");		close();
+			selectImage("vignetteA");			close();
+			selectImage("vignetteB");			close();
+			if (isOpen("Results")) { selectWindow("Results");		run('Close');	}
+			// ++++++++++++++++++++++++++
+			symetriehc[totalvig] = 	ratio1;	
+			symetrievc[totalvig] = 	ratio2;	
+			// ++++++++++++++++++++++++++
+		} // if areainit
+		selectImage(titrered+"-1");
+		run("Erode");
+
+if (test == "1") 	print("End of Symetry2. CONTINUE ?");
+		run("Set Measurements...", "area limit redirect=None decimal=0");
+//		run("Analyze Particles...", "size=5-1095635 circularity=0.00-1.00 show=Nothing exclude include");
+		run("Analyze Particles...", "size=1-1095635 circularity=0.00-1.00 show=Nothing include");
+		updateResults();
+		if (isOpen("Results")) { 
+			// ++++++++++++++++++++++++++
+			nbC[totalvig] = nResults;	
+			// ++++++++++++++++++++++++++
+			run("Clear Results");	
+		} // if
+		selectImage(titrered+"-1");		close();
+
+		// ------------------------ Fermeture de la vignette en niveaux de gris ----------------------------------------------------
+		selectImage(titrered);	close();
+
+		// --------------------- Position du barycentre pondere apres gamma = 5 -----------------------------------------------
+		selectImage("vignette_msk");
+//		run("Gamma...", "value=5");
+if (test == "1") 	print("End of Gamma. CONTINUE ?");
+
+
+//		selectImage("vignette_msk");
+//		doWand(DEBX,DEBY);
+//		run("Set Measurements...",parametres3);
+//		run("Measure");
+//		updateResults();
+//		xmg5 = 		getResult("XM",0);
+//		ymg5 = 		getResult("YM",0);
+		// ++++++++++++++++++++++++++
+//		XMg5[totalvig] =	xmg5;
+//		YMg5[totalvig] = 	ymg5;
+		// ++++++++++++++++++++++++++
+// 		run("Clear Results");
+
+if (test == "1") 	print("End of Gamma5. CONTINUE ?");
+	
+		// ------------------------ Fermeture de la vignette en niveaux de gris ----------------------------------------------------
+		selectImage("vignette");	close();
+		// -------------------------On agrandit l'image de facon a obtenir une posibilite d'agrandissement pour les contours ----------
+		selectImage("vignette_msk");
+		L = getWidth();		H = getHeight();
+		makeRectangle(0,0,L,H);
+		run("Copy");
+		if (L >= 200 && H >= 200) { 	Lf = 2*L;	Hf = 2*H;		} // if
+		else { 			Lf = 4*L;	Hf = 4*H;		} // else
+		Xs = floor(Lf/2 - L/2);
+		Ys = floor(Hf/2 - H/2);
+		newImage("temp", "8-bit White", Lf, Hf, 1);
+		makeRectangle(Xs,Ys, L, H);
+		run("Paste");
+
+		//--------------------------------Skeleton Area--------------------------------------------------
+		selectImage("vignette_msk");
+		run("Skeletonize");
+		getHistogram(0, histS, 256);
+		histo0 = histS[0];
+		// ++++++++++++++++++++++++++
+		Skelarea[totalvig] = histo0;
+		// ++++++++++++++++++++++++++
+		if (option == "C") {		selectImage("vignette_msk");		saveAs("Tif",chemwork+titrered+"_"+i+"_skeleton");		rename("vignette_msk");	} // if
+		selectImage("vignette_msk");	close();
+if (test == "1") 	print("End of Skeleton. CONTINUE ?");
+		//--------------------------------Fractal analyse-------------------------------------------------
+		selectImage("temp");
+		if (option == "C") {		saveAs("Tif",chemwork+titrered+"_"+i+"_temp");		rename("temp");		} // if
+		makeRectangle(0,0,Lf,Hf);
+		run("Copy");
+		selectImage("temp");	close();
+		newImage("edm1", "8-bit White", Lf, Hf, 1);
+		newImage("edm2", "8-bit White", Lf, Hf, 1);
+		run("Paste");
+  		selectImage("edm1");
+		run("Paste");
+  		run("Distance Map");
+		if (option == "C") {		saveAs("Tif",chemwork+titrered+"_"+i+"_edm1");		rename("edm1");		} // if
+  		selectImage("edm2");
+  		run("Invert");
+		run("Distance Map");
+		run("Invert");
+		if (option == "C") {		saveAs("Tif",chemwork+titrered+"_"+i+"_edm2");		rename("edm2");		} // if
+		selectImage("edm1");
+		run("Invert");
+		run("Image Calculator...", "image1=edm1 operation=Add image2=edm2");
+		selectImage("edm2");	close();
+   		run("Clear Results");
+  		selectImage("edm1");
+  		run("Set Measurements...", "area limit decimal=3");
+  		if (isOpen("Log")) {	selectWindow("Log");	run("Close"); 	} // if
+  		lg = 0;  	counter=0;	iterations = 40;	sumg = 0;	suma = 0;	index = 0;
+		Lg = newArray(iterations);
+		Aire = newArray(iterations);
+  		for (k=1; k<=iterations; k++) {	 y = round(pow(1.1, k));
+   			if (lg!=y) {	lg = y;
+  				selectImage("edm1");
+      				setThreshold(0, lg);
+   				run("Measure");
+    				Lg[index] = log(2*lg);
+				arr = getResult("Area", index);
+				Aire[index] = log(arr);
+				sumg = sumg+Lg[index];
+				suma = suma+Aire[index];
+				index++;
+			} // if
+  		} // for
+		selectImage("edm1");	close();
+		moyenneg = sumg/index;
+		moyennea = suma/index;
+		//---------Calcul de la pente de la regression  : stda/stdg -------------------
+		secartg = 0;	secarta = 0;
+		for (t =0;t<index;t++) { 
+			ecartgcar = pow(Lg[t]-moyenneg,2);
+			secartg = secartg+ecartgcar;
+			ecartacar = pow(Aire[t]-moyennea,2);
+			secarta = secarta+ecartacar;
+		} // for
+		stdg = secartg*1/(index-1) ;
+		stdg = pow(stdg,0.5);
+		stda = secarta*1/(index-1) ;
+		stda = pow(stda,0.5);
+		// ++++++++++++++++++++++++++
+		Fractal[totalvig] = 2 - stda/stdg;
+		// ++++++++++++++++++++++++++
+if (test == "1") 	print("End of Fractal. CONTINUE ?");
+		// --------------------- Gestion memoire --------------------------------------------------------------------
+		if (i/1000 == floor(i/1000) ) {	p = i+1;		showStatus("Item  : "+p+" /"+nbblobs+"  => Release PC now ");	
+			for (b=0;b<4;b++)	{	run("free memory");		wait(1000);	} // for	
+		} // if
+		// -------------- Increment du no de vignette ----------------------------------
+		totalvig++;
+	} // if   ------------------ Vignette existe et apres FIRSTIMGOK et inf a profmax  -------------------------
+	}  // for i ---------------  boucle vignettes -----------------------------
+
+	//====================  creer le tableau RESULTS =======================================================
+	updateResults();
+	selectWindow("Results");
+	run("Close");
+	//----------Mettre les bons resultats dans le tableau de nouveau------------------
+	for (i=0; i<totalvig ; i++) {	
+		setResult("Label", i,listaff[i]);
+		//	setResult("NoImage", i,Vigimg[i]);
+		setResult("Z",i,Depth[i]);
+		setResult("Area",i,Area[i]);
+		setResult("Mean",i,Mean[i]);
+		setResult("StdDev",i,StdDev[i]);
+		setResult("Mode",i,Mode[i]);
+		setResult("Min",i,Min[i]);
+		setResult("Max",i,Max[i]);
+		setResult("X",i,X[i]);
+		setResult("Y",i,Y[i]);
+		setResult("XM",i,XM[i]);
+		setResult("YM",i,YM[i]);
+		setResult("Perim.",i,Perim[i]);
+		setResult("BX", i, BX[i]);
+		setResult("BY", i, BY[i]);
+		setResult("Width", i, WIDTH[i]);
+		setResult("Height", i,HEIGTH[i]);
+		setResult("Major",i,Major[i]);
+		setResult("Minor",i,Minor[i]);
+		setResult("Angle",i,Angle[i]);
+		setResult("Circ.",i,Circ[i]);
+		setResult("Feret",i,Feret[i]);
+		setResult("IntDen",i,IntDen[i]);
+		setResult("Median",i,Median[i]);
+		setResult("Skew",i,Skew[i]);
+		setResult("Kurt",i,Kurt[i]);
+		setResult("%Area", i, PArea[i]);
+		setResult("XStart", i,XSTART[i]);
+		setResult("YStart", i,YSTART[i]);
+		setResult("Area_exc",i,Area_exc[i]);
+		setResult("Fractal",i,Fractal[i]);
+		setResult("Skelarea",i,Skelarea[i]);
+		if (option != "B") {	
+			setResult("Slope",i,Slope[i]);
+			setResult("Histcum1",i,Histcum1[i]);
+			setResult("Histcum2",i,Histcum2[i]);
+			setResult("Histcum3",i,Histcum3[i]);
+			setResult("XMg5",i,XMg5[i]);
+			setResult("YMg5",i,YMg5[i]);
+			setResult("Nb1",i,nbA[i]);
+			setResult("Nb2",i,nbB[i]);
+			setResult("Nb3",i,nbC[i]);
+			setResult("Compentropy",i,compentropy[i]);
+			setResult("Compmean",i,compmean[i]);
+			setResult("Compslope",i,compslope[i]);
+			setResult("CompM1",i,compm1[i]);
+			setResult("CompM2",i,compm2[i]);
+			setResult("CompM3",i,compm3[i]);
+			setResult("Symetrieh",i,symetrieh[i]); 
+			setResult("Symetriev",i,symetriev[i]); 
+			setResult("Symetriehc",i,symetriehc[i]);
+			setResult("Symetrievc",i,symetrievc[i]); 
+			setResult("Convperim",i,convperim[i]);
+			setResult("Convarea",i,convarea[i]); 
+			setResult("Fcons",i,fcons[i]); 
+			setResult("ThickR",i,ratio[i]); 
+		} // if option
+	
+	} // for
+	setBatchMode(false);
+
+	// -------------------- Enregistrement RESULTS ----------------------------------
+	updateResults();
+	selectWindow("Results");  	
+	saveAs("measurements",dirprocessed+profile+"_measurements.txt");
+
+	// -------------------- ECRITURE PID -----------------------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close"); 	} // if
+	print("PID");
+	print("[Process]");
+	dateheure =	runMacro("Zooscan_get_time_5");
+	print("Parametre_2= "+parametres2);
+	print("Parametre_3= "+parametres3);
+	print("Date= ",dateheure);
+	print("First_image= "+firstimg);
+	image0= toString(image0);
+	print("First_image_name= "+image0);
+	
+	totalvig = toString(totalvig);
+	argpid = "UVP5 "+totalvig+" "+TAG+" "+titrered;
+	argpid = 		runMacro("Zooscan_print_pid_5",argpid);
+	flag =		toString(argpid);
+	l= 		lengthOf(flag);
+	if (l==1)  { getBoolean("Error message : Print_pid_5 process aborted !    \n \nPress Cancel to abort !                   "); } // if
+	selectWindow("Log");	
+	// ---------------- Enregistrement dans le repertoire du profile -------------
+	sauvepid = "save=" + dirprocessed+profile +"_dat1.pid";			
+	run("Text...",sauvepid);
+	// ----------------- Enregistrement dans pid_results de la mission ---------
+	sauvepid = "save=" + dirpid+profile +"_dat1.pid";			
+	run("Text...",sauvepid);
+
+} // process vignettes PID
+
+selectWindow("Results");  	run("Close");
+
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

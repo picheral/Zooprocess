@@ -1,0 +1,22 @@
+# Ignorer répertoires et fichiers
+luts
+ij.jar
+IJ_Prefs.txt
+ImageJ
+README.html
+unins
+ijed
+*.exe
+*.txt~
+3D
+Analyse
+Example
+Filters
+Graphics
+Input-Output
+Scripts
+Stacks
+Tools
+data
+tools
+toolset

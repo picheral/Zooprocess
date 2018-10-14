@@ -1,0 +1,402 @@
+//------------- Zooprocess_uvp5_pid_to_ecotaxa ---------------
+version = "7.19";
+date = "2014/12/16";
+
+pid_file = "test_dat1.pid";
+pid_file = "p1408_004_dat1.pid";
+pid_file = "p1408_034_dat1.txt";
+pid_folder = "C:\\uvp5_sn003_outpace_pre_cruise_test\\work\\test";
+pid_folder = "Z:\\uvp5_sn003_ccelter_2014\\PID_process\\Pid_results\\Pid_predicted";
+pid_folder = "Z:\\uvp5_sn003_ccelter_2014\\PID_process\\Pid_results\\Dat1_validated";
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+path = 			array[0];
+pid_folder= 		array[1];
+pid_file = 		array[2];
+process_opt = 		array[3];
+ecotaxa_folder = pid_folder;
+
+path_work = path+"\\work";
+setBatchMode(true);
+
+// ---------- Ouverture PID -----------------------
+open(pid_folder+"\\"+pid_file);
+wait(100);
+data_read = getInfo();
+run("Close");
+data = split(data_read,"\n");
+
+annotation_list = newArray(7);
+Annotation_list = newArray(7);
+for (i = 0; i < Annotation_list.length; i++) {	Annotation_list[i] = "NaN";	}// for
+annotation_list[0] = "annotation_date";
+annotation_list[1] = "annotation_time";
+annotation_list[2] = "annotation_name";
+annotation_list[3] = "annotation_email";
+annotation_list[4] = "annotation_person_first_name";
+annotation_list[5] = "annotation_person_last_name";
+annotation_list[6] = "annotation_status";
+Annotation_List = newArray(7);
+Annotation_List[0] = "[ISO8601 YYYYMMJJ]";
+Annotation_List[1] = "[ISO8601 HHMMSS]";
+Annotation_List[2] = "[text]";
+Annotation_List[3] = "[email]";
+Annotation_List[4] = "[text]";
+Annotation_List[5] = "[text]";
+Annotation_List[6] = "[text]";
+
+// ---------- Vérification de l'état de validation -----
+Annotation_list[6] = "NaN";
+if (endsWith(pid_file,"pid")) Annotation_list[6] = "noid";
+
+// ---------- Recherche data section ---------------
+// la ligne data_deb est la ligne d'entête des variables
+i = 0;
+while (i < data.length) {
+	// ----------- Recherche si valide ----------------
+	if (startsWith(data[i],"[Validation]")) Annotation_list[6] = "validated";
+	if (startsWith(data[i],"First_name")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val = text[text.length-1];
+		Annotation_list[4]= val;
+	}//
+	if (startsWith(data[i],"Last_name")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val = text[text.length-1];
+		Annotation_list[5] = val;
+	}//
+	if (startsWith(data[i],"Validation_upload_time")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val = text[text.length-1];
+		Annotation_list[0] = substring(val,0,8);
+		Annotation_list[1] = substring(val,9,13)+"00";
+	}//
+	if (startsWith(data[i],"[Data]")) { data_deb = i+1; 	i = data.length; 	}//if
+	i++;
+}// while
+// ------------ si pas PID et pas Validated ----------------------
+if (Annotation_list[6] == "NaN" ) Annotation_list[6] = "predicted";
+
+// ---------- Liste des champs ---------------------
+img_list = newArray(10);
+Img_list = newArray(10);
+img_list[0] = "img_id";	
+img_list[1] = "img_rank";
+Img_List = newArray(10);
+Img_List[0] = "filename";	
+Img_List[1] = "[int]";
+
+object_list = newArray(7);
+Object_list = newArray(7);
+for (i = 1; i < Object_list.length; i++) {	Object_list[i] = "NaN";	}// for
+object_list[0] = "object_id";
+object_list[1] = "object_lat";	//
+object_list[2] = "object_lon";	//
+object_list[3] = "object_date";	//
+object_list[4] = "object_time";	//
+object_list[5] = "object_depth_min";
+object_list[6] = "object_depth_max";
+Object_List = newArray(7);
+Object_List[0] = "[text]";
+Object_List[1] = "[DEG]";	//
+Object_List[2] = "[DEG]";	//
+Object_List[3] = "[ISO8601 YYYYMMJJ]";
+Object_List[4] = "[ISO8601 HHMMSS]";
+Object_List[5] = "[M]";
+Object_List[6] = "[M]";
+
+acqu_list = newArray(17);
+Acqu_list = newArray(17);
+for (i = 1; i < Acqu_list.length; i++) {	Acqu_list[i] = "NaN";	}// for
+acqu_list[0] = "acq_id";	//
+acqu_list[1] = "acq_sn";	//
+acqu_list[2] = "acq_volimage";	//
+acqu_list[3] = "acq_aa";	//
+acqu_list[4] = "acq_exp";	//
+acqu_list[5] = "acq_pixel";	//
+acqu_list[6] = "acq_file_description";	//
+acqu_list[7] = "acq_tasktype";	//
+acqu_list[8] = "acq_disktype";	//
+acqu_list[9] = "acq_shutterspeed";	//	
+acqu_list[10] = "acq_gain";	//
+acqu_list[11] = "acq_threshold";	//
+acqu_list[12] = "acq_smbase";	//
+acqu_list[13] = "acq_smzoo";	//
+acqu_list[14] = "acq_erase_border_blob";	//
+acqu_list[15] = "acq_choice";	//
+acqu_list[16] = "acq_ratio";	//	
+Acqu_List = newArray(17);
+Acqu_List[0] = "[text]";
+Acqu_List[1] = "[text]";
+Acqu_List[2] = "[L]";	//
+Acqu_List[3] = "[float]";
+Acqu_List[4] = "[float]";
+Acqu_List[5] = "[float]";
+Acqu_List[6] = "[text]";
+Acqu_List[7] = "[int]";	//
+Acqu_List[8] = "[int]";	//
+Acqu_List[9] = "[int]";	//
+Acqu_List[10] = "[int]";	//
+Acqu_List[11] = "[int]";	//
+Acqu_List[12] = "[int]";	//
+Acqu_List[13] = "[int]";	//
+Acqu_List[14] = "[logical]";
+Acqu_List[15] = "[logical]";
+Acqu_List[16] = "[int]";	//
+
+sample_list = newArray(14);
+Sample_list = newArray(14);
+for (i = 1; i < Sample_list.length; i++) {	Sample_list[i] = "NaN";	}// for
+sample_list[0] = "sample_id";	//
+sample_list[1] = "sample_profileid";	//
+sample_list[2] = "sample_cruise";	//
+sample_list[3] = "sample_ship";		//
+sample_list[4] = "sample_stationid";	//
+sample_list[5] = "sample_bottomdepth";	//
+sample_list[6] = "sample_ctdrosettefilename";	//
+sample_list[7] = "sample_dn";	//
+sample_list[8] = "sample_winddir";	//
+sample_list[9] = "sample_windspeed";	//	
+sample_list[10] = "sample_seastate";	//
+sample_list[11] = "sample_nebuloussness";	//
+sample_list[12] = "sample_yoyo";	//	
+sample_list[13] = "sample_comment";	//
+Sample_List = newArray(14);
+Sample_List[0] = "[text]";
+Sample_List[1] = "[text]";
+Sample_List[2] = "[text]";
+Sample_List[3] = "[text]";
+Sample_List[4] = "[text]";
+Sample_List[5] = "[float]";
+Sample_List[6] = "[text]";
+Sample_List[7] = "[text]";
+Sample_List[8] = "[float]";
+Sample_List[9] = "[float]";
+Sample_List[10] = "[float]";
+Sample_List[11] = "[int]";	//
+Sample_List[12] = "[text]";
+Sample_List[13] = "[text]";
+
+process_list = newArray(13);
+Process_list = newArray(13);
+for (i = 1; i < Process_list.length; i++) {	Process_list[i] = "NaN";	}// for
+process_list[0] = "process_id";	//
+process_list[1] = "process_date";	//
+process_list[2] = "process_time";	//
+process_list[3] = "process_software";	//
+process_list[4] = "process_first_img";	//
+process_list[5] = "process_last_img";	//
+process_list[6] = "process_pressure_gain";	//
+process_list[7] = "process_calibration";	//
+process_list[8] = "process_pixel";	//
+process_list[9] = "process_upper";	//
+process_list[10] = "process_gamma";	//
+process_list[11] = "process_esdmin";	//
+process_list[12] = "process_esdmax";	//
+Process_List = newArray(13);
+Process_List[0] = "[text]";
+Process_List[1] = "[ISO8601 YYYYMMJJ]";
+Process_List[2] = "[ISO8601 HHMMSS]";
+Process_List[3] = "[text]";
+Process_List[4] = "[int]";
+Process_List[5] = "[int]";
+Process_List[6] = "[float]";
+Process_List[7] = "[text]";
+Process_List[8] = "[float]";
+Process_List[9] = "[int]";
+Process_List[10] = "[float]";
+Process_List[11] = "[float]";
+Process_List[12] = "[float]";
+
+// ---------- paramètres "fixes" -------------------
+Acq_id = "uvp5";
+Process_id = "zooprocess";
+Process_software = "zooprocess";
+
+Acqu_list[1] = Acq_id;
+Process_list[0] = Process_id;
+Process_list[3] = Process_software;
+
+aa = indexOf(pid_folder,"uvp5");
+ligne = substring(pid_folder,aa,lengthOf(pid_folder));
+bb = indexOf(ligne,"_");
+ligne = substring(ligne,bb+1,lengthOf(ligne));
+cc = indexOf(ligne,"_");
+Acqu_list[1] = substring(ligne,0,cc);
+
+// ---------- recherche des paramètres -------------
+for (i = 1; i < data_deb;i++) {
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"cruise=")) { 			Sample_list[2] = toString(val);	
+	}//if
+	else if (startsWith(data[i],"filename=")) { 		Sample_list[0] = "hdr"+toString(val); 	
+								Object_list[3] = substring(val,0,8);	
+								Object_list[4] = substring(val,8,14);						
+	}//if
+	else if (startsWith(data[i],"profileid=")) { 		Sample_list[1] = toString(val); 						}//if	
+	else if (startsWith(data[i],"ship=")) { 		Sample_list[3] = toString(val); 							}//if
+	else if (startsWith(data[i],"stationid=")) { 		Sample_list[4] = toString(val); 						}//if
+	else if (startsWith(data[i],"bottomdepth=")) { 		Sample_list[5] = toString(val); 						}//if
+	else if (startsWith(data[i],"ctdrosettefilename=")) { 	Sample_list[6] = toString(val); 						}//if
+	else if (startsWith(data[i],"dn=")) { 			Sample_list[7] = toString(val); 							}//if
+	else if (startsWith(data[i],"winddir=")) { 		Sample_list[8] = toString(val); 						}//if
+	else if (startsWith(data[i],"windspeed=")) { 		Sample_list[9] = toString(val); 						}//if
+	else if (startsWith(data[i],"seastate=")) { 		Sample_list[10] = toString(val); 						}//if
+	else if (startsWith(data[i],"nebuloussness=")) { 	Sample_list[11] = toString(val); 					}//if
+	else if (startsWith(data[i],"yoyo=")) { 		Sample_list[12] = toString(val); 							}//if
+	else if (startsWith(data[i],"comment=")) { 		Sample_list[13] = toString(val); 						}//if
+	
+	else if (startsWith(data[i],"Date=")) { 		Process_list[1] = substring(val,0,8); 
+								Process_list[2] = substring(val,9,13)+"00"; 
+	}// if
+	else if (startsWith(data[i],"First_image=")) { 		Process_list[4] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Last_image=")) { 		Process_list[5] = toString(val); 						}//if	
+	else if (startsWith(data[i],"pressure_gain=")) { 	Process_list[6] = toString(val); 					}//if	
+	else if (startsWith(data[i],"calibration=")) { 		Process_list[7] = toString(val); 						}//if	
+	else if (startsWith(data[i],"pixel=")) { 		Process_list[8] = toString(val); 						}//if	
+	else if (startsWith(data[i],"upper=")) { 		Process_list[9] = toString(val); 						}//if	
+	else if (startsWith(data[i],"gamma=")) { 		Process_list[10] = toString(val); 						}//if	
+	else if (startsWith(data[i],"esdmin=")) { 		Process_list[11] = toString(val); 						}//if	
+	else if (startsWith(data[i],"esdmax=")) { 		Process_list[12] = toString(val); 						}//if		
+ 		
+	else if (startsWith(data[i],"volimage=")) { 		Acqu_list[2] = toString(val); 						}//if	
+	else if (startsWith(data[i],"aa=")) { 			Acqu_list[3] = toString(val); 						}//if	
+	else if (startsWith(data[i],"exp=")) { 			Acqu_list[4] = toString(val); 						}//if	
+	else if (startsWith(data[i],"pixel=")) { 		Acqu_list[5] = toString(val); 						}//if	
+	else if (startsWith(data[i],"File_description=")) { 	Acqu_list[6] = toString(val); 						}//if	
+	else if (startsWith(data[i],"TaskType=")) { 		Acqu_list[7] = toString(val); 						}//if	
+	else if (startsWith(data[i],"DiskType=")) { 		Acqu_list[8] = toString(val); 						}//if	
+	else if (startsWith(data[i],"ShutterSpeed=")) { 	Acqu_list[9] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Gain=")) { 		Acqu_list[10] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Threshold=")) { 		Acqu_list[11] = toString(val); 						}//if	
+	else if (startsWith(data[i],"SMbase=")) { 		Acqu_list[12] = toString(val); 						}//if	
+	else if (startsWith(data[i],"SMzoo=")) { 		Acqu_list[13] = toString(val); 						}//if	
+	else if (startsWith(data[i],"EraseBorderBlobs=")) { 	Acqu_list[14] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Choice=")) { 		Acqu_list[15] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Ratio=")) { 		Acqu_list[16] = toString(val); 				}//if	
+
+	else if (startsWith(data[i],"latitude=")) { 	oo = val; sign = 1;	
+		if (oo < 0) sign = -1;
+		oo = abs(oo);
+		oo_int = floor(oo);
+		Object_list[1] = sign * (oo_int+100*(oo - oo_int)/60);
+	}//if		
+	else if (startsWith(data[i],"longitude=")) { 		oo = val; sign = 1;	                                                               
+		if (oo < 0) {	sign = -1;	}//
+		oo = abs(oo);
+		oo_int = floor(oo);
+		Object_list[2] = sign * (oo_int+100*(oo - oo_int)/60);
+	}//if	
+}
+// --------------------- Ecriture du fichier ----------------------
+// ----------------------------------------------------------------
+if (isOpen("Log")) {	selectWindow("Log"); run("Close");;	}//
+
+// ----------------- Repertoire final ----------------------------------------------------
+if (process_opt == "text") {
+	// --------------- Creation du répertoire EcoTaxa Valide -------------
+	pid_file_short = substring(pid_file,0,lengthOf(pid_file)-9);
+	ecotaxa_folder = path+"\\ecotaxa\\";
+	File.makeDirectory(ecotaxa_folder);
+	ecotaxa_folder = path+"\\ecotaxa\\"+pid_file_short;
+	File.makeDirectory(ecotaxa_folder);
+}//
+
+// ----------------- Entete ---------------------
+ligne = "img_file_name;img_rank";
+for(i=0; i<object_list.length ;i++) {	
+	ligne = ligne +";"+object_list[i];
+} // if	
+// ---------------- Lire entete data -----------------------------
+entete = data[data_deb];
+
+//-----------------Recherche Type de separateur ( tabs, ; ou space)--------------------------
+sep = "tabs";
+ctrl1 = indexOf(entete,";");
+if (ctrl1>=0) { 		sep = "dotcoma";	} // if
+ctrl1 = indexOf(entete," ");
+if (ctrl1>=0) { 		sep = "space";	} // if
+if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+long = entete.length;
+if (Annotation_list[6] == "validated") long = entete.length - 2;
+for (k = 3; k<long ;k++) {		ligne = ligne +";object_"+toLowerCase(entete[k]);	} // for
+for(i=0;i<annotation_list.length;i++) {	ligne = ligne +";"+toLowerCase(annotation_list[i]);	} // if
+for(i=0;i<process_list.length;i++) {	ligne = ligne +";"+toLowerCase(process_list[i]);	} // if
+for(i=0;i<acqu_list.length;i++) {	ligne = ligne +";"+toLowerCase(acqu_list[i]);	} // if
+for(i=0;i<sample_list.length;i++) {	ligne = ligne +";"+toLowerCase(sample_list[i]);	} // if
+print(ligne);
+// ----------------- Entete ---------------------
+ligne = Img_List[0]+";"+Img_List[1];
+for(i=0; i<Object_List.length ;i++) {	
+	ligne = ligne +";"+Object_List[i];
+} // if	
+// ---------------- Lire unites format -----------------------------
+entete = data[data_deb];
+if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+long = entete.length;
+if (Annotation_list[6] == "validated") long = entete.length - 2;
+for (k = 3; k<long ;k++) {		ligne = ligne +";[float]";	} // for
+for(i=0;i<Annotation_List.length;i++) {	ligne = ligne +";"+toLowerCase(Annotation_List[i]);	} // if
+for(i=0;i<Process_List.length;i++) {	ligne = ligne +";"+toLowerCase(Process_List[i]);	} // if
+for(i=0;i<Acqu_List.length;i++) {	ligne = ligne +";"+toLowerCase(Acqu_List[i]);	} // if
+for(i=0;i<Sample_List.length;i++) {	ligne = ligne +";"+toLowerCase(Sample_List[i]);	} // if
+print(ligne);
+
+// ----------------- Data ---------------------
+nb_false = 0;
+data_ligne = newArray(data.length - data_deb);
+m = 0;
+for (j = data_deb+1;j < data.length;j++) {
+	entete = data[j];
+	if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+	else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+	else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+	Object_list[0] = entete[1]+"_"+entete[0];
+	// ------------- COPIE vignettes ---------------------
+	if (process_opt == "text") {
+		vigname  = Object_list[0]+".jpg";
+		read_file = path_work+"\\"+pid_file_short+"\\"+vigname;
+		save_file_red = ecotaxa_folder + "\\"+ Object_list[0];
+		if (File.exists(read_file) && File.exists(save_file_red+".jpg") == false) {open(read_file);	saveAs("jpg",save_file_red);	close();	}// if
+		else { nb_false++;	} // if 
+	}// if
+		
+	// -------- depth min et max ------------
+	Object_list[5] = entete[2];
+	Object_list[6] = entete[2];
+	ligne = Object_list[0]+".jpg;0";
+	for(i=0;i<Object_list.length;i++) {	
+		ligne = ligne +";"+Object_list[i];
+	} // if	
+	// ---------------- Lire entete data -----------------------------
+	if (Annotation_list[6] == "validated") {	long = entete.length - 2;
+		Annotation_list[2] = entete[long];
+	}// if
+	for (k = 3; k<long ;k++) {		ligne = ligne +";"+toLowerCase(entete[k]);	} // for
+	for(i=0;i<Annotation_list.length;i++) {	ligne = ligne +";"+toLowerCase(Annotation_list[i]);	} // if
+	for(i=0;i<Process_list.length;i++) {	ligne = ligne +";"+toLowerCase(Process_list[i]);	} // if
+	for(i=0;i<Acqu_list.length;i++) {	ligne = ligne +";"+toLowerCase(Acqu_list[i]);	} // if
+	for(i=0;i<Sample_list.length;i++) {	ligne = ligne +";"+toLowerCase(Sample_list[i]);	} // if
+	data_ligne[m] = ligne;
+	m++;
+}//
+// ------------------ Ecriture du fichier --------------------------- 
+for (j = 0; j < m;j++) {	print(data_ligne[j]);	}// if
+	
+// ----------------- Enregistrement fichier CSV dans le même dossier ------------------------
+selectWindow("Log");
+aa = indexOf(pid_file,".");
+ecotaxa_file = "ecotaxa_"+ substring(pid_file,0,aa)+"_"+Annotation_list[6]+".csv";
+text =  "save=" + ecotaxa_folder + "\\" + ecotaxa_file;
+run("Text...",text);	
+run("Close");
+
+// ----------------------- END ----------------------
+ret = "OK";
+return ret;

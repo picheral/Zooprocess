@@ -1,0 +1,253 @@
+// ---------------------Zooprocess_flowcam_background ------------------------------
+version = "7.01";
+date = "2010/09/25";
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 	arg[0];
+instrum  = 	arg[1];
+pathconfig = 	arg[2];
+
+long = lengthOf(path);
+cruise = substring(path,3,long-1);
+
+// ----------------- Metafile pour Flowcam --------------------------------	
+filelist  = 	getFileList(path+"\\meta\\");
+
+//--------------- Selection des fichiers META si plus d'un -------------------
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = endsWith(filelist[i],".txt");
+	ctrl1 = startsWith(filelist[i],"Flowcam_header_");
+	if (ctrl == 1 && ctrl1 == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { configpres = 0;
+	getBoolean("No metadata file in the selected project. \nPress YES to create a file and add a profile !          ");
+	option = "create";
+} //
+else if (j==1) {
+	// ----------------- Un seul fichier selectionne tout seul ----------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	metafile = listaff[0];
+} 
+else { 	configpres = 1;
+	// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	Dialog.create("METADATA FILE          version : "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------   ");
+	Dialog.addMessage("Project :  "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------   ");
+	message = "SELECT Metadata FILE             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);
+	Dialog.show();
+	metafile = Dialog.getChoice();
+} // else
+
+//------------------------------------- Fichier CONFIG ------------------------------------------------------------------
+filelist  = 	getFileList(pathconfig);
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = indexOf(filelist[i],"config");
+	ctrl1 = endsWith(filelist[i],".txt");
+	if (ctrl>0 && ctrl1==1 )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0 ) {
+	getBoolean("No valid config file in "+pathconfig+". Press Cancel to abort.           ");
+} // if
+else if (j==1) {
+	// ----------------- Un seul fichier selectionne tout seul ----------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	Dialog.create("Process Background            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addCheckbox("SKIP processed file ?",true);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	skip = 			Dialog.getCheckbox();
+	configfile = 		listaff[0];
+} 
+else {
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	Dialog.create("Process Background            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addCheckbox("SKIP processed file ?",true);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	skip = 			Dialog.getCheckbox();
+	configfile = 		Dialog.getChoice();
+}// else
+
+openconfig = pathconfig +"\\"+configfile;
+
+// ---------------------------- Lecture fichier existant -----------------------------------------------
+open(openconfig);
+wait(100);
+config = getInfo();
+run("Close");
+conf  = split(config,"\n");
+size = conf.length;
+array = newArray(size);
+for (i=0; i<conf.length; i++)	{ texte = conf[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		} // for
+calibration = 			array[0];
+background_method= 		array[1];
+nb_image= 			array[2];
+rolling= 			array[3];
+pixel= 				array[4];
+upper= 			array[5];
+gamma= 			array[6];
+echelle_micro=			array[7];
+process_option=		array[8];
+esdmin= 			array[9];
+esdmax= 			array[10];
+lut_offset= 			array[11];
+lut_slope= 			array[12];
+stop_after_n_images= 	array[13];
+stop_after_m_objects= 	array[14];
+
+// --------------------------- Choix du dossier a traiter et du nombre d'images a moyenner -------------------------------------
+
+// ---------------------- Ouverture META ---------------------------------------------------------------
+open(path+"\\meta\\"+metafile);
+wait(100);
+metadata = getInfo();
+run('Close');
+array = split(metadata,"\n");
+
+
+// ------------------------------- Liste des profils traitables --------------------------------------------------------
+project = 		newArray(array.length);
+filename = 		newArray(array.length);
+stationname =		newArray(array.length);
+list = 			newArray(array.length);
+g = 0;
+for (i=1; i<array.length ; i++) { 
+	ligne = replace(array[i],";"," ");
+	ligne = split(ligne,"\ ");
+	Project = 		ligne[0];
+	Filename = 		ligne[2];
+	Stationname =		ligne[3];
+//	getBoolean(Stationname);
+	// ------------------------------ Cas skip processed -----------------------------------------------------
+	pathback = path+"\\back\\FlowCam_"+Stationname+"\\"+Stationname+"_back.tif";
+//	getBoolean(pathback);
+	if(File.exists(pathback) == false ) {
+//			getBoolean(path+"\\work\\"+file+"    skip= "+skip);
+		list[g] = 	Stationname;			
+		g++;
+	} // if
+	else if (skip == false) {	
+		list[g] = 	Stationname;	
+		g++;
+	} // if	
+} // for
+
+// ----------------	Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (g==0 ) { configpres = 0;
+	getBoolean("All background processed in the selected project. \nPress CANCEL to abort !          ");
+} //
+else { 	
+	listproc = newArray(g);
+	for (k=0;k<listproc.length ;k++) {	rr = list[k];	listproc[k] = rr;		} // for
+	otherprofile = 1;
+	while (otherprofile == 1) {
+		// ---------------------------- SELECT PROFILE ---------------------------------
+		Dialog.create("Process Background            version :  "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("SELECT PROFILE to PROCESS BACKGROUND ");
+		Dialog.addChoice("               ",       listproc         );
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		imagenb = newArray("10","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20");
+		imagenb[0] = nb_image;
+		Dialog.addChoice("         Number of image to average in background ",imagenb);	
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show;
+		profileback = 		Dialog.getChoice();
+		for (k=0;k<listproc.length ;k++) {	rr = listproc[k];	
+			if (profileback == rr) listproc[k] = rr+" - processed";
+		} // for
+		imagenb = 		Dialog.getChoice();
+		imagenb = 		parseInt(imagenb);
+
+		if (endsWith(profileback,"- processed")  == false ) {
+			pathback = path+"\\back\\FlowCam_"+profileback+"\\";
+			File.makeDirectory(pathback);
+		
+			// ------------------------ Liste des images dans le repertoire ------------------------------------------------------------------
+			filelist  = 	getFileList(path+"\\raw\\FlowCam_"+profileback+"\\");
+			h = 0;
+			k =0;
+			images = newArray(imagenb);
+			while (k<filelist.length ) {	
+				image = filelist[k];
+				if (startsWith(image,"rawfile_") == true ) {
+					open(path+"\\raw\\FlowCam_"+profileback+"\\"+image);
+					wait(200);
+					run("Out");
+					run("Out");
+					// ---------------------------------- Satisfaisant O/N --------------------------------------------
+					flag = getBoolean("Image #"+h+1+"\nImage : "+image+"    \nDo you want to include this image ? \n(No interesting target) ");
+					if (flag == 0) {	selectImage(image);	close();		} // if
+					else {	images[h] = image;	h++;			} // else
+					if (h >= imagenb ) k=filelist.length;
+				} // if
+				k++;
+			} // while
+	
+			// ----------------------------- Moyenne des images -----------------------------------------------------
+			texte = "value="+imagenb;
+			selectImage(images[0]);
+			saveAs("Tif",pathback+images[0]);
+			rename("fond");
+			run("Divide...",texte);	
+
+			for (h=1;h<imagenb;h++) {
+				selectImage(images[h]);
+				saveAs("Tif",pathback+images[h]);
+				rename("fond1");
+				run("Divide...",texte);	
+				run("Image Calculator...", "image1=fond operation=Add image2=fond1");
+				selectImage("fond1");
+				close();
+			} // for
+	
+			// --------------------- Enregistrement ----------------------------------------------------------------------
+			selectImage("fond");
+			saveAs("Tif",pathback+profileback+"_back.tif");
+			otherprofile = getBoolean("Process BACKGROUND for another profile ?   ");
+
+			// --------------------- Indication de process ---------------------------------------------------------------
+			for (k=0;k<listproc.length ;k++) {	rr = listproc[k];	
+				if (profileback == rr) listproc[k] = rr+" - processed";
+			} // for
+		
+			// -------------------- Fermeture ------------------------------------------------------------------------------
+			close();	
+		} // if	
+	} // while
+} // else
+
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

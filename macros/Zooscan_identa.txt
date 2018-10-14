@@ -1,0 +1,816 @@
+// -------------------------------------------Zooscan_Identa------------------------------------------------------
+
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+scan+" "+resolution+" "+zzz;
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	resolution=array[22];	zzz= array[23];
+
+// Ouverture et chargement des configurations
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		// resolution = array[6];	
+	xminref = array[7];		yminref = array[8];		doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+// Suppression des info de type de fichier
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+chemtemp = chem + "Zooscan_temp\\";
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+//	text= "jpeg="+jpeg;
+//	run("JPEG Quality...", text);
+
+//-------------------FIN INITIALISATION-------------------------------------
+
+Dialog.create("Identification WARNING");
+message = " If the image has been treated with new settings since last identification,              \n most of the previous identifications will be lost !        \n CANCEL if any doubt";
+Dialog.addMessage(message);
+Dialog.show(); 
+
+text = longline;
+longline = parseFloat(longline);
+resolution= parseInt(resolution);
+longline = longline * resolution/25.4;
+accord = 0;
+end = 0;
+flag = 0;
+pointer = 0;
+other = "empty";
+flageq = 0;
+Ray= 20;
+
+// Fermeture du LOG
+print("A purger");
+selectWindow("Log");
+run("Close");
+
+//---------------------------------------LECTURE FICHIER LISTE DANS config-----------------------------------
+// Choix du fichier de liste des identifications a utiliser (idem config);
+filelist  = getFileList(chemconfig);
+
+// Selection des fichiers dont le nom comporte le mot "identlist"; Les fichiers ne doivent pas commencer par identlist
+j = 0;
+list = newArray(100);
+for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"identlist");
+	if (ctrl>0) 	{rr = filelist[i];
+		list[j] = rr;
+		// print(list[j]);
+		j = j + 1;	
+	} // if
+} // for	
+if (j==0) { // PAS de liste dans le repertoire, il faut en creer une nouvelle
+	print("tag");
+	Dialog.create("IDENTIFICATION PROCESS");
+	Dialog.addMessage("No existing identlist file in "+chemconfig+ " folder  ");
+	Dialog.addString("Enter name for NEW empty list","    ");	
+	Dialog.addMessage("No extension or space character allowed  ");
+	Dialog.show();
+	identlistfile = Dialog.getString();
+	identlistfile = toLowerCase(identlistfile);
+	identlistfile= identlistfile+"_identlist.txt";
+	sauveident = "save=" + chemconfig + identlistfile;
+	run("Text...",sauveident);
+} // if
+
+else { // Purger les fichiers vides de la liste !
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];  	listaff[i] = rr;  } // for
+	Dialog.create("Identification File List");
+	Dialog.addChoice("SELECT ", listaff);
+	Dialog.addMessage(" DO NOT PRESS CANCEL (except if you want to abort identification)               ");
+	Dialog.show();
+	identlistfile = Dialog.getChoice();
+} // else
+
+print(identlistfile);
+
+// fermeture du LOG
+print("A purger");
+selectWindow("Log");
+run("Close"); 
+
+// Ouverture de la liste et Affichage des identifications existantes dans la liste
+openidentlist = chemconfig +identlistfile;
+open(openidentlist);
+identlist = getInfo();
+array = split(identlist,"\n");
+longname = array.length;
+for (i=0; i<longname; i++)	{ print("i= ",i,"  ",array[i]);  }
+
+// Fermeure de la fenetre identlist
+selectWindow(identlistfile);
+run("Close");
+identlistfile0 = identlistfile;
+
+// ------------------------------------COMBINAISON avec le Ident, verification si toutes les identifications du Ident existent dans la liste choise
+//Il faut afficher les identifications du ident
+// ident est la DERNIERE COLONNE du fichier _ident
+print("ident= ",ident," maskident= ",maskident);
+// wait(50000);
+while (end == 0) { print("Tant qu'on n'arrive pas au bout...");
+	print("ident= ",ident);
+	if (ident==1) { 
+		// VERIFICATION DES NOMS CONTENUS DANS LE IDENT AVEC LE FICHIER DE LISTE DE NOMS 
+		print("Le fichier ident existe, l'ouvrir et verifier les listes de noms");
+		// print("ident= ",ident);
+		open(chemwork+titrered+"_ident.txt");
+		// for (i=0; i<longname; i++) { print("i= ",i,"  ",array[i]); }
+		data = getInfo();
+		selectWindow(titrered+"_ident.txt");
+		run('Close');
+		ligne = split(data,"\n");
+		print("On cree la matrice transposee des IDENTIFICATIONS");
+		long = ligne.length;
+		dimmat = long+1;
+		label = newArray(dimmat);
+		bx = newArray(dimmat);
+		by = newArray(dimmat);
+		width = newArray(dimmat);
+		heigth = newArray(dimmat);
+		zoop = newArray(dimmat);
+		tagval =  newArray(dimmat);
+		print("----------------------On sauvegarde le IDENT en TEMPORAIRE dans temp--------------------------");
+		// Fermeture du log
+			print("A purger");
+			selectWindow("Log");
+			run("Close");
+		print("!Item BX BY Width Height Tag Ident");
+		for (i=1; i<long; i++)	{//print("ligne= ",ligne)
+			mat = ligne[i];
+			item = split(mat,"\ ");
+			Label = item[0];
+			BX = item[1];
+			BY = item[2];
+			Width = item[3];
+			Heigth = item[4];
+			Tagval =  item[5];
+			col= item.length;
+			Id = item[col-1];
+			label[i-1] = Label;
+			bx[i-1] = BX;
+			by[i-1] = BY;
+			width[i-1] = Width;
+			heigth[i-1] = Heigth;
+			tagval[i-1] = Tagval;
+			zoop[i-1] = Id;
+			// Le ZOO ident est la DERNIERE colonne...
+			print( i, " " ,BX, " ", BY, " ",Width, " ", Heigth, " ",Tagval," ", Id);
+		} // for
+		selectWindow("Log");
+		sauveident = "save=" + chemtemp + "tempA_ident.txt";
+		run("Text...",sauveident);
+		print("----------------------Test sur les noms---------------------------------");
+		for (i=0;i<long-1;i++) { // test sur les noms
+			flag = 0; 
+			for (j=0;j<longname;j++) {
+				zoonamelist = array[j];
+				Id = zoop[i];
+				if ( Id==zoonamelist) {
+					// Le nom existe dans les deux listes
+					flag = 1 ;	
+				} // if
+			} // for
+		
+			if (flag == 0)  { // print("PAS d'equivalence");
+				// Id n'appartient pas a la liste de noms du fichier de liste
+				flageq = 1;
+				if (pointer==0) { other = Id; 	 
+					//print("other= ",other);
+					//print("Other=Id");
+				} // if
+				else { // Verifions que ident n'est pas deja present dans other pour eviter de le doubler
+					poschar = indexOf(other,Id);
+					if (poschar<0) { other = other + " "+ Id; 
+						//print("pointer= ",pointer," poschar= ",poschar," Id= ",Id," other= ",other);
+					} // if
+				} // else
+				pointer++;
+			} // if flag
+			else { flageq = 0;}
+		} // for i
+		// print("identlistfile= ",identlistfile);
+		// print("other= ",other);
+		print("--------------------------");
+		if (flageq == 0) { // Le fichier liste contient toutes les identifications 
+			print("Identification_list= OK");	
+			end = 1; // sortie
+		} // if flageq
+		else { // Alors il faut decider quoi faire (changer de liste ou incorporer)
+			Dialog.create("Choose Identification procedure");
+			message = "The image ident file is more detailled than the chosed identification list.";
+			Dialog.addMessage("Actual config file : " + identlistfile);
+			Dialog.addMessage(message);
+			message = "Select operation";
+			listmes = newArray("Select OTHER Id. LIST","Include new Id. in the chosed Id. LIST");
+			Dialog.addChoice(message, listmes);
+			Dialog.addMessage("NEVER press CANCEL ! ");
+			Dialog.show();
+			identop = Dialog.getChoice();
+			if (identop == listmes[0] ) { // Choix d'une autre liste et nouveau controle 
+				// Choix du fichier de liste des identifications a utiliser (idem config);
+				filelist  = getFileList(chemconfig);
+				// Selection des fichiers dont le nom comporte le mot "identlist"; Les fichiers ne doivent pas commencer par identlist
+				j = 0;
+				list = newArray(100);
+				for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"identlist");
+					if (ctrl>0) 	{rr = filelist[i];
+						list[j] = rr;
+						// print(list[j]);
+						j = j + 1;	
+					} // if
+				} // for	
+				// Purger les fichiers vides de la liste !
+				listaff = newArray(j);
+				for (i=0; i<listaff.length ; i++) {	rr = list[i];
+					listaff[i] = rr;
+				} // for
+					Dialog.create("Identification File List");
+					message = "Select Identification LIST";
+					Dialog.addMessage(message);
+					Dialog.addChoice("Identification file list ", listaff);
+					Dialog.show();
+				identlistfile = Dialog.getChoice();
+				print(identlistfile);
+				// Ouverture de la liste si elle existe et Affichage des identifications existantes dans la liste
+				openidentlist  = chemconfig +identlistfile;
+				open(openidentlist);
+				identlist = getInfo();
+				array = split(identlist,"\n");
+				longname = array.length;
+				pointer = 0 ;
+				// Fermeure de la fenetre identlist
+				selectWindow(identlistfile);
+				run("Close");
+			} // if identop
+			else { // Ajout des noms dans la liste des identifications, other n'est PAS vide
+				// fermeture du LOG
+				print("A purger");
+				selectWindow("Log");
+				run("Close"); 
+				// Impression des champs existants dans le identfile de reference pour other
+				for (i=0; i<longname; i++) { print(array[i]); }
+				// Impression des champs du other
+				otherzoo = split(other,"\ ");
+				for (i=0; i<otherzoo.length; i++) { print(otherzoo[i]); }
+				// Sauvegarde du log en lieu du identfile actuel
+				selectWindow("Log");
+				sauveident = "save=" + chemconfig + identlistfile;
+				run("Text...",sauveident);
+				//-----------------Sortie--------------------------
+				end = 1; // sortie
+				print("Identlist is now OK");
+			} // else
+		} // else flageq
+		print("-------------------------------Comparaison du IDENT avec le MEAS pour voir comparer les objets-----------------------------");
+		// Si on a des identifications en PLUS dans le IDENT, on les ELIMINE
+		// Si des particules existent dans le MEAS et pas dans le IDENT, elles sont mises a "xx"
+		// La consequence est que le IDENT autant de lignes que le MEAS...
+		// Si des TAGs existent dans le MEAS, ils sont ajoutes au fichier IDENT, avant la colonne IDENT
+		// SINON, on met des 1
+		print("-------------------------------Ouverture et lecture du _meas.txt--------------------------");
+		open(chemwork+titrered+"_meas.txt");
+		data = getInfo();
+		selectWindow(titrered+"_meas.txt");
+		run("Close");
+		ligne = split(data,"\n");
+		// VERIFICATION de la presence de donnees TAG dans le MEAS, s'il n'y en a pas, on met des 1dans le ident (validation des donnees)
+			pos = 0;
+			tag= 0;
+			pos = indexOf(ligne[0],"Tag",0);
+			if (pos>0) {  tag = 1;  
+				// Determination de coltag (colonne du TAG)
+				coltag= 0;
+				mat = ligne[0];
+				item = split(mat,"\t ");
+				for (h=0;h<item.length;h++) {
+					ee = item[h];
+					print("ee= ",ee);
+					if (ee=="Tag") { col=h; 
+						coltag = col+1;
+					} // if
+				} // for
+			} // if
+								//print("coltag= ",coltag);
+		// On cree la matrice transposee des MESURES
+		longm = ligne.length;
+		dimmatm = longm+1;
+		labelm = newArray(dimmatm);
+		bxm = newArray(dimmatm);
+		bym = newArray(dimmatm);
+		widthm = newArray(dimmatm);
+		heigthm = newArray(dimmatm);
+		tagvalm =  newArray(dimmatm);
+		for (i=1; i<longm; i++)	{//print("ligne= ",ligne)
+			mat = ligne[i];
+			item = split(mat,"\t ");
+			Label = item[0];
+			BX = item[13];
+			BY = item[14];
+			Width = item[15];
+			Heigth = item[16];
+			if (tag==1) { // Si donnees TAG dans le meas
+				Tagval =  item[coltag];
+			} // if
+			else { // Si pas de donnees TAG dans le meas
+				Tagval=1; 
+			} // else
+			labelm[i-1] = Label;
+			bxm[i-1] = BX;
+			bym[i-1] = BY;
+			widthm[i-1] = Width;
+			heigthm[i-1] = Heigth; 
+			tagvalm[i-1] = Tagval;
+								//print("Tagval= ",Tagval);
+		} // for
+		
+		print("--------Comparaison objet par objet. On indiquera le nb de correspondances valides---------------");
+		check = 0;
+		indexidres =0;
+		// Matrice IDENT FINALE transposee
+		// Taille FINALE du fichier IDENT qui est identique a celui de MEAS
+		dimid = longm;
+		print("long= ",long," longm= ",longm);
+		labelf = newArray(dimid);
+		bxf = newArray(dimid);
+		byf = newArray(dimid);
+		widthf = newArray(dimid);
+		heigthf = newArray(dimid);
+		tagvalf =  newArray(dimid);
+		zoopf = newArray(dimid);
+		
+		print("----------------BOUCLE de comparaison-----------------------------------------");
+		// Boucle sur la matrice finale (m) partant de 1 car 0 est la ligne d'entete...
+		nbcol = 0;
+		for (m=0; m<dimid-1; m++)	{ 
+			//print("ligne= ",ligne);
+			BXm = bxm[m];
+			BYm = bym[m];
+			Wm = widthm[m];
+			Hm = heigthm[m];
+			Tm = tagvalm[m];			
+			Zm = "xx";
+							//print("ma= ",m," ",BXm," ",BYm," ",Wm," ",Hm," ",Tm," ",Zm);
+			// PAR DEFAUT....
+				labelf [m]= m+1;
+				bxf[m] = BXm;
+				byf[m] = BYm;
+				widthf[m] = Wm;
+				heigthf[m] = Hm;
+				tagvalf[m] = Tm;	
+				zoopf[m] = Zm;	
+			end = 0;
+			i=0;
+			while (end==0) { // Boucle sur les identifications....
+				Li=  label[i];
+				BXi = bx[i];
+				BYi = by[i];
+				Wi = width[i];
+				Hi = heigth[i];
+				Ti = tagval[i];
+				Zi = zoop[i];
+				// print("i= ",i," ",Li," ",BXi," ",BYi," ",Wi," ",Hi," ",Ti," ",Zi);
+				if (BYi==BYm && BXi==BXm && Wi ==Wm && Hi==Hm) { 
+					end = 1;
+					nbcol++; 	
+					// Alors on colle les donnees du ident dans le meas			
+					labelf [m]= m+1;
+					bxf[m] = BXi;
+					byf[m] = BYi;
+					widthf[m] = Wi;
+					heigthf[m] = Hi;
+					zoopf[m] = Zi;
+					// MISE a 0 des tag pour lesquels ZOO est "tag"....................
+					if (Zi=="tag") { Ti= 0; } // if
+					tagvalf[m] =  Ti;
+					// print("m= ",m," ",Li," ",BXi," ",BYi," ",Wi," ",Hi," ",Ti," ",Zi);
+				}// if BYi
+				i++;
+				if (i==long-1) { end= 1; // FIN de la boucle
+				} // if
+			} // while
+		} // for m
+		longe=long-1;
+		argi = "deb "+ longm+" "+longe+" "+nbcol;
+			ret = runMacro("Zooscan_ident_import_ctrl",argi);
+		flagi = parseInt(ret);
+		if (flagi==0) { // Sortie par CANCEL, il faut recalculer
+			} // if flagi
+		else { // suite du process..................
+			//----------------------------------- Sauvegarde Ident Final-------------------------------------
+			// On sauvegarde le IDENT pour la suite
+			// Fermeture du log
+			print("A purger");
+			selectWindow("Log");
+			run("Close");
+			// Boucle sur les lignes
+			print("!Item BX BY Width Height Tag Ident");
+			for (i=0; i<dimid-1; i++) { 
+				Label= labelf[i];
+				Xmin = bxf[i];
+				Ymin = byf[i];
+				La = widthf[i];
+				Ha = heigthf[i];
+				Tag = tagvalf[i];
+				zoop = zoopf[i];
+				if (zoop=="tag") { Tag=0; } 
+				print(Label, " " ,Xmin, " ", Ymin, " ",La, " ", Ha, " ",Tag," ", zoop);
+			} // for
+			selectWindow("Log");
+			sauveident = "save=" + chemtemp +"tempB_ident.txt";
+			run("Text...",sauveident);
+			sauveident = "save=" + chemwork + titrered + "_ident.txt";
+			run("Text...",sauveident);
+
+
+
+			print("-----------------Sortie--------------------------");
+		} // else flagi	
+	} // if ident==1
+	else { // Le fichier IDENT N'EXISTE PAS... inutile de vérifier la correspondance
+			Dialog.create("Identification INFO");
+			Dialog.addMessage("New EMPTY identification file is created for the image");
+			Dialog.show();
+		// Creation d'un ident a partir du MEAS, que l'on remplira de "xx"...
+		open(chemwork+titrered+"_meas.txt");
+		data = getInfo();
+		ligne = split(data,"\n");
+		// Fermeture du log
+		selectWindow("Log");
+		run("Close");
+		// VERIFICATION de la presence de donnees TAG dans le MEAS, s'il n'y en a pas, on met des 1dans le ident (validation des donnees)
+			pos = 0;
+			tag= 0;
+			pos = indexOf(ligne[0],"Tag",0);
+			if (pos>0) {  tag = 1;  
+				// Determination de coltag (colonne du TAG)
+				coltag= 0;
+				mat = ligne[0];
+				item = split(mat,"\t ");
+				for (h=0;h<item.length;h++) {
+					ee = item[h];
+					//print("ee= ",ee);
+					if (ee=="Tag") { col=h; 
+						coltag = col+1;
+					} // if
+				} // for
+			} // if
+		// Boucle sur les lignes
+		for (i=0; i<ligne.length; i++)	{
+			mat = ligne[i];
+			item = split(mat,"\t");
+			if (i==0) { item[0]= "!Item";  data = item[0] + " " + item[13] + " " + item[14]+ " " + item[15]+ " " + item[16]+ " " +"Tag"+ " " + "Ident"; }
+			else {// Autres lignes
+				if (tag==1) { // Le fichier MEAS contient des donnees de TAG
+					data = item[0] + " " + item[13] + " " + item[14] + " " + item[15]+ " " + item[16]+ " " + item[coltag] + " " + "xx"; }
+				else { // Le fichier MEAS ne contient pas de donnees TAG, ils sont mis a 1 pour le processus Identification
+					data = item[0] + " " + item[13] + " " + item[14] + " " + item[15]+ " " + item[16]+ " 1 " + "xx"; }
+			} // else autres lignes
+			print(data);
+		} // for i
+		// Sauvegarde du nouveau fichier ident a partir du log
+		sauveident = "save=" + chemtemp + "temp_ident.txt";
+		run("Text...",sauveident);
+		sauveident = "save=" + chemwork + titrered + "_ident.txt";
+		run("Text...",sauveident);
+		selectWindow(titrered+"_meas.txt");
+		run("Close");
+		selectWindow("Log");
+		run("Close");
+		// ident = 1;
+		//-----------------Sortie--------------------------
+		flagi= 1;
+		end=1;
+	} // else
+} // while end
+
+
+if (flagi==1) { // Process de l'identification
+print("------------------------------------------Ecriture des noms sur l'image, (xx si jamais identifie )---------------------------------------------");
+// Les objets TAGgees a 0 sont indiques par l'absence de trait de 1mm et par un rond NOIR
+// Ouverture des identifications
+open(chemwork+titrered+"_ident.txt");
+data = getInfo();
+ligne = split(data,"\n");
+long = ligne.length;
+// On PART du fichier IDENT SAUVE CI-DESSUS
+open(chemtemp+"temp_vis1.tif");
+rename(titrered);
+
+largeurcor = getWidth();
+refx = largeurcor-longline;
+hauteurcor = getHeight();
+print("Ecriture des noms sur l'image");
+setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+// Rehaussement du contraste
+valeur = "saturated="+contrast;
+run("Enhance Contrast", valeur);
+setForegroundColor(0,0,0);
+setFont("SansSerif", 20);
+setLineWidth(2);
+run("Colors...", "foreground=black background=white selection=black");
+print("refx= ",refx);
+for (i=1; i<ligne.length;i++) { 
+	//print("ligne= ",ligne[i]);
+	mat = ligne[i];
+	item = split(mat,"\ ");
+	//Ecriture de la legende
+	// Le ZOO ident est la DERNIERE colonne...
+	col= item.length;
+	Ids = item[col-1];
+	Label = item[0];
+	// Labels = parseInt(Label);
+	Labels = d2s(Label,0);
+	Id = Labels+" "+Ids;
+	BXa = item[1];
+	BYa = item[2];
+	// Test de depassement de l'image...
+	//print("BXa= ",BXa," BYa= ",BYa);
+	BY = d2s(BYa,0);
+	BX = d2s(BXa,0);
+	//print("i= ",i," BX= ",BX," BY= ",BY);
+	BY=maxOf(BY,40);
+	BX=minOf(BX,refx);
+	//print("i= ",i," BX= ",BX," BY= ",BY);
+	Tagval = item[5];
+	L=item[3];
+	H = item[4];
+	//L= d2s(L,0);
+	//H= d2s(H,0);
+	Bxo = BX; 		//+=(L-Ray)/2;
+	Byo = BY; 		// + (H-Ray)/2;
+						// print("ligne= ",i," item= ",item[0]," BX= ",BX," Bxo= ",Bxo," BY= ",BY," Byo= ",Byo," ident= ",Id);
+	if (Tagval==1&& Ids=="xx") { toto = 1; 
+			// Pas d'ecriture de "xx"
+			drawString(Labels,BX,BY-10);
+			// Ecriture du trait de 1mm dans tous les cas ou tagval ==1
+			drawLine(BX,BY-35,BX+longline,BY-35); 
+	} //  if
+	else if (Tagval==1) {  // Ecriture de Id
+			drawString(Id,BX,BY-10);
+			// Ecriture du trait de 1mm dans tous les cas ou tagval ==1
+			drawLine(BX,BY-35,BX+longline,BY-35); 
+	} // else if
+	else if ( Tagval==0) {	// TRACE des RONDS comme dans la routine tag
+		//run("Colors...", "foreground=black background=white selection=black");
+		// Si une Id existe, elle n'est PAS ecrite
+		drawString(Labels,BX+Ray+10,BY);
+		makeOval(Bxo,Byo,Ray,Ray);
+		run("Fill");	
+	} // else if Tagval ==0
+	else if (Tagval==2) {// Couleur NOIR
+			//makeOval(Xmin,Ymin,Ray,Ray);
+			makeRectangle(Xmin,Ymin,Ray,Ray);
+			run("Fill");	
+	} // else if
+} // for
+
+// Creation de matrices transposees
+dimmat = long;			//+1;
+label = newArray(dimmat);
+bx = newArray(dimmat);
+by = newArray(dimmat);
+width = newArray(dimmat);
+heigth = newArray(dimmat);
+zoop = newArray(dimmat);
+tagval =  newArray(dimmat);
+
+for (i=1; i<long; i++)	{//print("ligne= ",ligne[i])
+	mat = ligne[i];
+	item = split(mat,"\ ");
+	//Ecriture de la legende
+	Label = item[0];
+	BX = item[1];
+	BY = item[2];
+	Width = item[3];
+	Heigth = item[4];
+	Tagval =  item[5];
+	col= item.length;
+	Id = item[col-1];
+	label[i-1] = Label;
+	bx[i-1] = BX;
+	by[i-1] = BY;
+	width[i-1] = Width;
+	heigth[i-1] = Heigth;
+	tagval[i-1] = Tagval;
+	zoop[i-1] = Id;
+	} // for
+
+//---------------------------------------SAISIE des IDENTIFICATIONS---------------------------------------------------
+setTool(12);
+run("View 100%");
+run("Out");
+// Lorsqu'on clique sur l'objet, ouverture d'une fenêtre de saisie du nom
+// Affichage du nouveau nom et saisie dans le fichier _ident.txt
+	Dialog.create("IDENTIFICATION INFO MENU");
+	Dialog.addMessage(" Click on the objects with the left mouse button to change Id. ");
+	Dialog.addMessage(" Black circle tagged objects cannot be identified");
+	Dialog.addMessage(" Click outside of the objects with the roll mouse button to SAVE data and/or END     ");
+	Dialog.addMessage(" DO NOT click ON the objects to ZOOM or MOVE image");
+	Dialog.show();
+check = 0;
+while (check==0) { 	wait(100);
+	getCursorLoc(x, y, z, flags);
+	if (flags==broll) {  // Sortie car on a presse le bouton central;   
+		// Il faudrait ICI faire un BILAN...........................................................................
+		forget = 0;
+		for (i=1; i<long; i++)	{
+				Xmin = bx[i-1];
+				Ymin = by[i-1];
+				La = width[i-1];
+				Ha = heigth[i-1];
+				Tag = tagval[i-1];
+				Zoop = zoop[i-1];
+				if (Zoop=="xx" && Tag==1) { // Pas encore identifie
+					forget++;
+					}// if
+				} // for
+			showMessage(forget+" organisms not yet identified");
+			ret= runMacro("Zooscan_Ident_end");
+		if (ret ==1) { check = 1; 
+			// Sauvegarde des donnees OBLIGATOIRE car SORTIE
+			// Fermeture du log
+			print("A purger");
+			selectWindow("Log");
+			run("Close");
+			// Boucle sur les lignes
+			print("!Item BX BY Width Height Tag Ident");
+			for (i=1; i<long; i++)	{
+				Xmin = bx[i-1];
+				Ymin = by[i-1];
+				La = width[i-1];
+				Ha = heigth[i-1];
+				Tag = tagval[i-1];
+				Zoop = zoop[i-1];
+				// Transformer les "tag" en Tag = 0;
+				if (Zoop=="tag") { Tag=0; } 
+				if (Tag==0) {print( i, " " ,Xmin, " ", Ymin, " ",La, " ", Ha, " 0 ", "tag");  } // if
+				else if (Tag==1) { print( i, " " ,Xmin, " ", Ymin, " ",La, " ", Ha, " ",Tag," ", Zoop); } // else if
+			} // for
+			sauveident = "save=" + chemtemp + "tempC_ident.txt";
+			run("Text...",sauveident);
+			sauveident = "save=" + chemwork + titrered + "_ident.txt";
+			run("Text...",sauveident);
+			test= isOpen(titrered + "_ident.txt"); 	
+			if (test==1) { selectWindow(titrered + "_ident.txt"); 	run("Close");   } // test
+			selectImage(titrered);
+			// Veut-on sauver l'IMAGE avec le ZOO ???
+					ret=runMacro("Zooscan_dialog_ident_save");
+			if (ret ==1) { selectImage(titrered);
+				saveAs("jpeg",chemwork+titrered+"_zoo1"); 
+				} // if save
+			} // if end
+
+		else {	// Voir si on veut sauvegarder les donnees temporairement ?
+				ret= runMacro("Zooscan_dialog_ident_data");
+			if (ret ==1) { // Sauvegarde des donneees
+				// Fermeture du log
+				print("A purger");
+				selectWindow("Log");
+				run("Close");
+				// Boucle sur les lignes
+				print("!Item BX BY Width Height Tag Ident");
+				for (i=1; i<long; i++)	{
+					Xmin = bx[i-1];
+					Ymin = by[i-1];
+					La = width[i-1];
+					Ha = heigth[i-1];
+					Tag = tagval[i-1];
+					Zoop = zoop[i-1];
+					// Transformer les "tag" en Tag = 0;
+					if (Zoop=="tag") { Tag=0; } 
+				if (Tag==0) {print( i, " " ,Xmin, " ", Ymin, " ",La, " ", Ha, " 0 ", "tag");  } // if
+				else if (Tag==1) { print( i, " " ,Xmin, " ", Ymin, " ",La, " ", Ha, " ",Tag," ", Zoop); } // else if
+				} // for
+				sauveident = "save=" + chemtemp + "tempE_ident.txt";
+				run("Text...",sauveident);
+				sauveident = "save=" + chemwork + titrered + "_ident.txt";
+				run("Text...",sauveident);
+				selectWindow(titrered + "_ident.txt");
+				run("Close");
+				selectImage(titrered);
+				} // if ret data
+			} //else
+		} // flags
+	else if (flags==bleft) {	// On teste si on se trouve dans un organisme et si tag=1
+		for (i=0; i<long-1; i++) {   	 
+			Xmin = bx[i];
+			Ymin = by[i];
+			La = width[i];
+			L = La;			//voxelwidth;
+			Ha = heigth[i];
+			H = Ha;			//voxelheigth;
+			tag = tagval[i];
+			Ids = zoop[i];
+			Label = label[i];
+			Labels = d2s(Label,0);
+			Id = Labels+" "+Ids;
+			if (x>Xmin && x<Xmin+La && y>Ymin && y<Ymin+Ha && tag==1) {
+					// Alors dans le quadrilatere de l'objet
+					// On change de couleur
+					setForegroundColor(100,100,100);
+					// Saisie de la nouvelle identification dans la liste
+					openidentlist  = chemconfig +identlistfile;
+					open(openidentlist);
+					identlist = getInfo();
+					identchoice = identlist +"\n"+"new";		// "New" A LA FIN...
+					array = split(identchoice,"\n");
+					nbident = array.length;
+					// Fermeure de la fenetre identlist
+					selectWindow(identlistfile);
+					run("Close");
+						newident = runMacro("Zooscan_dialog_ident_select",Label+"\n"+Ids+"\n"+identchoice);
+					if (newident==0) { // Sortie par CANCEL, au suivant
+						} // if
+					else { // Si on est sorti normalement de la macro .....
+
+					if (newident=="new") { // Modification de la liste et du fichier correspondant
+							newname = runMacro("Zooscan_dialog_ident_new");
+						if (newname==0) { // sortie par CANCEL 
+							newident = "xx";}
+						else { // On a rentre un nouveau nom....
+							indexident = nbident-1;
+							array [indexident] = toLowerCase(newname);
+							tempo = array [indexident];
+							// Remplacement des ESPACES par des "_"
+							newident = replace(tempo," ","_");
+							// showMessage(newident);
+							// ON VERIFIE SI LE NOM EXISTE DEJA DANS LA LISTE !
+							cont = 1;	
+							for (k=0;k<indexident;k++) { 
+								controle = array[k];
+								//print("newident ",newident," controle= ",controle);
+								if (newident ==controle) { cont = 0;  
+									// showMessage(newident+" already exists...");	
+									} // if
+								} // for
+							if (cont ==1) { // Ajout du nom						
+								showMessage(newident+" is added in list...");	
+								// Modification de la liste...
+								// fermeture du LOG
+								print("A purger");
+								selectWindow("Log");
+								run("Close"); 
+								// Impression des champs existants 
+								for (i=0; i<nbident; i++) { 
+									print(array[i]); }
+								// Sauvegarde du log en lieu du identfile actuel
+								selectWindow("Log");
+								sauveident = "save=" + chemconfig + identlistfile;
+								run("Text...",sauveident);
+								selectWindow("Log");
+								run("Close"); 
+								} // if cont
+							} // else newname
+							// else {showMessage(newident+" exists in the list...");	}
+						} // if newident=="new"
+					selectImage(titrered);
+					zoop[i] = newident;
+					// Enregistrement dans la matrice zoop
+					// ecriture du nouveau nom
+					Id = Labels+" "+newident;
+					// Test de depassement de l'image...
+					BY = d2s(Ymin,0);
+					BX = d2s(Xmin,0);
+					Ymin=maxOf(BY,40);
+					Xmin=minOf(BX,refx);
+					drawString(Id,Xmin,Ymin-10);
+					} // else sortie macro
+				flags = 50;
+				} // if (position)
+			} // for long
+			wait(1000);
+		} // else
+	} // while
+	//selectWindow(titrered + "_ident.txt");
+	//run("Close");
+	close();
+	ret="1";
+} // if flagi==1
+
+return ret;

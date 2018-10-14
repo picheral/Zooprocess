@@ -1,0 +1,6 @@
+Dialog.create("FIRST OBJECT");
+Dialog.addMessage("INSTRUCTIONS : \nUtilize ZOOM & MOVE tools to go to the object to split.      \nPress Roll Mouse Button before drawing line \n \nPRESS OK to start process. ");
+Dialog.show();
+val = "ok";
+ret = toString(val);
+return ret;

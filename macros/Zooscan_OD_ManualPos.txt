@@ -1,0 +1,8 @@
+// ---------------Zooscan_OD_ManualPos-------------------
+Dialog.create("OD position");
+Dialog.addMessage("Press OK ");
+Dialog.addMessage("then Click on the correct position with the ROLL mouse button ");
+Dialog.show();
+
+ret = "1 1";
+return ret;

@@ -1,0 +1,331 @@
+// ------------------------- UVP5_process_meta --------------------
+version = "1.03";
+date = "2009/07/20";
+
+arg = getArgument(); 
+array = split(arg," ");
+dircruise= array[0]; 	
+metafile= array[1]; 	
+option= array[2]; 	
+
+// ------------- Creation repertoires ------------------------------------
+dirsort = dircruise+"\\PID_process\\sorted_vignettes\\";
+if (File.exists(dirsort) == 0) File.makeDirectory(dirsort);
+
+dirpid = dircruise+"\\PID_process\\pid_results\\";
+if (File.exists(dirpid) == 0) File.makeDirectory(dirpid);
+
+dirpred = dircruise+"\\PID_process\\prediction\\";
+if (File.exists(dirpred) == 0) File.makeDirectory(dirpred);
+
+dirdat1ext = dircruise+"\\PID_process\\pid_results\\dat1_extracted\\";
+if (File.exists(dirdat1ext) == 0) File.makeDirectory(dirdat1ext);
+
+dirdat1val = dircruise+"\\PID_process\\pid_results\\dat1_validated\\";
+if (File.exists(dirdat1val) == 0) File.makeDirectory(dirdat1val);
+
+dirpidpred = dircruise+"\\PID_process\\pid_results\\pid_predicted\\";
+if (File.exists(dirpidpred) == 0) File.makeDirectory(dirpidpred);
+
+chemtemp = dircruise+"\\Zooscan_temp\\";
+if (File.exists(chemtemp) == 0) File.makeDirectory(chemtemp);
+
+dirmat = dircruise+"\\matlab\\";
+if (File.exists(dirmat) == 0) File.makeDirectory(dirmat);
+
+long = lengthOf(dircruise);
+Cruise  = substring(dircruise,3,long-1);
+
+print("A purger");	selectWindow("Log");	run('Close');
+// ------------------ CREATE empty -----------------
+if (option == "create") {
+	print("cruise;ship;filename;stationname;bottomdepth;ctdrosettefilename;latitude;longitude;firstimage;volimage;aa;exp;dn;winddir;windspeed;seastate;nebuloussness;comment");
+	getDateAndTime(year, month, dayOfWeek, dayOfMonth, hour, minute, second, msec);
+	year = toString(year);
+	year = getString("Enter YEAR",year);
+	num = getNumber("Enter number",0);
+	num = toString(num);
+	metafile = "entetepvm5_"+year+num+".txt";
+	sauve = "save=" + dircruise+"\\"+metafile;
+	run("Text...",sauve);
+	run('Close');
+} // 
+
+// ----------------------------- ADD EDIT ----------------------------------
+open(dircruise+"\\"+metafile);
+wait(100);
+metadata = getInfo();
+run('Close');
+array = split(metadata,"\n");
+liste = 		newArray(array.length);
+cruise = 		newArray(array.length);
+ship = 		newArray(array.length);
+filename = 	newArray(array.length);
+stationname =	newArray(array.length);
+bottomdepth =	newArray(array.length);
+ctdrosettefile =	newArray(array.length);
+latitude =		newArray(array.length);
+longitude =	newArray(array.length);
+firstimage =	newArray(array.length);
+imagevol =	newArray(array.length);
+aa =		newArray(array.length);
+expo =		newArray(array.length);
+dn =		newArray(array.length);
+winddir =		newArray(array.length);
+windspeed =	newArray(array.length);
+seastate =	newArray(array.length);
+nebuloussness =	newArray(array.length);
+comment =	newArray(array.length);
+// ---------------- Valeurs initiales -----------------------------
+Ship = 		"xx";
+Filename = 	00;
+Stationname =	"xx";
+Bottomdepth =	0;
+Ctdrosettefile =	"xx";
+Latitude =	0;
+Longitude =	0;
+Firstimage =	0;
+Imagevol =	0;
+Aa =		0;
+Expo =		0;
+Dn =		"D";
+Winddir =	0;
+Windspeed =	0;
+Seastate =	0;
+Nebuloussness =	0;
+Comment = 	"no";
+print(array[0]);
+
+if (option != "create") {
+	for (i=1; i<array.length ; i++) { 
+		// ----------------- Impression des premieres lignes -----------------
+		print(array[i]);
+		ligne = replace(array[i],";"," ");
+		ligne = split(ligne,"\ ");
+		Cruise = 		ligne[0];
+		Ship = 		ligne[1];
+		Filename = 	ligne[2];
+		Stationname =	ligne[3];
+		Bottomdepth =	ligne[4];
+		Ctdrosettefile =	ligne[5];
+		Latitude =	ligne[6];
+		Longitude =	ligne[7];
+		Firstimage =	ligne[8];
+		Imagevol =	ligne[9];
+		Aa =		ligne[10];
+		Expo =		ligne[11];
+		Dn =		ligne[12];
+		Winddir =	ligne[13];
+		Windspeed =	ligne[14];
+		Seastate =	ligne[15];
+		Nebuloussness =	ligne[16];
+		if (ligne.length == 18 )	{	Comment =	ligne[17];		} // if
+		else { 				Comment = " ";			} // else
+		cruise[i] = 	Cruise;
+		ship[i] = 		Ship;
+		filename[i] = 	Filename;
+		stationname[i] =	Stationname;
+		bottomdepth[i] =	Bottomdepth;
+		ctdrosettefile[i] =	Ctdrosettefile;
+		latitude[i] =	Latitude;
+		longitude[i] =	Longitude;
+		firstimage[i] =	Firstimage;
+		imagevol[i] =	Imagevol;
+		aa[i] =		Aa;
+		expo[i] =		Expo;
+		dn[i] =		Dn;
+		winddir[i] =	Winddir;
+		windspeed[i] =	Windspeed;
+		seastate[i] =	Seastate;
+		nebuloussness[i] =	Nebuloussness;
+		comment[i] =	Comment;
+		liste[i-1] = 	Filename+" "+Stationname+" "+Ctdrosettefile;	
+	} // for
+}// if
+// -------------------- SELECT -----------------------------------------------------------------
+if (option == "select") {
+	Dialog.create("Edit UVP5 profile selector        version : "+version);
+	Dialog.addMessage("-------------------------------------------------------------");
+	Dialog.addMessage("Project :  "+dircruise);
+	Dialog.addMessage("Metadatafile = "+metafile);
+	Dialog.addMessage("-------------------------------------------------------------");
+	Dialog.addMessage("     Filename   StationId   CTDfilename"); 
+	Dialog.addChoice("       ", liste);
+	Dialog.addMessage("-------------------------------------------------------------");
+	Dialog.show();
+	profile = Dialog.getChoice();
+	profile = split(profile,"\ ");
+	Filename = profile[0];
+	Stationname = profile[1];
+	Ctdrosettefile = profile[2];
+} // select
+
+else {
+	//	liste[0] = "ADD profile";
+	//	Dialog.create("Edit UVP5 profile data        version : "+version);
+	//	Dialog.addMessage("-------------------------------------------------------------");
+	//	Dialog.addMessage("Project :  "+dircruise);
+	//	Dialog.addMessage("Metadatafile = "+metafile);
+	//	Dialog.addMessage("-------------------------------------------------------------");
+	//	Dialog.addChoice("       ", liste);
+	//	Dialog.addMessage("-------------------------------------------------------------");
+	//	Dialog.show();
+	//	profile = Dialog.getChoice();
+	profile =  "ADD profile";
+	// --------------- Saisie d'un nouveau profile ------------------------------------------------
+	if (profile == "ADD profile") {
+		// ---------------------- Saisie des donnees ---------------------------------
+		check= 1;
+		while (check ==1) {check= 0;
+			test = 0;
+			while (test == 0) {
+				// ------------- Choix du repertoire ------------------------------------
+				dirprofile = getDirectory("Select Profile source directory (''HDR....'')    ");
+				// ------------- Verification qu'il existe un fichier DAT, HDR et BRU au moins !
+				filelist = getFileList(dirprofile);
+				dat = 0;
+				bru = 0;
+				hdr = 0;
+				list = newArray(filelist.length);
+				for (i = 0;i<filelist.length;i++) {
+					nomvig =filelist[i];
+					posdat = endsWith(nomvig,".dat");
+					posbru = endsWith(nomvig,".bru");
+					poshdr = endsWith(nomvig,".hdr");
+					if (posdat == true  )  {	dat++;				} // if
+					if (posbru == true  )  {	bru++;		Filename = 	substring(nomvig,0,17);		} // if
+					if (poshdr == true  )  {	hdr++;			} // if
+				} // for
+				if (dat > 0 && bru > 0 && hdr > 0) { 	test = 1;			} // if
+			} // while
+			// ------------------ Suppression HDR -----------------------------
+			long = lengthOf(Filename);
+			Filename = substring(Filename,3,long);
+
+			message = "Warning : \n";
+			Dialog.create("METADATA    ");
+			Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage("Filename =                   "+Filename);
+			Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addString("Cruise ",Cruise);
+			Dialog.addString("Ship ",Ship);
+			Dialog.addString("Station Id ",Stationname);
+			Dialog.addNumber("Bottom Depth (m) ",Bottomdepth);
+			Dialog.addString("CTD reference (filename) ",Ctdrosettefile);
+			Dialog.addNumber("Latitude    (DD.MMMMM for North,   -DD.MMMMM for South) ",Latitude);
+			Dialog.addNumber("Longitude (DDD.MMMMM for West, -DDD.MMMMM for Est)   ",Longitude);
+			Dialog.addNumber("First Image OK ",Firstimage);
+			Dialog.addNumber("Image volume ",Imagevol);
+			Dialog.addNumber("aa ",Aa);
+			Dialog.addNumber("Exp ",Expo);
+			aff = newArray("D","N");
+			Dialog.addChoice("Day/Night       ",aff);
+			Dialog.addNumber("Wind dir (degree) ",Winddir);
+			Dialog.addNumber("Wind speed (knts) ",Windspeed);
+			Dialog.addNumber("Seastate ",Seastate);
+			Dialog.addNumber("Nebuloussness (''99'' if not observed) ",Nebuloussness);
+			Dialog.addString("Comment ",Comment);
+			Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+			Dialog.show;
+
+			Cruise = Dialog.getString();
+			a= lengthOf(Cruise);
+			if (a==0) {message = message+ "Cruise empty \n";	check = 1;		} // if
+			ind= indexOf(Cruise," ");
+			if (ind != -1) { Cruise = replace(Cruise," ","_"); 				 }
+
+			Ship = Dialog.getString();
+			a= lengthOf(Ship);
+			if (a==0) {message = message+ "Zooscan Operator empty \n";	check = 1;		} // if
+			ind= indexOf(Ship," ");
+			if (ind != -1) { Ship = replace(Ship," ","_"); 						 }
+
+			Stationname = Dialog.getString();
+			a= lengthOf(Stationname);
+			if (a==0) {message = message+ "Station Id empty \n";		check = 1;		} // if
+			ind= indexOf(Stationname," ");
+			if (ind != -1) { Stationname = replace(Stationname," ","_"); 					 }
+
+			Bottomdepth = Dialog.getNumber();
+			if (Bottomdepth == 0) { message = message + "Bottomdepth is not a number  or Bottomdepth set to 0   \n  "; check = 1;		} // if
+
+			Ctdrosettefile = Dialog.getString();
+			a= lengthOf(Ctdrosettefile );
+			if (a==0) {message = message+ "Ctdrosette empty \n";		check = 1;		} // if
+			ind= indexOf(Ctdrosettefile ," ");
+			if (ind != -1) { Ctdrosettefile = replace(Ctdrosettefile ," ","_"); 					 }
+
+			Latitude = Dialog.getNumber();
+			if (Latitude == 0) { message = message + "Latitude is not a number \n  "; check = 1; } // if
+			if ((Latitude < -90 || Latitude > 90) && Latitude != 99.990) { message = message + "Latitude is out of limits (-90 +90) \n  "; check = 1; } // if
+
+			Longitude = Dialog.getNumber();
+			if (Longitude == 0) { message = message + "Longitude is not a number \n  "; check = 1; } // if
+			if ((Longitude < -180 || Longitude > 180) && Longitude != -999.990) { message = message + "Longitude is out of limits (-180 +180) \n  "; check = 1; } // if
+
+			Firstimage = Dialog.getNumber();
+			if (Firstimage == 0) { message = message + "Firstimage is not a number  or Firstimage set to 0   \n  "; check = 1;		} // if
+
+			Imagevol = Dialog.getNumber();
+			if (Imagevol == 0) { message = message + "Imagevol is not a number  or Imagevol set to 0   \n  "; check = 1;		} // if
+
+			Aa = Dialog.getNumber();
+			if (Aa == 0) { message = message + "Aa is not a number  or Aa set to 0   \n  "; check = 1;		} // if
+
+			Expo = Dialog.getNumber();
+			if (Expo == 0) { message = message + "Exp is not a number  or Exp set to 0   \n  "; check = 1;		} // if
+
+			Dn =  Dialog.getChoice();
+
+			Winddir = Dialog.getNumber();
+			if (Winddir > 360) { message = message + "Winddir is > 360 !   \n  "; check = 1;		} // if
+			if (Winddir < 0) { message = message + "Winddir is < 0 !   \n  "; check = 1;		} // if
+
+			Windspeed = Dialog.getNumber();
+			if (Windspeed > 100) { message = message + "Windspeed > 100 !   \n  "; check = 1;		} // if
+			if (Windspeed < 0) { message = message + "Windspeed < 0 !   \n  "; check = 1;		} // if
+
+			Seastate = Dialog.getNumber();
+			if (Seastate > 12) { message = message + "Seastate is > 12 !   \n  "; check = 1;		} // if
+			if (Seastate < 0) { message = message + "Seastate is < 0 !   \n  "; check = 1;		} // if
+
+			Nebuloussness = Dialog.getNumber();
+			if (Nebuloussness > 8 && Nebuloussness != 99) { message = message + "Nebuloussness > 8 !   \n  "; check = 1;		} // if
+			if (Nebuloussness < 0) { message = message + "Nebuloussness < 0 !   \n  "; check = 1;		} // if
+
+
+			Comment = Dialog.getString();
+			a= lengthOf(Comment);
+			if (a==0) { Comment = "no";		} // if
+			ind= indexOf(Comment," ");
+			if (ind != -1) { Comment  = replace(Comment," ","_"); 				 }
+
+			if (check == 1) { message = message + " \nEnter values again              ";		
+				showMessage(message); 	
+			} // if	
+			else {	Filename= toString(Filename);
+				Cruise = toLowerCase(Cruise);
+				Ship = toLowerCase(Ship);
+				Stationname = toLowerCase(Stationname);
+				Ctdrosettefile = toLowerCase(Ctdrosettefile);
+				Comment = toLowerCase(Comment);
+				Firstimage= toString(Firstimage);
+				print(Cruise+";"+Ship+";"+Filename+";"+Stationname+";"+Bottomdepth+";"+Ctdrosettefile+";"+Latitude+";"+Longitude+";"+Firstimage+";"+Imagevol+";"+Aa+";"+Expo+";"+Dn+";"+Winddir+";"+Windspeed+";"+Seastate+";"+Nebuloussness+";"+Comment);
+				// ---------------- Sauvegarde ---------------------------------
+				sauve = "save=" + dircruise+"\\"+metafile;
+				run("Text...",sauve);
+				check = getBoolean("Enter another profile ?   ");
+			} // else	
+		} // while
+	} // if add
+	// ---------------- Sauvegarde ---------------------------------
+	sauve = "save=" + dircruise+"\\"+metafile;
+	run("Text...",sauve);
+	sauve = "save=" + dirmat+"\\"+metafile;
+	run("Text...",sauve);
+	run('Close');
+} // else
+
+// ---------------- FIN --------------------------------------------
+ret = Filename+" "+Stationname+" "+Firstimage+" "+Ctdrosettefile;
+return ret;

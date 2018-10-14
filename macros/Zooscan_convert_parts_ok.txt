@@ -1,0 +1,463 @@
+//----------------Zooscan_convert.txt ---------------------------------------
+version = "6.10";
+date = "2009/03/29";
+requires("1.41o");
+
+args = getArgument();
+arg = split(args," ");
+projfolder = 	arg[0];
+colorbalance = 	arg[1];
+chemin = 	arg[2];
+filenamein= 	arg[3];
+chemout =	arg[4];
+filenameout= 	arg[5];
+batch = 		"1";		
+param = 		"1";
+nb = 5; 
+duration = 1000;
+savezip = 	1;
+
+if (arg.length >=9) {	batch = arg[6];	param = arg[7];	savezip = arg[8];	chem =	arg[9];		} // if
+if (isOpen("Results") ) { 	selectWindow("Results");	run("Close");		} // if
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+drive = 		substring(projfolder,0,2);
+chemtemp = 	chem+"\\"+"Zooscan_temp"+"\\";
+chemscan = 	projfolder + "\\Zooscan_scan\\";
+chemraw = 	projfolder + "\\Zooscan_scan\\" + "_raw\\";
+if (batch == "1") { 	setBatchMode(true);	} // if
+hh = 1;
+reduct = "1";
+smooth = "no";
+resolutionreduct = 1200;
+long = lengthOf(filenamein);
+titreopen = substring(filenamein, 0, long-4);
+imagefree = "raw.tif";
+
+//----------------------------Test sur l'existence du repertoire des fichiers de config-------------------------------
+confrep = File.exists(chemconfig);
+if (confrep==0) { 	showMessage("Error message : "+chemconfig+" folder doesn't exist.        ");  	}
+// -----------------------------Existence d'une LUT ------------------------------------------------------
+else { 	conflut = File.exists(chemconfig+"lut.txt");
+	if (conflut == 0) {	showMessage("Error message : lut.txt file doesn't exist.           ");  		} // if
+	else { 	//---------------------Lecture fichier LUT ---------------------------------
+		open(chemconfig+"lut.txt");
+		lutdata = getInfo();
+		run("Close");
+		ligne = split(lutdata,"\n");
+		min = 	ligne[0];	max = 		ligne[1];		gamma = 	ligne[2];		sens = 	ligne[3];
+		adjust = 	"no";	odrange = 	1.8;		ratio = 		1.15;		medianchoice = 	"no";
+		medianvalue = 	1;	
+		if (ligne.length == 6) {	adjust = ligne[4];	odrange = ligne[5];	ratio = 1.15;	
+			showMessage("Zooprocess requires a new LUT file.                 \nUpdate your LUT file for Zooprocess 3.05 and above versions.                ");
+		} // if
+		else if (ligne.length == 7) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];		
+			odrange = parseFloat(odrange);	
+		} // else if
+		else if (ligne.length == 9) {	
+			adjust = ligne[4];	odrange = ligne[5];		ratio =ligne[6];		
+			sizelimit =ligne[7];		sizelimit= parseInt(sizelimit);
+			overlap = ligne[8];		
+			odrange = ligne[5];		odrange = parseFloat(odrange);
+		} // else if
+		else if (ligne.length == 11) {	
+			adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);		
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+		} // if
+		else if (ligne.length == 12) {	adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+			sizelimit = ligne[7];		overlap = ligne[8];	
+			odrange = ligne[5];		odrange = parseFloat(odrange);	
+			medianchoice = ligne[9];	medianvalue = ligne[10];	
+			resolutionreduct = ligne[11];		resolutionreduct = parseInt(resolutionreduct);			
+		} // if
+		else { 	getBoolean("Your LUT file is not correct, please check it using the ''EDIT LUT file'' tool !    \nPress OK to keep processing. \nPress Cancel to abort.                      ");		} // else
+		if (odrange >= 3) odgrange = 1.15;
+	} // else
+} // else
+textmedian = "radius="+medianvalue;
+textmean = "radius="+medianvalue+" stack";
+
+// -------------------- LOG -----------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+print("======== IMAGE CONVERSION / NORMALISATION ========");
+print("Version= "+version);
+print("RAW image= "+filenamein);
+dateheure =	runMacro("Zooscan_get_time_5");
+print("Starting time= ",dateheure);
+print(" ");
+
+// ------------------ Eclusion du filtrage pour les backgrounds -----
+if (lengthOf(filenamein) > 18) {
+	type = substring(filenamein,13,19);
+	if (type == "_back_") medianchoice ="no";
+} // if
+
+// -------------------- Ouverture de l'image RAW ----------------------
+sizefile = File.length(chemin+"\\"+filenamein);
+if (sizefile > 500000000) {	nb = 10; duration = 1000;	} // if
+if (colorbalance != "background") {
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	nb = 5; 
+} // if
+open(chemin+"\\"+filenamein);
+wait(100);
+rename("raw.tif");
+
+// ------------------Lecture de la resolution de l'image--------------------
+selectImage("raw.tif");
+print("> Getting image info");
+largeur = 	getWidth();
+hauteur = 	getHeight();
+print("Size= "+largeur+" x "+hauteur+" pixels");	
+run("Show Info...");
+wait(200);
+imagedata = getInfo();
+wait(200);
+selectWindow("Info for raw.tif");
+run("Close");
+ligne = split(imagedata,"\n");
+for (k = 0;k<ligne.length;k++) {
+	champ = ligne[k];
+	pos1 = indexOf(champ,"Resolution:");
+	if (pos1==0 ) { 		
+		deb= indexOf(champ,": ");		
+		end= indexOf(champ,"pixel");
+		val = substring(champ,deb+1,end);	
+		resolution = parseInt(val);		
+	} // if
+} // for
+print("Resolution= "+resolution+"dpi");
+
+// --------------- Sauvegarde compresse ZIP ------------------------------------------
+//	getBoolean("Savezip= "+savezip);
+if (savezip=="1"  || savezip == true || savezip == 1)	{
+	//----------------------------Test sur l'existence du repertoire ZIP-------------------------------
+	confzip = File.exists(chemraw);
+	if (confzip==0) { 	showMessage("Warning : "+chemraw+" folder doesn't exist, it is created now !        ");  	File.makeDirectory(chemzip);		} // if
+	// ------------------------ Suppression des info de type de fichier ----------------------
+	ctrl2 = 		endsWith(filenamein,".tif");
+	ctrl3 = 		endsWith(filenamein,"raw_1.tif");
+	if ( ctrl2 == 1 && ctrl3 !=1 ) { 	titrered = substring(filenamein, 0, long-6);	titrediv = titrered;	titrered1 = titrered+"_tif.zip";		titrered = titrered+"_raw_1.zip";		} // if
+	if ( ctrl3 == 1 ) { 		titrered = substring(filenamein, 0, long-4);	titrediv = titrered;	titrered1 = titrered+"_tif.zip";		titrered = titrered+".zip";			} // if
+	// -------------- existence des fichiers titrered et tiretred1 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+	confzipe = 	File.exists(chemraw+titrered);
+	confzipe1 = 	File.exists(chemraw+titrered1);
+	if (confzipe == 0 && confzipe1 == 0) { 	print("> Zipping file now, be patient !");	
+		selectImage("raw.tif");
+		saveAs("zip",chemraw+titrered);
+		rename("raw.tif");
+		// ------------------ Archivage temporaire -------------------------------
+		if (resolution > 600) { 	ret = runMacro("Zooscan_free_memory",chemtemp+" "+imagefree);		} // if
+		rename("raw.tif");
+		print("File zipped");
+	} // if
+	else if (resolution > 600) {	
+//		ret = runMacro("Zooscan_free_memory",chemtemp+" "+imagefree);	
+		print("Image already zipped");	
+	} // else
+	else {	print("Image allready zipped");	}// else
+
+} // if
+// ------------------ Archivage temporaire si pas compression ZIP -------------------------------
+//	else if (resolution > 600 && colorbalance != "background") {	ret = runMacro("Zooscan_free_memory",chemtemp+" "+imagefree);		} // else
+//	rename("raw.tif");
+
+// ----------------- Conversion 1200 dpi des images "large" et 2400 dpi ---------------------------
+Resosource = 	parseInt(resolution);
+if (largeur > 14000 && Resosource == 2400 && resolutionreduct == 1200 )	{
+//	if (largeur > 100000000 && Resosource == 2400 )	{
+	print("> Converting image to 1200 dpi");	
+	largeur = 	largeur/2;
+	hauteur = 	hauteur/2;
+	largeur =		parseInt(largeur);
+	hauteur = 	parseInt(hauteur);
+	textesize = 	"width="+largeur+" height="+hauteur+" constrain interpolate";
+	run("Size...",textesize );
+	imagefree = "raw.tif";
+	ret = runMacro("Zooscan_free_memory",chemtemp+" "+imagefree);
+	resolution = 1200;
+	rename("raw.tif");
+	print("Image converted");
+	reduct = "0.5";
+	// ---------------- Pas de filtre median ensuite --------------------
+	medianchoice = "no";
+} // if
+
+// ----------------- Mesure MEDIAN ------------------------------------
+run("Set Measurements...", "median redirect=None decimal=2");
+print("> Measuring median grey level");
+BX = largeur*0.03;
+BY = hauteur*0.05;
+W = largeur *0.94;
+H = hauteur*0.93;
+step = floor(H/20);
+By = BY;
+k = 0;
+mediansum = 0;
+while (By<H+step) {
+	makeRectangle(BX,By,W,step);
+	run("Measure");
+	median = getResult("Median",k);
+	mediansum = mediansum+median;
+	k++;
+	By = By+step;	
+} // while		
+median = mediansum/(k);
+run("Select None");
+print("Median = "+median);
+if (isOpen("Results") ) { 	selectWindow("Results");	run("Close"); 		} // if
+
+// -------------------- Ajustement du niveau de gris --------------------------
+MINREC = 	min;
+MAXREC = 	max;
+if (adjust == "yes" ) { 
+	MAXREC = 	floor(median * ratio);
+	MAXREC =	minOf(65536,MAXREC);
+	fact = 		pow(10,odrange);
+	MINREC = 	maxOf(0,median/(fact*ratio));
+	MINREC = 	floor(MINREC);
+} // if
+setMinAndMax(MINREC, MAXREC);
+
+// ---------------------- Gamma si BEFORE ----------------
+if (sens == "before" && gamma != 1) { 
+	print(" > Processing Gamma");	
+	text = "value="+gamma;	
+	step = floor(hauteur/40);
+	By = 0;
+	while (BY<hauteur+step) {
+		makeRectangle(0,By,largeur,step);
+		run("Gamma...", text);
+		By = By+step;	
+	} // while	
+	run("Gamma...", text);
+	if (resolution > 600) {	ret = runMacro("Zooscan_free_memory",chemtemp+" "+imagefree);	} // if
+	rename("raw.tif");
+	print("Gamma processed before");
+} // if
+
+// ---------------------- Conversion 8 bits -------------------
+	if (medianchoice != "yes" ) {
+		print("> Converting to 8 bits");	
+		run("8-bit");
+		print("8bit done");
+		saveAs("Tiff",chemtemp+"raw.tif");
+		rename("raw.tif");
+	} // if
+
+// ----------------- Filtre median image entiere ----------------------------------------
+if (medianchoice == "yes" && resolution < 2400 ) {
+	print("> Smoothing, be patient !");
+	run("Median...", textmedian);	
+	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	nb = 5;
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	print("Image filtered");
+	smooth = "yes";
+	open(chemtemp+"raw.tif");
+} // if
+
+// ----------------- Filtre median par parts -------------------------------------------------
+if (medianchoice == "yes" && resolution == 2400 ) {		//	 || (largeur > 14000 && resolution == 2400)) {
+	hauteura = floor(hauteur/6);	
+	print("> Smoothing and converting to 8bits, be patient !");	
+
+	// ------------------------ 1/6 ------------------------------------------------------
+	selectImage("raw.tif");
+	makeRectangle(0, 0, largeur, hauteura);
+	run("Crop");
+	print("a cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("a filtered");	
+	saveAs("Tiff",chemtemp+"raw_a.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	
+	// ------------------------ 2/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(0,hauteura, largeur, hauteura);
+	run("Crop");
+	print("b cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("b filtered");
+	saveAs("Tiff",chemtemp+"raw_b.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 3/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(0,2*hauteura, largeur, hauteura);
+	run("Crop");
+	print("c cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("c filtered");	
+	saveAs("Tiff",chemtemp+"raw_c.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 4/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(0,3*hauteura, largeur, hauteura);
+	run("Crop");
+	print("d cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("d filtered");	
+	saveAs("Tiff",chemtemp+"raw_d.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 5/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(0,4*hauteura, largeur, hauteura);
+	run("Crop");
+	print("e cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("e filtered");	
+	saveAs("Tiff",chemtemp+"raw_e.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ------------------------ 6/6 ------------------------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	makeRectangle(0,5*hauteura, largeur,hauteur-5*hauteura);
+	run("Crop");
+	print("f cropped");
+	run("8-bit");
+	print("8bit done");
+	run("Median...", textmedian);	
+	print("f filtered");	
+	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+	// ----------------------- recomposition ------------------------------------------
+	print("> Reconstructing image");
+
+	// ------------ a -----------------
+	newImage("tempo", "8-bit White", largeur, hauteur, 1);
+	open(chemtemp+"raw_a.tif");
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("tempo");
+	makeRectangle(0, 0, largeur, hauteura);
+	run("Paste");
+	rename("raw.tif");
+	print("a copied");
+
+	// ------------- b ---------------------------------
+	open(chemtemp+"raw_b.tif");
+	wait(100);
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(0,hauteura, largeur, hauteura);
+	run("Paste");
+	print("b copied");
+
+	// ------------ c -------------------------------------
+	open(chemtemp+"raw_c.tif");
+	wait(100);
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(0,2*hauteura, largeur, hauteura);
+	run("Paste");
+	print("c copied");
+
+	// ------------ d -------------------------------------
+	open(chemtemp+"raw_d.tif");
+	wait(100);
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(0,3*hauteura, largeur, hauteura);
+	run("Paste");
+	print("d copied");
+
+	// ------------ e -------------------------------------
+	open(chemtemp+"raw_e.tif");
+	wait(100);
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(0,4*hauteura, largeur, hauteura);
+	run("Paste");
+	print("e copied");
+
+	// ------------ f -------------------------------------
+	open(chemtemp+"raw.tif");
+	wait(100);
+	run("Select All");
+	run("Copy");
+	close();
+	selectImage("raw.tif");
+	makeRectangle(0,5*hauteura, largeur,hauteur-5*hauteura);
+	run("Paste");
+	print("f copied");
+
+	// -------------------- sauvegarde temporaire ----------------------
+	saveAs("Tiff",chemtemp+"raw.tif");
+	smooth = "yes";
+
+	print("Image assembled");
+} // if median
+
+// ------------------------ Gamma AFTER ---------------------
+if (sens == "after" && gamma != 1) { 	text = "value="+gamma;		run("Gamma...", text);	print("Gamma done after");} // if
+
+// -------------------- Rotation et FLIP ------------------------
+if (sizefile > 200000000) {	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	open(chemtemp+"raw.tif");
+	wait(100);
+} // if
+print("> Rotating image");
+run("Rotate 90 Degrees Right");
+print("Image rotated");
+
+print("> Flipping vertically");
+run("Flip Vertically");
+print("Image flipped vertically");
+largeur = 	getWidth();
+hauteur = 	getHeight();
+
+// ------------------------ Enregistrement ------------------------	
+saveAs("Tiff",chemout+filenameout);
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	}
+
+if (colorbalance ! = "background") {
+	nb = 10;
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+} // if
+
+// --------------------------- FIN --------------------------------------------------------------------------------
+print("=========== End of conversion ===============");
+if (batch == "1") { setBatchMode(false);	} // if
+hauteur = 	toString(hauteur);
+largeur =	toString(largeur);
+resolution = 	toString(resolution);
+ret = hauteur+" "+largeur+" "+resolution+" "+median+" "+MINREC+" "+MAXREC+" "+reduct+" "+smooth;
+return ret;

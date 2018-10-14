@@ -1,0 +1,114 @@
+//---------------------------Zooscan_vignettes_to_work_light.txt---------------------------------
+version = "7.23";
+date = "2017/03/10";
+
+// Cette routine ne fonctionne que dans le respect de l'arborescence Zooscan_scan\_work\
+args = getArgument();
+arg = split(args," ");
+projfolder = 	arg[0];
+titrered = 	arg[1];
+
+//chem = "C:\\Zooscan\\";
+//projfolder = "C:\\Zooscan_rond_carre_zooprocess_separation_training";
+
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemwork = 	chemscan + "_work\\";
+chemmeta = 	projfolder+"\\Zooscan_meta\\";
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+//	chemtemp = 	chem + "Zooscan_temp\\";		
+setBatchMode(true); 
+longline = 1;
+deb = 0;			
+x1 = 10;
+masksave = "1"; // sauvegarde !
+maskout = false;
+clean = true;
+gamma = 1.1;
+clean = 1;	legend = 2;	flip = "0";		upper = 243;
+format = "jpeg";
+legendzooscan = false;
+collabel = 0;	colbx = 0;		colby = 0;		
+colwidth = 0;	colheight = 0;	colno = 0;
+path_work_sample = chemwork + titrered+"\\";	
+titre = "NOK";
+if (File.exists(path_work_sample)) {
+	if (isOpen("Log")) {		selectWindow("Log"); 	run("Close");					} // if
+//	aa = getBoolean("WORK SAMPLE : "+path_work_sample);
+	//-------------------------------- Existence du PID et du VIS --------------------------------------
+	imagezip  =  	path_work_sample+titrered+"_vis1.zip";
+	imagejpg = 	path_work_sample+titrered+"_vis1.jpg";
+	imagetif = 	path_work_sample+titrered+"_vis1.tif";
+	imagemsk = 	path_work_sample+titrered+"_msk1.gif";
+	zipexist = File.exists(imagezip);
+	jpgexist = File.exists(imagejpg);
+	tifexist = File.exists(imagetif);
+	mskexist = File.exists(imagemsk);
+	// --------------- OUverture du Pid car images existent -----------
+	if ((zipexist == true || jpgexist == true || tifexist == true)&& mskexist == 1 ){ 
+		openpid = path_work_sample +titrered+"_dat1.pid";
+		open(openpid);
+		wait(500);
+		config = getInfo();
+		pid = split(config,"\n");
+		run("Close");
+		//-----------------Recherche DATA section--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+			if (ctrl1>=0) deb=i+1;
+			if (startsWith(pid[i],"Resolution")) { data = replace(pid[i],"="," "); data = replace(data,"  "," "); data = split(data,"\ "); resolution = parseInt(data[1]);	}
+		} // for
+		// ----------------- Resolution ---------------------------------------------
+		if (resolution == 300) {	longline = 5;		} // if
+		vignettetext = toString(longline);
+		//------------------Detection des N° de colonnes pour les champs-------------
+		coltag = 0;
+		a= replace(pid[deb],";"," ");
+		entete = split(a,"\ ");
+		for (i=0; i<entete.length ; i++) {	v = entete[i];
+			if (v=="Tag") { 	coltag = i;		} //if
+			if (v=="Label") { 	collabel = i;		} //if	Nom de l image source
+			if (v=="BX") { 	colbx = i;			} //if
+			if (v=="BY") { 	colby = i;			} //if
+			if (v=="Area") { 	colarea = i;		} //if
+			if (v=="Width") { 	colwidth = i;		} //if
+			if (v=="Height") { 	colheight = i;		} //if
+			if (v=="!Item") { 	colno = i;			} //if
+		} // for			
+	} // if
+	//--------------------------Extraction des vignettes-------------------------------------------------------------------------------------------------------------------------------------------------
+	run("Colors...", "foreground=black background=white selection=black");
+	if (File.exists(imagezip)) 	{	open(imagezip);	titre = titrered+"_vis1.tif";		} // if
+	else if (File.exists(imagetif)) { 	open(imagetif);	titre = titrered+"_vis1.tif";		} // else
+	else if (File.exists(imagejpg)) { 	open(imagejpg);	titre = titrered+"_vis1.jpg";		} // else
+	rename(titre);
+	setColor(0);
+	selectImage(titre);
+	setVoxelSize(1,1,1,"pixel");
+//	aa = getBoolean("Image OPEN : "+titre);
+	// ------------------ Boucle sur les vignettes ----------------------------------
+	for (i= deb+1 ; i<pid.length ; i++) {	
+		val = replace(pid[i],";"," ");
+		data = split(val,"\ ");
+		No = data[colno];
+		titrered = data[collabel];
+		Bx = data[colbx];
+		By = data[colby];
+		Width = data[colwidth];
+		Height = data[colheight];
+		argum = "no "+resolution+" "+longline+" "+x1+" "+x1 +" "+titre+" "+titrered+" "+No+" "+Bx+" "+By+" "+Width+" "+Height+" "+maskout+" "+gamma+" "+vignettetext+" "+masksave+" "+path_work_sample+" "+path_work_sample+" "+format+" "+clean+" "+flip+" "+legend+" "+legendzooscan+" "+upper;
+		ret = runMacro("Zooscan_vignette_extract",argum);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message : "+No+" vignette extraction failed                       "); 		} // if
+		selectImage(titrered+"_"+No);
+		close();	
+	}	
+}
+// ----------------- Fermeture de toutes les images par prudence -----------------------
+if (isOpen(titre)==true) {	selectImage(titre);	close();	}	
+//	while (nImages()>0) {selectImage(nImages());  		close();		} // while
+if (titre == "NOK") aa = getBoolean(titrered+"  vis image could not be found to extract the vignettes. \n \nPress YES to continue and check the dataset after the end of the process !");
+ret = titrered;
+return ret;

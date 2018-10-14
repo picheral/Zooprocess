@@ -1,0 +1,198 @@
+//------------------- Zooscan_complexity.txt ------------------------
+version = "5.00";
+date = "2008/01/08";
+
+// texture features based on the complexity curve
+// Le 27 decembre 2007
+// from S.Baheeratham
+
+//	open("C:\\recherche\\Zooscan_Learningset\\Medusa\\jb030601d1_1_95.jpg");
+
+H = getHeight();
+W = getWidth();
+maskM = newArray(2*H * W);
+cont = newArray(26);
+contM = newArray(26);
+acu = newArray(26);
+z = 0;
+big = 0;
+bigz = 0;
+total = 0;
+h = 0;
+black = 0;
+//-------------- generating the master mask ------------
+for (i=0;i<H;i++)
+    {
+         for (j=0;j<W;j++)
+         {
+             P = getPixel(i,j); // horizontal
+             if ( P >= 253 || P==0)
+                maskM[h] = 255;
+             else
+               {
+                maskM[h] = 0;
+                black = black + 1;
+               }
+             h=h+1;
+         }
+    }
+for (j=0;j<W;j++)
+    {
+         for (i=0;i<H;i++)
+         {
+             P = getPixel(i,j); // vertical
+             if ( P >= 253 || P==0)
+                maskM[h] = 255;
+             else
+               {
+                maskM[h] = 0;
+                black = black + 1;
+               }
+            h=h+1; 
+         }
+     }
+//------------------------------------------------------
+
+mask = newArray(black);
+
+
+
+//-------- thrsholding and vector construction-------------------
+for(alfa = 0; alfa <= 253 ; alfa=alfa+10)
+{
+
+c = 0;
+ca =0;
+    for (i=0;i<H;i++)
+    {
+         for (j=0;j<W;j++)
+         {
+             if(maskM[ca]==0)
+             {
+                 P = getPixel(i,j); // horizontal
+                 if ( P > alfa )
+                     mask[c] = 255;
+                 else
+                     mask[c] = 0;
+                c++;
+             }  
+          ca++;
+         }
+
+    }
+    for (j=0;j<W;j++)
+    {
+         for (i=0;i<H;i++)
+         {
+             if(maskM[ca]==0)
+             {
+                 P = getPixel(i,j); // vertical
+                 if ( P > alfa )
+                     mask[c] = 255;
+                 else
+                     mask[c] = 0;
+                c++;
+             }
+           ca++;  
+         }
+
+    }
+
+//------------ counting of transitions----------
+lim = c;
+c = 0;
+conta = 0;
+for(k=0;k<lim-1; k++)
+    {
+      if(mask[k]!=mask[k+1])
+       conta ++;
+    }
+
+//showMessage("C(alpha) = "+conta);
+
+cont[z]=conta/(black-1);
+total = total + conta;
+//big = maxOf(big, conta);
+
+if(conta > big)
+  {
+    big = conta;
+    bigz = z;
+
+  }
+
+
+z++;
+
+
+}
+
+mean = 0;
+entropy = 0;
+// Calculation of the mean value
+for (za = 0; za<z ;za++)
+     {
+      contM[za]=cont[za];
+      cont[za]=cont[za]/total;//big;
+      mean = mean + contM[za]/26;
+
+     }
+// Calculation of the standard deviation
+for (za = 1; za<z-1 ;za++)
+     {
+       if(contM[za]>0)
+       {
+       //stdA = stdA + pow(cont[za]-mean,2);
+       entropy = entropy - contM[za]*(log(contM[za]))/(log(2));
+       }
+     }
+
+//std = sqrt(stdA/25);
+acu[0] = cont[0];
+for (za = 1; za<z ;za++)
+     {
+       acu[za] = acu[za-1]+ cont[za];
+     }
+
+
+sumg = 0;	suma = 0;	hh = 0;		secartg = 0;	secarta = 0;
+// ----------------------- On ne prend pas les pixels à 255 ! -----------------------------------------
+sizehist = contM.length;
+Histcum = 	newArray(sizehist-2);
+for (k=0; k<sizehist-2; k++) {	sumg = sumg+contM[k+1];		Histcum[k] = sumg;		suma = suma+k;		} // for
+	while (hh <sizehist-2) {	dat = Histcum[hh]/sumg;
+		if (dat < 0.25 ) M1 = hh; 		// < 0.25
+		if (dat < 0.50 ) M2 = hh; 		// < 0.50
+		if (dat < 0.75 ) M3 = hh; 		// < 0.75
+		if (dat > 0.75) 	hh = 256;  		// > 0.75
+		hh++;
+	} // while
+	moyenneg = sumg/(sizehist-2);	moyennea = suma/(sizehist-2);
+
+	//---------Calcul de la pente de la regression  : stda/stdg -------------------
+	for (t =0;t<sizehist-2;t++) {
+		ecartgcar = pow(Histcum[t]-moyenneg,2);
+		secartg = secartg+ecartgcar;
+		ecartacar = pow(t-moyennea,2);
+		secarta = secarta+ecartacar;
+	} // for
+	stdg = secartg*1/(sizehist-2-1) ;
+	stdg = pow(stdg,0.5);
+	stda = secarta*1/(sizehist-2-1) ;
+	stda = pow(stda,0.5);
+	Slope = stdg/stda;
+//	showMessage("entropy = "+entropy+"   mean = "+mean+" M1= "+M1+" M2= "+M2+" M3= "+M3+" slope= "+Slope);
+//	Plot.create("Simple Plot", "X", "Y", contM);
+//	Plot.create("Simple Plot CUM", "X", "Y", Histcum);
+//	Plot.create("Acumulation Plot", "X", "Y", acu);
+
+entropy = toString(entropy);
+mean = toString(mean*100);
+Slope = toString(Slope*100);
+M1 = toString(M1);
+M2 = toString(M2);
+M3 = toString(M3);
+ret = entropy+" "+mean+" "+Slope+" "+M1+" "+M2+" "+M3;
+return ret;
+
+

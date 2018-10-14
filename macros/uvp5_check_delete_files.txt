@@ -1,0 +1,23 @@
+// -------------- uvp5_check_delete_files.txt ------------------------------
+version =	 "7.17";
+date =	 "2014/09/02";
+
+args = getArgument();
+arg = split(args," ");
+path_list = newArray(2);
+del_path = arg[0];
+pathraw = arg[1];
+nb_hdr = 0;
+max_hdr = 0;
+if (File.exists(del_path)) {
+	// -------------- Comptage initial des profils -----------------
+	profile_list = getFileList(del_path);
+	for (x = 0;x<profile_list.length;x++){
+		profile_source = profile_list[x];
+		if (endsWith(profile_source,"/") && startsWith(profile_source,"HDR")) nb_hdr++;
+		max_hdr = maxOf(nb_hdr,0);
+	} // for
+}
+else { showMessage(del_path+" does not exist ! \n \n-Check CABLES and NETWORK SETTINGS \n-check PROJECT CONFIGURATION \n \nPress OK now");	} // 
+//  ------------------- FIN -------------------
+return toString(max_hdr);

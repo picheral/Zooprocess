@@ -1,0 +1,267 @@
+// --------------------- Zooprocess_main_process_flowcam_pid_vig.txt ------------------------------
+version = "7.01";
+date = "2010/08/10";
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 	arg[0];
+instrum  = 	arg[1];
+
+long = lengthOf(path);
+cruise = substring(path,3,long-1);
+
+pathraw = 	path+"\\raw\\";
+pathconfig = path+"\\config\\";
+processpid = true;
+
+// ----------------- Metafile --------------------------------	
+filelist  = 	getFileList(path+"\\meta\\");
+
+//--------------- Selection des fichiers META si plus d'un -------------------
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = endsWith(filelist[i],".txt");
+	ctrl1 = startsWith(filelist[i],"Flowcam_header_");
+	ctrl2 = startsWith(filelist[i],"Other_header_");
+	if (ctrl == 1 && (ctrl1 == 1 || ctrl2 == 1))	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+if (j==0) { configpres = 0;
+	getBoolean("No metadata file in the selected project. \nPress YES to create a file and add a profile !          ");
+	option = "create";
+} //
+else if (j==1) {
+	// ----------------- Un seul fichier selectionne tout seul ----------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	metafile = listaff[0];
+	configpres = 1;
+} 
+else { 	configpres = 1;
+	// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	Dialog.create("METADATA FILE          version : "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------   ");
+	Dialog.addMessage("Project :  "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------   ");
+	message = "SELECT Metadata FILE             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);
+	Dialog.show();
+	metafile = Dialog.getChoice();
+} // else
+
+//------------------------------------- Fichier CONFIG ------------------------------------------------------------------
+edit = true;
+while (edit == true) {
+	filelist  = 	getFileList(pathconfig);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = indexOf(filelist[i],"config");
+		ctrl1 = endsWith(filelist[i],".txt");
+		if (ctrl>0 && ctrl1==1 )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0 ) {
+		getBoolean("No valid config file in "+pathconfig+". Press Cancel to abort.           ");
+	} // if
+	if (j==1 ) {
+		configfile = list[0];
+	} // if
+	else if (j==1) {
+	// ----------------- Un seul fichier selectionne tout seul ----------------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		configfile = listaff[0];
+	} // else if
+	else {
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		Dialog.create("SELECT PROCESS CONFIG FILE  ");
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		configfile = Dialog.getChoice();
+	}// else
+
+	openconfig = pathconfig +"\\"+configfile;
+	// ---------------------------- Lecture fichier existant -----------------------------------------------
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	size = conf.length;
+	array = newArray(size);
+	message= " ";
+	for (i=0; i<conf.length; i++)	{ texte = conf[i];	message = message+"\n"+texte; 	ssarray = split(texte," ");	array[i] = ssarray[1];		} // for
+	if (instrum == "Flowcam") {
+		calibration = 			array[0];
+		background_method= 		array[1];
+		nb_image= 			array[2];
+		rolling= 			array[3];
+		pixel4x= 			array[4];
+		pixel10x= 			array[5];
+		upper= 			array[6];
+		gamma= 			array[7];
+		echelle_micro=			array[8];
+		process_option=		array[9];
+		esdmin= 			array[10];
+		esdmax= 			array[11];
+		lut_offset= 			array[12];
+		lut_slope= 			array[13];
+		stop_after_n_images= 	array[14];
+		stop_after_m_objects= 	array[15];
+		scale= 				array[16];
+		remove_objects_on_sides= 	array[17];
+	} // if
+	if (instrum == "Other") {
+		calibration = 			array[0];
+		background_method= 		array[1];
+		nb_image= 			array[2];
+		rolling= 			array[3];
+		pixelx= 				array[4];
+		pixel10x= 			array[5];
+		upper= 			array[6];
+		gamma= 			array[7];
+		echelle_micro=			array[8];
+		process_option=		array[9];
+		esdmin= 			array[10];
+		esdmax= 			array[11];
+		lut_offset= 			array[12];
+		lut_slope= 			array[13];
+		stop_after_n_images= 	array[14];
+		stop_after_m_objects= 	array[15];
+		scale= 				array[16];
+		remove_objects_on_sides= 	array[17];
+		removeduplicates= 		array[18];
+		grey_auto_adjust = 		array[19];
+		vignette_color= 		array[20];
+		analysed_color_channel = 	array[21];
+	} // if
+
+
+
+	// ------------------------------- MENU -----------------------------------------------------------------
+	Dialog.create("Process PID and VIGNETTES            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addCheckbox("BATCH process ?",true);
+	Dialog.addCheckbox("SKIP processed file ?",true);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Configuration file : "+configfile);
+	Dialog.addMessage(message);
+	Dialog.addCheckbox("Modify parametres ?",false);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	batch = 		Dialog.getCheckbox();
+	skip = 			Dialog.getCheckbox();
+	edit = 			Dialog.getCheckbox();
+
+	// ------------------------------------------ Edit configuration -------------------------------------
+	if (edit == true) {
+		ret = runMacro("Zooprocess_edit_configuration",pathconfig+" "+instrum+" edit "+path);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message : process aborted.                       "); 	} // if
+	} // if
+} // while edit
+
+// ==================================== FLOWCAM & Other PROCESS ====================================================
+	// ---------------------- Ouverture META ---------------------------------------------------------------
+	open(path+"\\meta\\"+metafile);
+	wait(100);
+	metadata = getInfo();
+	run('Close');
+	array = split(metadata,"\n");
+
+	// ------------------------------- Liste des profils traitables --------------------------------------------------------
+//	project = 		newArray(array.length);
+//	filename = 		newArray(array.length);
+//	stationname =		newArray(array.length);
+	list = 			newArray(array.length);
+	j = 0;
+	for (i=1; i<array.length ; i++) { 
+		ligne = replace(array[i],";"," ");
+		ligne = split(ligne,"\ ");
+		Project = 		ligne[0];
+		Filename = 		ligne[2];
+		Stationname =		ligne[3];
+		// ------------------------------ Existence du BACK selon methode -----------------------------------------------------
+		testback = true;
+		pathback = path+"\\back\\FlowCam_"+Stationname+"\\"+Stationname+"_back.tif";
+		if (background_method == "average_image") {		testback = File.exists(pathback);		} // if
+
+		// ------------------------------ Existence du META -----------------------------------------------------
+		pathmeta = path+"\\work\\"+Stationname+"\\"+Stationname+"_meta.txt";
+		source = "nok";
+		if( testback == true &&  File.exists(pathmeta) == true        &&   File.exists(pathraw+"flowcam_"+Stationname)== true    )  source = "ok";
+		// ------------------------------ Existence du PID -----------------------------------------------------
+		pathpid = path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid";
+//		getBoolean(j+"  "+path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
+		if(File.exists(pathpid) == false && source == "ok"    ) {
+			list[j] = 	Stationname;		
+			j++;	
+		} // if
+		else if (skip == false && source == "ok"  ) {
+//			getBoolean(path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
+			list[j] = 	Stationname;	
+			j++;	
+		} // if	
+//		else { j++;		} // if
+	} // for
+
+	// ----------------	Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0 ) { configpres = 0;
+		getBoolean("No profile to process in the selected project. \n\n- Check that you have filled all metadata, \n- Check that you have processed all background \n \nPress CANCEL to abort !          ");
+	} //
+	else { 	
+		listproc = newArray(j);
+		for (k=0;k<listproc.length ;k++) {	rr = list[k];	listproc[k] = rr;	
+//			getBoolean(k+"  "+rr);
+		} // for
+	} // else
+
+	// -------------------------------------------- PID et Vignettes --------------------------------------------------------------------------------------------	
+	if (batch == false) {
+		// ---------------------------- SELECT PROFILE ---------------------------------
+		Dialog.create("Process PID and Vignettes            version :  "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("SELECT PROFILE to PROCESS");
+		Dialog.addChoice("               ",       listproc         );
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show;
+		profileprocessed = 		Dialog.getChoice();
+
+		// ------------------------ PID ----------------------------------------------------------------------------------------------
+		ret = runMacro("Zooprocess_flowcam_PID_Vignettes",path+" "+profileprocessed+" "+configfile+" "+instrum);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message PID process aborted.                       "); 	} // if
+	} // if
+	else {
+		for (k=0;k<listproc.length ;k++) {	
+			profileprocessed = listproc[k];
+			// ------------------------ PID ----------------------------------------------------------------------------------------------
+			ret = runMacro("Zooprocess_flowcam_PID_Vignettes",path+" "+profileprocessed+" "+configfile+" "+instrum);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message PID process aborted.                       "); 	} // if		
+		} // for
+	} // else
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

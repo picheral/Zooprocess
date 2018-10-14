@@ -1,0 +1,318 @@
+// --------------------------------- Zooscan_separation_msk--------------------------------
+version = "7.18";
+date = "2014/09/20";
+
+//---------------- Initialisation --------------------------------------------------------------------------
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemwork = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+drive = substring(projfolder,0,1);
+
+// ================== NE FONCTIONNE QUE SINGLE FRAME =============================
+confrep = 		File.exists(chemconfig);
+if (confrep==0) { 	showMessage("WARNING : ",chemconfig," folder doesn't exist, process aborted  ");  		} // if
+else { 	//-------------- Choix du fichier CONFIG dans _config, Selection des fichiers dont le nom comporte le mot "config";
+	filelist  = 	getFileList(chemconfig);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"config");
+		ctrl1 = indexOf(filelist[i],"narrow");
+		ctrl2 = indexOf(filelist[i],"large");
+		ctrl3 = indexOf(filelist[i],"2003");
+		ctrl4 = indexOf(filelist[i],"both");
+		if (ctrl>0 && (ctrl1>0 || ctrl2>0 || ctrl3 >0  || ctrl4 >0) )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { print("No valid configuration file in the "+projfolder);
+		configpres = 0;
+		getBoolean("No valid config file in "+projfolder+"                 ");
+	} //
+	else { print(j+" configuration files in the "+projfolder);
+		configpres = 1;
+		// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+		listaffconf = newArray(j);
+		for (i=0; i<listaffconf.length ; i++) {	rr = list[i];		listaffconf[i] = rr;	} // for
+	} // else
+} // else
+
+//--------------------Ouverture controlee du MSK -----------------------
+check = 0;
+
+while (check == 0) {
+	//---------------------------- Recherche de dossiers ''complets'' dans le repertoire "work" ----------------------------
+	workfolder = 	File.exists(chemwork);	
+	if (workfolder == 1) {			
+		filelist  = getFileList(chemwork);
+		//-------------- Selection des fichiers ---------------------
+		j = 0;	flagframe = 0;
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			 rr = filelist[i]; 
+			identlong = 	lengthOf(rr);
+			rr = 		substring(rr,0,identlong-1);	
+			//--------------- Recherche du fichier image en ZIP ou en JPG ----------
+			imagezip  =  chemwork+"\\"+rr+"\\"+rr+"_vis1.zip";
+			imagejpg = chemwork+"\\"+rr+"\\"+rr+"_vis1.jpg";
+			imagelog = chemwork+"\\"+rr+"\\"+rr+"_log.txt";
+			imagepid = chemwork+"\\"+rr+"\\"+rr+"_dat1.pid";
+			imagemsk = chemwork+"\\"+rr+"\\"+rr+"_msk1.gif";
+			imageout = chemwork+"\\"+rr+"\\"+rr+"_out1.gif";
+			zipexist = File.exists(imagezip);
+			jpgexist = File.exists(imagejpg);
+			logexist = File.exists(imagelog);
+			pidexist = File.exists(imagepid);
+			mskexist = File.exists(imagemsk);
+			outexist = File.exists(imageout);
+			// ---------------- Existence du fichier SEP ---------------------------------------------------------
+			opensep = 	chemwork+"\\"+rr+"\\"+rr+"_sep.gif"; 	
+			if ((zipexist == 1 || jpgexist == 1)&&logexist == 1 && pidexist == 1 && mskexist == 1 && outexist == 1){ 
+				if (File.exists(opensep)) {	rr = "SEP "+rr;	} // if
+				else  {			rr = ".       "+rr;	} // if
+				list[j] = rr; 
+				j++;
+			  	flagframe = 0; 		
+			} // if
+		} // for
+		if (j==0) { print("No valid ''sample'' folder in the "+projfolder);
+			configpres = 0;
+			getBoolean("No valid sample folder in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+		} //
+		else {	// ---------------------------Purger les lignes vides  ----------------------
+			listaff = newArray(j);
+			for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;		} // for	
+
+			// -------------------------- Selection de l'image a traiter ----------------------------
+			Dialog.create("SEPARATION from global image    v : "+version);
+			Dialog.addMessage( "---------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage( "Project :  "+proj);
+			Dialog.addMessage( "This tool requires a mouse equiped with a ROLL button !      ");
+			Dialog.addMessage( "WORKS ONLY on SINGLE FRAME SAMPLES !");
+			Dialog.addMessage( "SEP : a separtion mask exists for the sample.");
+			Dialog.addMessage( "---------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage("SELECT Image to process from the project            ");
+			Dialog.addChoice("    ", listaff);
+			Dialog.addMessage( "---------------------------------------------------------------------------------------------------------");
+			message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+			Dialog.addMessage(message);
+			Dialog.addChoice("       ", listaffconf);
+			Dialog.addMessage( "---------------------------------------------------------------------------------------------------------");
+			opt_list = newArray("Use VIS1 grey image (slower process)","Use MSK B&W image");
+			Dialog.addChoice("SELECT IMAGE TYPE ",opt_list);
+			Dialog.addMessage( "---------------------------------------------------------------------------------------------------------");
+			Dialog.show();
+			titre = 	Dialog.getChoice();
+			titres = split(titre," ");
+			titrered = titres[1];
+			configfile = Dialog.getChoice();
+			img_type = Dialog.getChoice();
+			check = 1;
+		}// else
+	} // if workfolder
+	else { getBoolean("No "+chemwork+" folder, press CANCEL to ABORT !");		} // else
+	print("Sample = "+titrered);
+} // while check
+
+// --------------- Ouverture fichier CONFIG ------------------------------------------------------------
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+array = newArray(50);
+conf  = split(config,"\n");
+for (i=0; i<conf.length; i++)	{ texte = conf[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		} // for
+background_process = array[0];			enhance_thumbnail = array[1];			calibration = array[2]; 	jpeg = array[3];
+zip = array[4];		greycor = array[5];		resolution = array[6];	
+greytaux = array[7];		yminref = array[8];		doyofset = array[9];		doxpos = array[10];		xdimref = array[11];
+ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	method = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	
+contrast= array[32];	doubloonxy_inch= array[33];	doubloonarea_pourcent= array[34];		greylimit= array[35];
+// ---------------- Fermeure de la fenetre config --------------------------------------------------
+selectWindow(configfile);		run("Close");
+
+// ---------------- Choix Creer/ Ajout SEP si existe / Supprimer --------------------------------
+chemwork1 = chemwork + "\\"+titrered+"\\";
+opensep = chemwork1+ titrered+"_sep.gif";
+listaff1 = newArray("ADD to existing","CREATE new");
+sep_file = false;
+if (File.exists(opensep)) {
+	sep_file = true;
+	Dialog.create("SEPARATION from global image    v : "+version);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project :  "+proj);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage("The separation mask exists.           ");
+	Dialog.addMessage("SELECT WORKING OPTION           ");
+	Dialog.addChoice("    ", listaff1);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.show();
+	option = 	Dialog.getChoice();
+} // if
+else {
+	option = listaff1[1];
+} // else
+
+//------------------- Fermeture d'eventuelles images ----------------------------------------
+while (nImages()>0) {selectImage(nImages());  	run("Close");	} // while	
+nb = 4; duration = 1000;
+for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+if (img_type == opt_list[1]) {
+	// ------------------ Ouverture msk --------------------------------------------------------------
+	openfile = chemwork1+ titrered+"_msk1.gif";
+	open(openfile);
+	Larg = getWidth();
+	Haut = getHeight();
+}
+else {
+	// ----------------- Ouverture VIS ----------------------------------------
+	text = 		chemwork1+titrered+"_vis1.jpg";
+	exist = 	File.exists(text);
+	textzip = 	chemwork1+titrered+"_vis1.zip";
+	existzip = 	File.exists(textzip);
+	imageref = titrered;	
+	if (existzip == 1) {	
+		open(textzip);	
+		titre = 	titrered+"_vis1.tif";
+	} // if
+	else { 	open(text);
+		titre = 	titrered+"_vis1.jpg";
+	} // else
+	rename(titrered);	
+	// --------- OUTLINES ---------------
+	openfile = chemwork1+ titrered+"_out1.gif";
+	open(openfile);	
+	Larg = getWidth();
+	Haut = getHeight();	
+	rename("Contours");	
+	selectImage(titrered);
+	run("Invert");
+	text =  "image1=Contours operation=Add image2="+titrered;
+	run("Image Calculator...", text);
+	selectImage(titrered);	
+	close();	
+	run("Invert");
+}// else
+rename(titrered);
+selectImage(titrered);
+setVoxelSize(1,1,1,"pixel");
+
+// ------------------ CREATION SEP si necessaire -------------------------------------------
+if (option ==  listaff1[1]) {	
+	// --------- Traits gris ------------
+	setColor(125);
+	newImage("temp", "8-bit Black", Larg, Haut, 1);
+	saveAs("GIF",chemwork1+ titrered+"_sep.gif");
+	saveAs("TIF",chemtemp+"temp_sep.tif");
+	close();
+} // if
+else {	// ---------- Traits blancs ----------------
+	setColor(220);
+	open(chemwork1+ titrered+"_sep.gif");
+	// --------------- Sauvegarde ancienne version --------------------
+	File.rename(chemwork1+ titrered+"_sep.gif",chemwork1+ titrered+"_sep_old.gif");
+	File.delete(chemwork1+ titrered+"_sep_old.gif");
+	saveAs("GIF",chemwork1+ titrered+"_sep.gif");	
+	rename("sep");
+	selectImage("sep");
+	//	run("Subtract...", "value=150");
+	run("Image Calculator...", "image1="+titrered+" operation=Add image2=sep");
+	selectImage("sep");
+	saveAs("TIF",chemtemp+"temp_sep.tif");
+	close();
+} // else
+selectImage(titrered);
+
+// -------------------- TRACE des TRAITS -----------------------------------
+setTool(12); // Scrolling Tool
+fin=1;
+a = newArray(4000);
+index = 0;
+
+// ------------------------------EDITION----------------------
+// Tant qu'on ne sort pas par CANCEL
+ret = runMacro("Zooscan_dialog_first_object");
+while (fin==1) {	// ----------------------- Deplacement vers la zone a separer -------
+	check = 0;
+	run("Line Width...", "line=1");
+	// ----------------------------- Bouton central pour lancer la selection -----------
+	while (check==0) { 	wait(100);
+		ret = runMacro("ZooscanCursor");
+		flags = parseInt(ret);
+		if (flags==broll) {  // Suivant bouton central
+			check = 1;	
+		} // if
+	} // while
+	// print("Trace du trait");
+	test=0;
+	prevflags=0;
+	while (test==0) { 	wait(100);
+		setTool(4);
+		ret = runMacro("ZooscanCursor");
+		flags = parseInt(ret);
+		// ---------------------------- Changement d'etat du flag, valable en tool4 -----------------
+		dif = flags - prevflags;
+		prevflags = flags;
+		//print("Flags= ",flags," Dif= ",dif);
+		ref = -bleft;
+		if (dif==ref) { test = 1;	}
+	}
+	getSelectionCoordinates(x, y);
+     	a[index] = x[0];
+	a[index+1] = y[0];
+	a[index+2] = x[1];
+	a[index+3] = y[1];
+	// print(index ," ",a[index]," ",a[index+1]," ",a[index+2]," ",a[index+3]);
+	// --------------------------- Dessin du trait dans l'image --------------------------------
+	run("Line Width...", "line=3");
+	moveTo(a[index],a[index+1]);
+	lineTo(a[index+2],a[index+3] );
+	wait(300);
+	//print("FILL LINE");
+	makeRectangle(1, 1, 2, 2);
+	index = index + 4;
+	//print("Next ",index);
+	ret =runMacro("Zooscan_dialog_NextObject.txt");
+	setTool(12); // Scrolling Tool
+	fin = parseInt(ret);
+} // while
+
+selectImage(titrered);
+close();
+
+// ---------------------- Ouverture du masque de separation _sep --------------------------------
+open(chemtemp+"temp_sep.tif"); 
+
+// ----------------------------- Trace des traits blancs sur fond noir --------------------------------
+setColor(255);
+i=0;
+run("Line Width...", "line=3");
+while (i<index)	{
+	drawLine(a[i],a[i+1],a[i+2],a[i+3]);
+	i = i+4;
+} // while
+
+// ----------------- Sortie et enregistrement --------------------------------------------------------
+saveAs("GIF",chemwork1+ titrered+"_sep.gif");
+close();
+
+// ----------------- FIN ----------------------------------------------------------------------------------
+nb = index/4;
+
+if (sep_file == true && nb > 0) {
+	showMessage("NORMAL END. \n \n"+nb+"  separation lines ADDED. \nThe separation mask is saved.      \n\n-1) DELETE FILE : "+titrered+"_dat1.pid in "+ chemwork1+"    !!!!!!!!!!!!!	\n-2) Process again images using ''Convert & Process image and Particle in raw folder'' option (to include mask).    ");
+}//
+else	{
+	showMessage("NORMAL END. \n \n"+nb+" separation lines CREATED. \nThe separation mask is saved.      \nProcess again images to include mask using the specific processing option.       ");
+}//
+ret = args; 
+return ret;

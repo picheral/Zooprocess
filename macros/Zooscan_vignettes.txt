@@ -1,0 +1,308 @@
+//--------------------------Zooscan_vignettes-----------------------------------
+// RESULTS DOIT ETRE OUVERT !
+nbblobs = nResults;
+version = "7.21";
+date = "2016/01/30";
+
+//-------------------INITIALISATION-----------------------------------------
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	resolution=array[22];	savetag= array[23];
+
+setBatchMode(true);
+// ---------------- Option par défaut pour le néttoyage des vignettes => nettoyage général --------------------
+legend = "2";
+
+// ----------------- Ouverture et chargement des configurations -----------------------------------
+// ----------------- Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt --------
+openconfig = chemconfig +configfile;
+open(openconfig);
+wait(100);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	enhance = array[1]		vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		// resolution = array[6];
+	xminref = array[7];		yminref = array[8];		doyofset = array[9];		doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+
+// -------------------- Fermeure de la fenetre config ----------------------
+selectWindow(configfile);
+run("Close");
+// -------------------- Suppression des info de type de fichier ------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+File.makeDirectory(chemwork+"\\multiples_to_separate");
+chemtemp = chem + "Zooscan_temp\\";
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+maskout = 	0;
+maskclear = 	1;
+masksave = 	1;
+gamma = 	parseFloat(contrast);				
+
+//-------------------FIN INITIALISATION-------------------------------------
+if (param == "1") {	
+	Dialog.create("EXTRACT VIGNETTE tool   v : "+version+"                 ");
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Sample =  "+titrered);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage("- If gamma > 1=> contrast enhanced              ");
+	Dialog.addMessage("- If gamma < 1=> image smoothed              ");
+	Dialog.addMessage("- If gamma = 1=> No gamma correction              ");
+	Dialog.addNumber("                      SET gamma (0.5 - 5) ",gamma);
+	Dialog.addCheckbox("ADD outlines on vignettes ?", false);
+	Dialog.addCheckbox("CLEAR outside outlines ?", false);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.show();
+	gamma =		Dialog.getNumber();
+	gamma = 	maxOf(gamma,0.5);
+	gamma = 	minOf(gamma,5);
+	maskout = 	Dialog.getCheckbox();
+	maskclear = 	Dialog.getCheckbox();
+}  // if
+ret = "0";
+x1 = 10;
+resolution= 	parseInt(resolution);
+longline = 	parseFloat(longline);
+if (resolution <= 300) { longline = longline*2;		} // if
+vignettetext = 	longline;
+longline = 	longline * resolution/25.4;
+x2 = 		x1+longline;
+
+//---------------- Extraction des vignettes et sauvegarde en utilisant le RESULT--------------------------
+print("Vignettes_BackUp= YES");	
+showStatus("Thumbnail Images Calculation");
+
+//-----------------------------Ouverture de l'image source corrigee du fond 
+open(chemtemp+"temp_vis1.tif");
+rename(titrered);
+
+Larg = getWidth();
+Haut = getHeight();
+
+//---------------------CLEAR BACKGROUND -----------------------------------------
+if (maskclear == 1 && legend != "2") {	
+	// --------------------- Ouverturte MSK1------------------------------------------
+	openfile = chemwork+ titrered+"_msk1.gif";
+	open(openfile);
+	test = 1;	
+	rename("MASK");
+	text =  "image1=MASK operation=Add image2="+titrered;
+	run("Image Calculator...", text);
+	if (isOpen(titrered)) 	{	selectImage(titrered);	
+		close();		
+		saveAs("Tiff",chemtemp+"temp_vis1.tif");
+		close();
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);
+		open(chemtemp+"temp_vis1.tif");
+		rename(titrered);
+		selectImage(titrered);
+		setVoxelSize(1,1,1,"pixel");
+		Larg = getWidth();
+		Haut = getHeight();
+	} // if	
+	else { message = "No msk1.gif  file available for the selected image.              " ;	print(message);		} // else	
+} // if
+
+//---------------------Ouverture des outlines -----------------------------------------
+if (maskout == 1  && legend != "2") {	
+	// --------------------- Ouverture outlines------------------------------------------
+	openfile = chemwork+ titrered+"_out1.gif";
+	open(openfile);	
+	test = 1;		
+	rename("Contours");	
+	selectImage(titrered);
+	run("Invert");
+	text =  "image1=Contours operation=Add image2="+titrered;
+	run("Image Calculator...", text);
+	selectImage(titrered);	
+	close();	
+	run("Invert");
+	rename(titrered);
+	selectImage(titrered);
+	setVoxelSize(1,1,1,"pixel");
+	Larg = getWidth();
+	Haut = getHeight();
+} // if
+rename("Source");
+run("Colors...", "foreground=red background=white selection=black");
+setColor(0);
+setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+ind = 0;
+
+// --------------------------- Creation des vecteurs -----------------------------
+tag_vect = newArray(nbblobs);
+la_vect = newArray(nbblobs);
+ha_vect = newArray(nbblobs);
+bx_vect = newArray(nbblobs);
+by_vect = newArray(nbblobs);
+area_vect = newArray(nbblobs);
+for (i=0; i<nbblobs; i++) {
+	tag_vect[i] = getResult("Tag",i); 
+	la_vect[i] = getResult("Width", i);
+	ha_vect[i] = getResult("Height", i);
+	bx_vect[i] = getResult("BX", i)/voxelwidth;
+	by_vect[i] = getResult("BY", i)/voxelheigth;
+	area_vect[i] = getResult("Area", i);
+} // for
+// ------------------------- Fermeture RESULTS -------------------------------------------
+if (isOpen("Results")) { selectWindow("Results");		run('Close'); 	} // if
+
+// --------------------------------- Boucle sur le nombre de vignettes -------------------
+for (i=0; i<la_vect.length; i++) {
+	if (i/50 == 10+floor(i/50) ) {		run("free memory");		wait(500);		} // if
+	// On considère par defaut que les objets tagges 0 ou 2 (doublons) NE DOIVENT PAS ETRE EXTRAITS sauf si savetag=1
+	// tagval prend sa valeur dans RESULTS... si elle existe !
+	if (tag==0) { tagval=1; 
+		// Il ne devrait PAS y avoir de valeur dans le RESULTS, on extrait donc TOUTES les vignettes
+	}
+	else { tagval = tag_vect[i]; 
+		// Il devrait y avoir des valeurs dans le RESULTS 
+	} // else 
+	if (tagval==1 || savetag==1) { // Sauvegarde de la vignette
+		La = la_vect[i];
+		L = La/voxelwidth;
+		Ha = ha_vect[i];
+		H = Ha/voxelheigth;
+		larg = L;
+		haut = H;
+		Bx = bx_vect[i];
+		By = by_vect[i];
+
+		//-----------------------------Creation de la vignette--------------------------------
+		Xmin = 	Bx-L/5;
+		//---------------Cas Xmin < 0--------------------
+		if ( Xmin <0 ) { 	Xa = 0;		L=	maxOf(L*1.2+Bx,longline+2*x1);	} // if
+		else { 		Xa = Xmin;	L=	maxOf(L*1.4,longline+2*x1);		} // else	
+		Xmax = Xmin+L;
+		// ---------------Cas Xmax > Larg---------------
+		if (Xmax > Larg) {	La = Larg - Xa;		} // if
+		else {		La = L;			} // else
+		//---------------------20 est l'espace pour ecriture de la reference de taille 10 mm
+		Ymin = 	By-H/5;
+		// ----------------Cas Ymin <0--------------------
+		if ( Ymin <0 ) { 	Ya = 0;		H=	(H*1.2)+By+31;	} // if
+		else { 		Ya = Ymin;	H=	(H*1.4)+31;	} // else
+		Ymax = Ymin + H;
+		//-----------------Cas Ymax > Haut--------------
+		if (Ymax > Haut) {	Ha = Haut - Ya;		} // if
+		else {		Ha = H;			} // else
+		y1 = 	H-5;
+		//------------------------ Il faut que l'image source soit active
+		selectImage("Source");
+		makeRectangle(Xa,Ya,La,Ha);
+		run("Copy");
+		no = i+1;
+		nomvignette =titrered+"_"+no;
+		newImage(nomvignette, "8-bit White",L, H, 1);
+		makeRectangle(Xa-Xmin,Ya-Ymin,La,Ha);
+		run("Paste");			
+		if (legend == "1")  {
+			//---------------------Rehaussement du contraste-----------------
+			if (enhance=="yes") { 
+				if (gamma < 0.5) { selectImage(nomvignette);		valeur = "saturated="+gamma;	run("Enhance Contrast", valeur);	} // if enhance
+				else { selectImage(nomvignette);	textgamma = 	"value="+gamma;	run("Gamma...", textgamma);	} // else if
+			} // if enhance
+			else {			gamma = 1;		} // else
+			//-------------------Ajoute de coins de delimitation de l'objet-----------
+			setLineWidth(1);
+			drawLine(larg/5,haut/5,larg/5+10,haut/5);
+			drawLine(larg/5,haut/5,larg/5,haut/5+10);
+			drawLine(larg+larg /5,haut+haut/5,larg+larg/5-10,haut+haut/5);
+			drawLine(larg+larg/5,haut+haut/5,larg+larg/5,haut+haut/5-10);
+			//--------------------- Ecriture de la legende
+			setFont("SansSerif", 9);
+			drawString(vignettetext+" mm   gma= "+gamma,10,H-8);
+		}// if
+		else if (legend == "2") {
+			// -------------- Nettoyage -------------------
+			// ------------------- Copie de travail ---------------------------------
+			selectImage(nomvignette);
+			run("Duplicate...", "title=vignette_msk");
+
+			// ------------------- Threshold ----------------------------------------
+			setThreshold(0, upper);
+			run("Convert to Mask");
+
+			// ------------------- Nettoyage autour du plus gros objet --------
+			run("Set Measurements...", "area centroid bounding fit redirect=[vignette_msk] decimal=2");
+			lim_inf = area_vect[i] * 0.7;
+			text_settings = "size="+lim_inf+"-Infinity circularity=0.00-1.00 show=Nothing exclude include record";
+			run("Analyze Particles...", text_settings);
+			updateResults();
+
+			// ------------------- Fermeture image segmentee ------------------------------------------
+			nbobj = nResults;
+			ligne = 0;		g = 0;		Ratio = 0;
+			// ---------------------- Si probleme de vignette blanche -----------------------------------
+			if (nbobj == 0) {	aa = getBoolean("Blank vignette, press Cancel to ABORT !  ");			} //
+			Width = parseInt(la_vect[i]);
+			Height = parseInt(ha_vect[i]);
+
+			while (g<nbobj) {		
+				obj_largeur = false;
+				obj_hauteur = false;
+				ystart =	getResult("YStart", g);
+				obj_width = 	getResult("Width", g);
+				obj_height = 	getResult("Height", g);		
+				// --------------- Test si les dimensions concordent ---------------
+				if (obj_width > Width * 0.95  && obj_width < Width * 1.05) obj_largeur = true;
+				if (obj_height > Height * 0.95 && obj_height < Height * 1.05) obj_hauteur = true;
+				if (obj_largeur == true && obj_hauteur == true && ystart >= (Ya-Ymin) )	{ ligne = g; g = nbobj;	} 
+				g++;		
+			} // for
+			xstart = 	getResult("XStart", ligne);
+			ystart =	getResult("YStart", ligne);
+
+			// --------------- nettoyage autour du plus gros objet -------------
+			selectImage("vignette_msk");
+			doWand(xstart,ystart);
+			run("Clear Outside");
+			run("Select None");	
+			run("Invert");
+			run("Image Calculator...", "image1="+nomvignette+" operation=Add image2=vignette_msk");
+			selectImage("vignette_msk");
+			close();
+			//--------------------- Ecriture de la legende --------------
+			selectImage(nomvignette);
+			setFont("SansSerif", 9);
+			drawString(vignettetext+" mm",x1,H-8);
+			selectWindow("Results");	run("Close");	
+		} // else
+		//---------------------Trace de l'echelle dans la vignette ---------
+		setLineWidth(2);
+		drawLine(x1,y1,x2,y1);
+		//-------------------------------Sauvegarde des vignettes-----------
+		selectImage(nomvignette);
+		saveAs("Jpeg",chemwork+nomvignette);
+		//------------------------------Fermeture de la vignette -----------
+		close();
+		//----------------------------Suivi de la progression --------------
+		showProgress(i/la_vect.length);
+		ind++;
+		} // if tagval ==1
+	} // for
+// ------------------- Fermeture de l'image ----------------------------
+selectImage("Source");
+close();
+print("Vignettes_extracted= ",ind);
+
+//------------------------------------ FIN ------------------
+ret = arg;
+return ret;
+

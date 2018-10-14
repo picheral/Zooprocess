@@ -1,0 +1,13 @@
+
+
+//--------------------------Selection de la vignette a afficher---------------------
+Dialog.create("VIGNETTE SELECTION ");
+message = "Select line and press OK to visualise           " ;
+Dialog.addMessage(message);
+message = "Press CANCEL to END              " ;
+Dialog.addMessage(message);
+message = "No     Area     MeanGrey    Bx     By     Width     Height" ;
+Dialog.addMessage(message);
+Dialog.addChoice(" ", aff);
+Dialog.show();
+data = Dialog.getChoice();

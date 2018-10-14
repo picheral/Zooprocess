@@ -1,0 +1,639 @@
+//---------------------------Zooscan_vignette_from_pid_plot2.txt---------------------------------
+version = "6.13";
+date = "2009/07/25";
+requires("1.41o");
+
+// --------------Cette routine ne fonctionne que dans le respect de l'arborescence Zooscan_scan\_work\
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemwork = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+
+run("Input/Output...", "jpeg=100 file=.xls");
+resolution = "2400";	longline = 1;	contrast = 1.1;		outlines = 0;
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0 draw");
+ofseta = 60;
+ofsetb = 215;
+
+x1 = 10;
+
+//--------------------Ouverture controlee du VIS et du PID -----------------------
+check = 0;
+while (check == 0) {
+	//---------------------------- Recherche de dossiers ''complets'' dans le repertoire "work" ----------------------------
+	workfolder = 	File.exists(chemwork);	
+	if (workfolder == 1) {			
+		filelist  = getFileList(chemwork);
+		//-------------- Selection des fichiers ---------------------
+		j = 0;	flagframe = 0;
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			 rr = filelist[i]; 
+			identlong = 	lengthOf(rr);
+			rr = 		substring(rr,0,identlong-1);	
+			//--------------- Recherche du fichier image en ZIP ou en JPG ----------
+			imagezip  =  chemwork+"\\"+rr+"\\"+rr+"_vis1.zip";
+			imagejpg = chemwork+"\\"+rr+"\\"+rr+"_vis1.jpg";
+			imagelog = chemwork+"\\"+rr+"\\"+rr+"_log.txt";
+			imagepid = chemwork+"\\"+rr+"\\"+rr+"_dat1.pid";
+			imagemsk = chemwork+"\\"+rr+"\\"+rr+"_msk1.gif";
+			imageout = chemwork+"\\"+rr+"\\"+rr+"_out1.gif";
+			zipexist = File.exists(imagezip);
+			jpgexist = File.exists(imagejpg);
+			logexist = File.exists(imagelog);
+			pidexist = File.exists(imagepid);
+			mskexist = File.exists(imagemsk);
+			outexist = File.exists(imageout);
+			if ((zipexist == 1 || jpgexist == 1)&&logexist == 1 && pidexist == 1 && mskexist == 1 && outexist == 1){ list[j] = rr;  j++;  	flagframe = 0; 		} // if
+		} // for
+		if (j==0) { print("No valid ''sample'' folder in the "+projfolder);
+			configpres = 0;
+			getBoolean("No valid sample folder in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+		} //
+		else {	// ---------------------------Purger les lignes vides  ----------------------
+			listaff = newArray(j);
+			for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for	
+			// -------------------------- Selection de l'image a traiter ----------------------------
+			Dialog.create("VIEW VIGNETTES from a 2D graph   v : "+version);
+			Dialog.addMessage( "-------------------------------------------------------------------------------");
+			Dialog.addMessage( "Project :  "+proj);
+			Dialog.addMessage( "-------------------------------------------------------------------------------");
+			Dialog.addMessage("- If gamma > 1=> contrast enhanced              ");
+			Dialog.addMessage("- If gamma < 1=> image smoothed              ");
+			Dialog.addMessage("- If gamma = 1=> No gamma correction              ");
+			Dialog.addNumber("                      SET gamma (0.5 - 5) ",contrast);
+			Dialog.addCheckbox("ADD outlines on vignettes ?", false);
+			Dialog.addCheckbox("CLEAR outside outlines ?", true);
+			Dialog.addCheckbox("SAVE thumbnail images of organisms ?", false);
+			Dialog.addCheckbox("KEEP vignettes OPEN till end of process ?", false);
+			Dialog.addMessage( "-------------------------------------------------------------------------------");
+			Dialog.addMessage("SELECT Image from the project            ");
+			Dialog.addChoice("    ", listaff);
+			Dialog.addMessage( "-------------------------------------------------------------------------------");
+			Dialog.show();
+			gamma =		Dialog.getNumber();
+			gamma = 	maxOf(gamma,0.5);
+			gamma = 	minOf(gamma,5);
+			if (gamma != 1) { maskcont = 2;	} // if
+			else { maskcont = 0;		} // else
+			maskout = 	Dialog.getCheckbox();
+			maskclear = 	Dialog.getCheckbox();
+			masksave = 	Dialog.getCheckbox();				
+			maskopen = 	Dialog.getCheckbox();
+			titrered = 	Dialog.getChoice();
+			check = 1;
+		}// else
+	} // if
+	else { getBoolean("No "+chemwork+" folder, press CANCEL to ABORT !");		} // else
+} // while
+
+print("Sample = "+titrered);
+
+//------------------- Fermeture d'eventuelles images ----------------------------------------
+while (nImages()>0) {selectImage(nImages());  	run("Close");	} // while	
+run("free memory");		wait(500);	
+run("free memory");		wait(500);	
+run("free memory");		wait(500);	
+run("free memory");		wait(500);
+
+chemwork1 = chemwork + "\\"+titrered+"\\";
+
+text = 		chemwork1+titrered+"_vis1.jpg";
+exist = 		File.exists(text);
+textzip = 		chemwork1+titrered+"_vis1.zip";
+existzip = 	File.exists(textzip);
+imageref = titrered;	
+if (existzip == 1) {	open(textzip);	
+	titre = 	titrered+"_vis1.tif";
+} // if
+else { 	open(text);	titre = 	titrered+"_vis1.jpg";	openimg = 1;		} // else
+saveAs("Tiff",chemtemp+"temp_vis1.tif");	close();	run("free memory");	wait(1000);
+open(chemtemp+"temp_vis1.tif");
+rename(titrered);
+flagi = 1;
+setColor(0);
+selectImage(titrered);
+setVoxelSize(1,1,1,"pixel");
+Larg = getWidth();
+Haut = getHeight();
+//---------------------CLEAR BACKGROUND -----------------------------------------
+if (maskclear == 1) {	// --------------------- Ouverturte MSK1------------------------------------------
+	openfile = chemwork1+ titrered+"_msk1.gif";
+	print("Clear background");
+	open(openfile);
+	test = 1;	
+	rename("MASK");
+	text =  "image1=MASK operation=Add image2="+titrered;
+	run("Image Calculator...", text);
+	if (isOpen(titrered)) 	{	selectImage(titrered);	
+		close();		
+		saveAs("Tiff",chemtemp+"temp_vis1.tif");
+		close();
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);	
+		run("free memory");		wait(500);
+		open(chemtemp+"temp_vis1.tif");
+		rename(titrered);
+		selectImage(titrered);
+		setVoxelSize(1,1,1,"pixel");
+	} // if	
+	else { message = "No msk1.gif  file available for the selected image.              " ;	print(message);		} // else	
+} // if
+
+//---------------------Ouverture des outlines -----------------------------------------
+if (maskout == 1) {	// --------------------- Ouverture outlines------------------------------------------
+	openfile = chemwork1+ titrered+"_out1.gif";
+	open(openfile);	
+	test = 1;		
+	rename("Contours");	
+	selectImage(titrered);
+	run("Invert");
+	text =  "image1=Contours operation=Add image2="+titrered;
+	run("Image Calculator...", text);
+	selectImage(titrered);	
+	close();	
+	run("Invert");
+	rename(titrered);
+	selectImage(titrered);
+	setVoxelSize(1,1,1,"pixel");
+} // if
+
+// -------------------------------------- Ouverture PID ---------------------------
+textpid = 		chemwork1+titrered+"_dat1.pid";
+open(textpid);
+wait(500);
+config = getInfo();
+pid = split(config,"\n");
+run("Close");
+//-----------------Recherche DATA section--------------------------
+for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+	if (ctrl1>=0) { deb=i+1;	} // if
+} // for
+//-----------------Recherche de la resolution de l'image--------------------------
+for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"Resolution");
+	if (ctrl1==0) { texte = pid[i];
+		res = split(texte,"\ ");
+		resolution = res[1];
+		resolution = parseInt(resolution);
+	} // if
+} // for
+print("Resolution= ",resolution);
+if (resolution <= 300) { longline = longline*2;		} // if
+
+//------------------Creation des vecteurs---------------------------------
+nbval = pid.length-deb-1;
+
+label = 	newArray(nbval);
+area = 	newArray(nbval);
+mean = 	newArray(nbval);
+bx = 	newArray(nbval);
+by = 	newArray(nbval);
+width = 	newArray(nbval);
+height = 	newArray(nbval);
+feret = 	newArray(nbval);
+esd = 	newArray(nbval);
+no = 	newArray(nbval);
+major =	newArray(nbval);
+minor = 	newArray(nbval);
+circ = 	newArray(nbval);
+elong = 	newArray(nbval);
+fractal = 	newArray(nbval);
+parea = 		newArray(nbval);
+skelarea 	= 	newArray(nbval);
+
+colarea = 0;
+collabel = 0;
+colmean = 0;
+colbx = 0;
+colby = 0;
+colwidth = 0;
+colheight = 0;
+colferet = 0;
+colno = 0;
+colmajor =  0;
+colminor = 0;
+colcirc =  0;
+colmin = 0;
+colmed = 0;
+colkurt = 0;
+colareaexc = 0;
+colfractal =  0;
+colskelarea = 0;
+colparea = 0;
+
+//------------------Detection des N° de colonnes pour les champs-------------
+colfractal = 0;
+a= replace(pid[deb],";"," ");
+entete = split(a,"\ ");
+for (i=0; i<entete.length ; i++) {	
+	v = entete[i];
+	if (v=="Area") { colarea = i;	} //if
+	if (v=="Label") { collabel = i;	} //if
+	if (v=="Mean") { colmean = i;	} //if
+	if (v=="BX") { colbx = i;	} //if
+	if (v=="BY") { colby = i;	} //if
+	if (v=="Width") { colwidth = i;	} //if
+	if (v=="Height") { colheight = i;	} //if
+	if (v=="Feret") { colferet = i;	} //if
+	if (v=="!Item") { colno = i;	} //if
+	if (v=="Major") { colmajor = i;	} //if
+	if (v=="Minor") { colminor = i;	} //if
+	if (v=="Circ.") { colcirc = i;	} //if
+	if (v=="Fractal") { colfractal = i;	} //if
+	if (v=="Skelarea") { 	colskelarea = i;	} //if
+	if (v=="%Area") { colparea = i;	} //if} 
+} // for
+
+//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+pixels = 25.4/resolution;
+
+for (i=deb+1; i<pid.length ; i++) {
+	a= replace(pid[i],";"," ");
+	ind = i-deb-1;
+	ligne = split(a,"\ ");
+	No = 	ligne[colno];
+	Label = 	ligne[collabel];
+	Area = 	ligne[colarea];
+	Mean = 	ligne[colmean];
+	Bx = 	ligne[colbx];
+	By = 	ligne[colby];
+	Width = 	ligne[colwidth];
+	Height = 	ligne[colheight];
+	Feret = 	ligne[colferet];
+	Feret=	parseFloat(Feret)*pixels;
+	Major = 	ligne[colmajor];
+	Major =	parseFloat(Major)*pixels;
+	Minor = 	ligne[colminor];
+	Minor =	parseFloat(Minor)*pixels;
+	Circ = 	ligne[colcirc];
+	Elong = 	Major/Minor;
+	Fractal = 	ligne[colfractal];
+	Parea =		ligne[colparea];
+	Skelarea =	ligne[colskelarea];
+
+	Smm = 	parseInt(Area);
+	Smm = 	Smm * pixels * pixels;
+	Smm = 	Smm /3.1416 ;
+	Esd = 	2* pow(Smm,0.5);
+	
+	no[ind] = 		No;
+	label[ind] = 	Label;
+	area[ind] = 	Area;
+	mean[ind] = 	Mean;
+	bx[ind] = 		Bx;
+	by[ind] = 		By;
+	width[ind] = 	Width;
+	height[ind] = 	Height;
+	feret[ind] = 	Feret;
+	esd[ind] = 	Esd;
+	circ[ind] =		Circ;
+	minor[ind] =	Minor;
+	major[ind] =	Major;
+	esd[ind] =		Esd;
+	elong[ind] =	Elong;
+	fractal[ind] = 	Fractal;
+	skelarea[ind] =	Skelarea;
+	parea[ind] =	Parea;
+
+	// no = toString(ind+1);
+} // for
+
+end =0;
+while (end == 0) { // ooooooooooooooooBOUCLE sur les GRAPHESoooooooooooooooooooooooo
+
+//---------------------------Graph section------------------------------------------------------------
+//----Selection manuelle des colonnes pour le graphe-------------
+check = 1;
+entete = newArray("N°","Area","Esd","Mean","Major","Minor","Elong","Circ.","Feret","Fractal","%Area","Skelarea");
+while (check==1) { 
+	Dialog.create("SELECT GRAPH AXES ");
+	Dialog.addMessage( "----------------------------------------------------------                 ");
+	Dialog.addMessage( "DO NOT CLOSE ANY of the OPEN IMAGE !                ");
+	Dialog.addMessage( "----------------------------------------------------------                 ");
+	Dialog.addChoice("         X field      ", entete);
+	Dialog.addChoice("         Y field      ", entete);
+	Dialog.addCheckbox("Manual scaling ?", false);
+	Dialog.addMessage( "----------------------------------------------------------                 ");
+	Dialog.show();
+	identx = Dialog.getChoice();
+	identy = Dialog.getChoice();
+	axesauto = Dialog.getCheckbox();
+	if (identx != identy) { check = 0;					} // if
+	else { showMessage("Do not select the same field for X and Y");	} // else
+} // while
+print(identx+"    "+identy);
+
+//----------------Trace-----------------------------------------     
+//-------No Area Mean Major Minor Circ.Feret ESD------------
+if (identx=="Area") { x = area;		identx = identx+" (pixel)";	} //if
+else if  (identx=="Mean") { x = mean;	identx = identx+" grey level";	} //if
+else if  (identx=="Major") { x = major;	identx = identx+" (mm)";	} //if
+else if  (identx=="Minor") { x = minor;	identx = identx+" (mm)";	} //if
+else if  (identx=="Circ.") { x = circ;		} //if
+else if  (identx=="Feret") { x = feret;	identx = identx+" (mm)";	} //if
+else if  (identx=="Esd") { x = esd;	identx = identx+" (mm)";	} //if
+else if (identx=="N°") { x = no;					} //if 
+else if (identx=="Fractal") { x = fractal;				} //if 
+else if (identx=="Elong") { 	x = elong;		identx = identx+" (major/minor)";	} //if 
+else if (identx=="Skelarea") { 	x = skelarea;	identx = identx+" (pixel)";		} //if 
+else if (identx=="%Area") { 	x = parea;		identx = identx+" (%)";			} //if 				
+else { x = no;	identx = "N°";			} //if PAR DEFAUT
+
+if (identy=="N°") { y = no;			} //if
+else if  (identy=="Area") { y = area;	identy = identy+" (pixel)";	} //if
+else if  (identy=="Mean") { y = mean;	identy = identy+" grey level";	} //if
+else if  (identy=="Major") { y = major;	identy = identy+" (mm)";	} //if
+else if  (identy=="Minor") { y = minor;	identy = identy+" (mm)";	} //if
+else if  (identy=="Circ.") { y = circ;		} //if
+else if  (identy=="Feret") { y = feret;	identy = identy+" (mm)";	} //if
+else if (identy=="Esd") { y = esd;	identy = identy+" (mm)";	} //if 
+else if (identy=="Fractal") { y = fractal;				} //if 
+else if (identy=="Elong") { 	y = elong;	identy = identy+" (major/minor)";			} //if 
+else if (identy=="Skelarea") { 	y = skelarea;	identy = identy+" (pixel)";	} //if 
+else if (identy=="%Area") { 	y = parea;		identy = identy+" (%)";		} //if 
+else   { y = esd;		identy = "Esd (mm)";				} //if PAR DEFAUT
+
+maxx = 0;
+maxy = 0;
+minx = 0;
+miny = 0;
+for (i=0; i<x.length ; i++) {
+	X1  = x[i];
+	maxx =  maxOf(maxx,X1);
+	Y1  = y[i];
+	maxy =  maxOf(maxy,Y1);
+} // for
+	
+	if (axesauto == true) {
+		//--------------------------- AXES MANUELS ------------------------------------
+		minimx = 	minx;
+		maximx = maxx;
+		minimy = 	miny;
+		maximy = maxy;
+		checkl = 1;
+		while (checkl ==1) { message =" Error :         \n";
+			Dialog.create("SELECT GRAPH LIMITS ");
+			Dialog.addMessage( "---- "+identx+"  :  X axe limits ---------------                 ");
+			Dialog.addNumber("  X min   ", minimx);
+			Dialog.addNumber("  X max   ", maximx);
+			Dialog.addMessage( "---- "+identy+" :  Y axe limits ---------------                 ");
+			Dialog.addNumber("  Y min   ", minimy);
+			Dialog.addNumber("  Y max   ", maximy);
+			Dialog.show();
+			minx = Dialog.getNumber();
+			maxx = Dialog.getNumber();
+			miny = Dialog.getNumber();
+			maxy = Dialog.getNumber();
+			checkl = 0;
+			if (miny == maxy) { message = message + "Y min = Y max                         \n";	checkl = 1;	} // else
+			if (minx == maxx) { message = message + "X min = X max                         \n";	checkl = 1;	} // else
+			if (checkl == 1 ) { 	showMessage(message);			} // if
+		} // while
+	} // if
+
+
+Plot.create("Plot  "+titrered, identx, identy);
+      
+Plot.setLimits(minx, maxx, miny, maxy);
+Plot.setColor("red");
+Plot.add("circles", x,y);
+Plot.show();
+setColor(0,255,100);
+fillRect(3, 224, 37, 22);
+setFont("SansSerif" , 12, "bold");
+setColor(0, 0, 255);
+drawString("EXIT", 7, 242);
+setColor(0, 0, 255);
+setFont("SansSerif" , 10);
+drawString("Zooprocess", 60, 249);
+setFont("SansSerif" , 12);
+drawString("Img= "+titrered+"  Units= scientific   Resolution= "+resolution, 60, 14);
+
+//--------------------------Selection et affichage de la vignette a afficher---------------------
+f =10;
+counter = 0;
+fic = 0;
+data = "          ";
+tol = 0.005;
+listvig = newArray(nbval);
+nbvig=0;
+A = newArray(1000);
+B = newArray(1000);
+co = 0;
+full = 0;	
+
+//===========================BOUCLE while================================
+while (f==10) {wait(100);
+imgopen = isOpen(titrered);
+plotopen = isOpen("Plot  "+titrered);
+//+++++++++++++++++++++++++++Boucle imgopen+++++++++++++++++++++++++
+if  ( imgopen == 1 && plotopen == 1 ) { // -------------On peut travailler
+	selectImage("Plot  "+titrered);
+	setTool(0);
+	getCursorLoc(a, b, z, flags);
+	if ( flags==16) {
+		if ( a>= 3 && a<=40 && b>=227 && b<= 246) { 
+			//----------------------- Sortie---------------------------------
+			//	print("SORTIE : a= ",a," b= ",b);
+			f=1;
+			//-----------------Fermeture vignettes--------------------------------------------------------------------
+			if (fic ==1 && maskopen ==0 ){ //------------------------- Alors vignettes ouvertes
+				for (h = 0;h<nbvig;h++) {
+					k = listvig[h];
+					No = no[k];
+					nomvignette =titrered+"_"+No;
+					if (isOpen(nomvignette)==1) {		selectImage(nomvignette);
+						run("Close");
+					} // if
+					if (isOpen(nomvignette+".jpg")==1) {	selectImage(nomvignette+".jpg");
+						run("Close");
+					} // if
+				} // for h
+			} // if fic
+		} // if
+		else { 	//-------------Liste des positions de la souris-----------------
+			print("a= ",a," b= ",b);
+			A[co] = a;
+			B[co] = b;
+			full = 1;
+			co++;
+		} // else
+	} // if 
+	else { //-----------------Souris relevee, on traite la selection-----------------------------
+		if (full == 1) { // selection cree
+			xmin = minOf(A[0],A[co-1]);
+			xmax = maxOf(A[0],A[co-1]);
+			ymin = minOf(B[0],B[co-1]);
+			ymax = maxOf(B[0],B[co-1]);
+			//	print("xmin= ",xmin," xmax= ",xmax," ymin= ",ymin," ymax= ",ymax);
+			//---------------Trace de la zone de selection sur le graphe------------
+			if (xmin != xmax) {setColor(0,0,100);
+				setLineWidth(1);
+				drawLine(xmin,ymin,xmax,ymin);
+				drawLine(xmax,ymin,xmax,ymax);
+				drawLine(xmax,ymax,xmin,ymax);
+				drawLine(xmin,ymax,xmin,ymin);
+			} // if
+			//--------------------- Correction de la position lue par la souris-------------------------
+//			Xmin = (maxx)*(xmin-ofseta)/450;
+//			Xmax = (maxx)*(xmax-ofseta)/450;
+//			Ymin = (maxy)*(ofsetb-ymax)/200;
+//			Ymax = (maxy)*(ofsetb-ymin)/200;
+
+			Xmin = minx+(maxx-minx)*(xmin-ofseta)/450;
+			Xmax = minx+(maxx-minx)*(xmax-ofseta)/450;
+			Ymin = miny+(maxy-miny)*(ofsetb-ymax)/200;
+			Ymax = miny+(maxy-miny)*(ofsetb-ymin)/200;
+			
+			//-------------------Tolerances ajoutee sur ces positions----------------------------------
+		//	print("Xmin= ",Xmin," Xmax= ",Xmax," Ymin= ",Ymin," Ymax= ",Ymax);
+			tolx = maxx*tol;
+			toly = maxy*tol;
+			// 	print("tolx= ",tolx, "toly= ",toly);
+			Xmin = Xmin-tolx;
+			Xmax = Xmax+tolx;
+			Ymin = Ymin-toly;
+			Ymax = Ymax+toly;
+			Xmin = maxOf(Xmin,0);
+			Ymin = maxOf(Ymin,0);
+			// print("Xmin= ",Xmin," Xmax= ",Xmax," Ymin= ",Ymin," Ymax= ",Ymax);
+			
+			//-----------------Fermeture vignettes--------------------------------------------------------------------
+			if (fic ==1 && maskopen ==0 ){ //------------------------- Alors vignettes ouvertes
+				for (h = 0;h<nbvig;h++) {
+					k = listvig[h];
+					No = no[k];
+					nomvignette =titrered+"_"+No;
+					if (isOpen(nomvignette)==1) {		selectImage(nomvignette);
+						run("Close");
+					} // if
+					if (isOpen(nomvignette+".jpg")==1) {	selectImage(nomvignette+".jpg");
+						run("Close");
+					} // if
+				} // for h
+			} // if fic
+
+			//-------------------Creation de la liste des vignettes contenues dans la selection---------
+			inde = 0;	
+			for (i=0; i<x.length ; i++) {
+				if (identx=="N°") { 			c = no[i];		} //if
+				if (identx=="Area (pixel)") { 		c = area[i];		} //if
+				if (identx=="Mean grey level") { 		c = mean[i];		} //if
+				if (identx=="Major (mm)") { 		c = major[i];		} //if
+				if (identx=="Minor (mm)") { 		c = minor[i];		} //if
+				if (identx=="Circ.") { 			c = circ[i];		} //if
+				if (identx=="Feret (mm)") { 		c = feret[i];		} //if
+				if (identx=="Esd (mm)") { 		c = esd[i];		} //if
+				if (identx=="Fractal") { 		c = fractal[i];		} //if
+				if (identx=="Skelarea (pixel)") { 		c = skelarea[i];		} //if
+				if (identx=="%Area (%)") { 		c = parea[i];		} //if
+				if (identx=="Elong (major/minor)") { 		c = elong[i];		} //if
+
+				if (identy=="N°") { 			d = no[i];			} //if
+				if (identy=="Area (pixel)") { 		d = area[i];		} //if
+				if (identy=="Mean grey level") { 		d = mean[i];		} //if
+				if (identy=="Major (mm)") { 		d = major[i];		} //if
+				if (identy=="Minor (mm)") { 		d = minor[i];		} //if
+				if (identy=="Circ.") { 			d = circ[i];		} //if
+				if (identy=="Feret (mm)") { 		d = feret[i];		} //if	
+				if (identy=="Esd (mm)") { 		d = esd[i];		} //if
+				if (identy=="Fractal") { 		d = fractal[i];		} //if
+				if (identy=="Skelarea (pixel)") { 		d = skelarea[i];		} //if
+				if (identy=="%Area (%)") { 		d = parea[i];		} //if
+				if (identy=="Elong (major/minor)") { 		d = elong[i];		} //if
+				c = parseFloat(c);
+				d = parseFloat(d);
+						
+				// print("c= ",c," xmin= ",xmin," X = ",X,  " d= ",d," Y= ",Y);
+				if ( c>= Xmin && c <=Xmax && d>= Ymin && d<= Ymax) { 
+					print("c= ",c," d= ",d);
+					listvig[inde] = i;
+					inde++;
+				} // if
+				nbvig = inde;
+			} // for i
+			//----------------Affichage vignettes----------------------------
+			print("-----------------------------");
+			for (h = 0;h<nbvig;h++) {
+		//		if (h/50 == 10+floor(h/50) ) {		run("free memory");		wait(1000);		} // if
+				k = listvig[h];
+				//---------------------------- On affiche la (les) vignette(s) de l'objet selectionne-----------------
+				No = no[k];
+				run("Colors...", "foreground=red background=white selection=black");
+				setColor(0);
+				selectImage(titrered);
+				setVoxelSize(1,1,1,"pixel");
+				nomvignette =titrered+"_"+No;
+				print(nomvignette);
+				//----------------Verifions si la vignette n'est pas deja ouverte---------------
+				if (isOpen(nomvignette+".jpg")) { selectImage(nomvignette+".jpg");
+					//	print("Vignette "+nomvignette+" exists);	
+					fic = 1;
+				} // if 
+				else {	//-----------------------------Creation de la vignette--------------------------------
+					Bx   = 		bx[k];
+					By   = 		by[k];
+					Width	= 	width[k];
+					Height	= 	height[k];
+					vignettetext = 	longline;
+					chemin = 	chemwork1;
+					//	print("Bx= ",Bx," By= ",By," Width= ",Width," Height= ",Height);
+					argum = chem+" "+resolution+" "+longline+" "+x1+" "+x1 +" "+titrered+" "+titrered+" "+No+" "+Bx+" "+By+" "+Width+" "+Height+" "+maskcont+" "+gamma+" "+vignettetext+" "+masksave+" "+chemwork1+" "+chemin;
+					ret = runMacro("Zooscan_vignette_extract",argum);
+					flag=toString(ret);
+					l= lengthOf(flag);
+					if (l==1)  { 	showMessage("Error message : "+No+" vignette extraction failed                       "); 		} // if
+					else {	fic = 1;		
+			//			if (masksave != 1) { run("free memory");
+			//				wait(100);	
+			//				saveAs("Jpeg",chemtemp+"vignette");
+			//				rename(nomvignette);
+			//			} // if
+					} // else
+					//	print("ficout= ",fic," nbvigout= ",nbvig);
+					setTool(0);
+				} // else
+				wait(50);
+				// counter = 0;
+			} // for h
+			co = 0;
+			full = 0;	
+		} // if full
+	} // else
+} // isOpen plot   ++++++++++++++++++++++++++++++
+
+else { showMessage("Image or Graph closed by operator : process aborted                  ");
+	f = 1;
+} // else	+++++++++++++++++++++++++++++
+
+} // while	//===========================BOUCLE while================================
+	ret = runMacro("Zooscan_dialog_other_graph");
+	out=toString(ret);
+	l= lengthOf(out);
+	if (l==1)  { 	// 	showMessage("NON");
+		end = 1;
+		
+	} // if
+	else { end = 0;	//	showMessage("OUI");	
+		//--------------Fermeture du graphe---------------------------------------
+		if (isOpen("Plot  "+titrered)) {	selectImage("Plot  "+titrered);
+			run("Close");
+		} // if
+	} // else
+
+} //  while (end = 0) 
+
+ret = titrered;
+return ret;
+
+

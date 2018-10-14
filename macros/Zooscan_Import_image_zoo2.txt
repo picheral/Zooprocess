@@ -1,0 +1,209 @@
+//------------------------Zooscan_Import_image--------------------------
+// process pour chaque image
+arg = getArgument(); 
+array = split(arg," ");
+chem= array[0];
+titrered= array[1];
+savevig= array[2];
+batchimport= array[3];
+jpeg=100;
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+//text= "jpeg="+jpeg;
+//run("JPEG Quality...", text);
+
+
+chemtemp = chem + "Zooscan_temp\\";
+chemimport = chem + "Zooscan_import\\";
+chemwork = chemimport+titrered+"\\";
+// showMessage(chemwork);
+
+print("Importation de",titrered);
+
+//-------------Verifier la presence du PAR et du DATA dans _import
+parfile = File.exists(chemimport+ titrered+ ".par");
+datafile= File.exists(chemimport+ titrered+ ".txt");
+if (parfile==1 && datafile==1) { // ------le fichier PAR existe
+	// showMessage("les fichier PAR et DATA existent");
+	//-------------Creation du meta a partir du PAR-------------------
+	// Le fichier META est enregistre dans la routine 1cm
+	yyy = 1;
+	meta = 0;
+	maskpar = 1;
+	par= 1;
+	sep= 2;     	// Pour imposer de traiter le cas particulier de l'importation dans 1cm
+	param=1;
+	if (batchimport=="1") { param="2"; // On importe avec les memes parametres
+	} // if
+	else if (batchimport=="0") { param="1"; // On demande la validation des champs
+	} // if
+	arg = "1 "+chem+" 1 "+ param + " " + titrered+".tif " +sep+ " 1 "+meta+" "+par+" 1 1 "+maskpar+"  "+chemimport+" "+chemimport+" 1 1 1 1 1 1 1 1 "+yyy+" 1";
+		ret = runMacro("Zooscan_1cm",arg);
+	flag1cm = parseInt(ret);
+	if (flag1cm==0) {showMessage("Error message : DEFAULT DATA added to PAR data to create META & LOG.                         ");}
+	else { // Le process continue...
+		// Effacement de la fenetre LOG
+		print("A purger");
+		selectWindow("Log");
+		run("Close");
+		//-------------------------creation du LOG--------------------------------------
+		arg = "1 "+chem+" 1 "+ param + " " + titrered+".tif " +sep+ " 1 "+meta+" "+par+" 1 1 "+maskpar+"  "+chemimport+" "+chemimport+" 1 1 1 1 1 1 1 1 "+yyy+" 1";
+			ret = runMacro("Zooscan_1e",arg);
+		flag1cm = parseInt(ret);
+		if (flag1cm==0) {showMessage("Error message : Zooscan_1cm Process Aborted");}
+		else { // Le process continue...
+			//-------------Lecture du fichier METADATA et ecriture dans le log
+				runMacro("Zooscan_1d",chemtemp);
+			selectWindow("metadata.txt");
+			run("Close");
+			print("[Process]");
+			print("ConfigFile=","IMPORT_data_from_Matrox");
+			print("Version= 2003_MATROX_CNRS");
+			selectWindow("Log");
+			sauvemeta = "save=" + chemwork + titrered + "_log.txt"; 
+			run("Text...",sauvemeta);
+			//------------------Importation des donnees du -zoo2.txt (DATA)----------------------
+			// showMessage("creation du PID a partir du LOG et du DAT");
+			open(chemimport+ titrered+ ".txt");
+			data = getInfo();
+			selectWindow( titrered+ ".txt");
+			run("Close");
+			
+			ligne = split(data,"\n");
+			print(" ");
+			print("[Data]");
+
+			//-------------- Entete
+			// recheche des N° de colonnes equivalentes a BX, BY, Width et Height de ImageJ dans Matrox
+			mat = ligne[0];
+			item = split(mat,"\t");
+			pligne = "!Item;Label;No";
+			valeur= item[0];
+			if (valeur=="Label") { 	colLabel = 0;    } // if
+			for (j=1; j<item.length; j++) {
+				valeur =  item[j];
+				if (valeur=="Box Min. X") { 	colBX = j;    } // if
+				if (valeur=="Box Min. Y") { 	colBY = j;    } // if
+				if (valeur=="Box Max. X") { 	colBXmax = j;    } // if
+				if (valeur=="Box Max. Y") { 	colBYmax = j;    } // if
+				// if (valeur=="Label") { 	colLabel = j;    } // if
+				ecrire = valeur;
+				pligne = pligne + ";"+ ecrire;
+			}
+			print(pligne);
+			BX=newArray(3000);
+			BY=newArray(3000);
+			BXmax=newArray(3000);
+			BYmax=newArray(3000);
+			Labela=newArray(3000);
+
+			//----------------- Boucle sur les lignes
+			for (i=1; i<ligne.length; i++)	{
+				mat = ligne[i];
+				item = split(mat,"\t");
+				//--------Vecteurs pour extraction des vignettes
+				bx= item[colBX];
+				by= item[colBY];
+				bxmax= item[colBXmax];
+				bymax= item[colBYmax];
+				labela= item[colLabel];
+				o = i-1;
+				BX[o]=bx;
+				BY[o]=by;
+				BXmax[o]=bxmax;
+				BYmax[o]=bymax;
+				Labela[o]=labela;
+				//----------Boucle sur les items
+				lab = toString(i);
+				pligne = item[0]+";"+titrered+";"+lab;
+				for (j=1; j<item.length; j++) {
+					// print("j= ",j,"  ",item[j]);
+					valeur =  item[j];
+					pligne = pligne + ";"+ valeur;
+				}
+				print(pligne);
+			} // for
+			selectWindow("Log");
+			sauvemeta = "save=" + chemwork + titrered + "_dat1.pid"; 
+			run("Text...",sauvemeta);
+			if (savevig=="1") { 
+				//-----------------Extraction des vignettes-----------------------------
+				setBatchMode(1);
+				//---------Ouverture de l'image
+				open(chemimport+ titrered+ ".tif");
+				long = lengthOf(titrered);
+				titrered = substring(titrered, 0, long-9);
+
+				image=getTitle();
+				// Parametrisation
+				x1 = 10;
+				vignettetext = "1";			// pour 1 mm
+				longline = 94;
+				x2 = x1+longline;
+				showStatus("Thumbnail Images Calculation");
+				run("Colors...", "foreground=red background=white selection=black");
+				setColor(0);
+				setVoxelSize(1,1,1,"pixel");
+				ind = 0;
+				// -------------Boucle sur le nombre de vignettes
+				nbblobs=ligne.length;
+				for (i=0; i<nbblobs; i++) {
+					if (i==500 || i==1000 || i==1500 || i==2000 || i==2500 || i==3000 ) { wait(5000);
+						showStatus("WAIT, vignette recording");
+					} // if
+					bx= BX[i];
+					by= BY[i];
+					bxmax= BXmax[i];
+					bymax= BYmax[i];
+					labela= Labela[i];
+					
+					bx= parseInt(bx);
+					by= parseInt(by);
+					bxmax= parseInt(bxmax);
+					bymax= parseInt(bymax);
+					labela= parseInt(labela);
+
+					//  if (labela ==0) { showMessage("i= ",i); } 
+					
+					L = bxmax-bx;
+					H = bymax-by;
+					Xmin = bx- L/5;
+					Ymin= by- H/5;
+					L=maxOf(L*1.4,longline+2*x1);
+					// 20 est l'espace pour ecriture de la reference de taille 1 mm
+					H=(H*1.4)+20;
+					y1 = H-5;
+					//------- Il faut que l'image source soit active
+					selectImage(image);
+					makeRectangle(Xmin,Ymin,L,H);
+					run("Copy");
+					nomvignette =titrered+"-"+labela;
+					newImage(nomvignette, "8-bit White",L, H, 1);
+					run("Paste");
+					// -------Trace de l'echelle 1 mm dans la vignette
+					setLineWidth(2);
+					drawLine(x1,y1,x2,y1);
+					//--------Ecriture de la legende
+					setFont("SansSerif", 9);
+					drawString(vignettetext+" mm",10,H-8);
+					//--------Sauvegarde des vignettes
+					saveAs("Jpeg",chemwork+nomvignette+".jpg");
+					// Fermeture de la vignette
+					run("Close");
+					ind++;
+				} // for i (boucle sur les vignettes
+				print("Vignettes_extracted= ",ind);
+				//---------Fermeture de l'image
+				selectWindow(image);
+				run("Close");
+				setBatchMode(0);
+			} // if savevig
+			
+		} // else process continue apres 1cm
+	} // else process continue apres 1e
+	
+} // if le PAR et le DATA existent
+
+ret= "1 1";
+return ret;

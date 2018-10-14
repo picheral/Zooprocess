@@ -1,0 +1,199 @@
+// -------------------------------------------Zooscan_tag1---------------------------------------------------------------
+// Tag sur l'image
+// Appele par Main_Tag
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+xxx+" "+yyy+" "+zzz;
+
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		xxx= array[21];	yyy=array[22];	zzz= array[23];
+
+// Ouverture et chargement des configurations
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		resolution = array[6];		xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+// Suppression des info de type de fichier
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+chemtemp = chem + "Zooscan_temp\\";
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+//text= "jpeg="+jpeg;
+//run("JPEG Quality...", text);
+//-------------------FIN INITIALISATION-------------------------------------
+
+nbblobs = nResults;
+
+Ray = 20;
+// Affichage de l'image avec les tags contenus le fichiers des mesures s'ils existent
+open(chemtemp+"temp_vis1.tif");
+
+setFont("SansSerif", 20);
+
+// Trace des cercles de la couleur du TAG
+//setForegroundColor(150,150,150);
+run("Colors...", "foreground=cyan background=white selection=black");
+for (i=0; i<nbblobs; i++) {   	tagval = getResult("Tag",i); 
+		Xmin = getResult("BX", i)/voxelwidth;
+		Ymin = getResult("BY", i)/voxelheigth;
+		La = getResult("Width", i);
+		L = La/voxelwidth;
+		Ha = getResult("Height", i);
+		H = Ha/voxelheigth;
+		Bxo = Xmin + (L-Ray)/2;
+		Byo = Ymin + (H-Ray)/2;
+		if (tagval==1) {// Couleur GRIS
+			makeOval(Xmin,Ymin,Ray,Ray);
+			//print("i= ",i,"  tagval= ",tagval," verte");
+			drawString(i+1,Xmin+Ray+10,Ymin+20);
+			run("Fill");	
+		} // if
+} // for		
+
+//setForegroundColor(255,  0,  0);
+run("Colors...", "foreground=black background=white selection=black");
+for (i=0; i<nbblobs; i++) {   	tagval = getResult("Tag",i); 
+		Xmin = getResult("BX", i)/voxelwidth;
+		Ymin = getResult("BY", i)/voxelheigth;
+		La = getResult("Width", i);
+		L = La/voxelwidth;
+		Ha = getResult("Height", i);
+		H = Ha/voxelheigth;
+		Bxo = Xmin + (L-Ray)/2;
+		Byo = Ymin + (H-Ray)/2;
+		if (tagval==0) {// Couleur NOIR
+			makeOval(Xmin,Ymin,Ray,Ray);
+			//print("i= ",i,"  tagval= ",tagval," rouge");
+			drawString(i+1,Xmin+Ray+10,Ymin+20);
+			run("Fill");	
+		} // if
+} // for	
+
+//setForegroundColor(255,  0,  0);
+run("Colors...", "foreground=black background=white selection=black");
+for (i=0; i<nbblobs; i++) {   	tagval = getResult("Tag",i); 
+		Xmin = getResult("BX", i)/voxelwidth;
+		Ymin = getResult("BY", i)/voxelheigth;
+		La = getResult("Width", i);
+		L = La/voxelwidth;
+		Ha = getResult("Height", i);
+		H = Ha/voxelheigth;
+		Bxo = Xmin + (L-Ray)/2;
+		Byo = Ymin + (H-Ray)/2;
+		if (tagval==2) {// Couleur NOIR
+			//makeOval(Xmin,Ymin,Ray,Ray);
+			makeRectangle(Xmin,Ymin,Ray,Ray);
+			//print("i= ",i,"  tagval= ",tagval," rouge");
+			drawString(i+1,Xmin+Ray+10,Ymin+20);
+			run("Fill");	
+		} // if
+} // for	
+	
+setTool(12);
+run("View 100%");
+run("Out");
+
+// Changement de statut des cercles
+Dialog.create("TAG PROCESS MENU");
+Dialog.addMessage(" BLACK circle : Objects to be REMOVED ");
+Dialog.addMessage(" GREY circle : Objects to be KEPT ");
+Dialog.addMessage(" Click on the objects with the left mouse button to change status               ");
+Dialog.addMessage(" Click outside of the objects with the roll mouse button to END");
+Dialog.addMessage(" DO NOT PRESS CANCEL !");
+Dialog.show();
+check = 0;
+wait(1000);
+while (check==0) { 	wait(100);
+	getCursorLoc(x, y, z, flags);
+	if (flags==broll) {  // Sortie car on a presse le bouton central;   
+		check = 0;
+		// Condition de sortie.....
+		// ------------------------ Condition de sortie LES TAGS sont-ils corrects ?------------------
+		ret = runMacro("Zooscan_tag_control");
+		flag = toString(ret);
+		if (flag=="1") { check = 1; } // if
+	} // if
+	else if (flags==bleft) {	// On teste si on se trouve dans un organisme (bouton gauche)
+		for (i=0; i<nbblobs; i++) {   	tagval = getResult("Tag",i); 
+			Xmin = getResult("BX", i)/voxelwidth;
+			Ymin = getResult("BY", i)/voxelheigth;
+			La = getResult("Width", i);
+			L = La/voxelwidth;
+			Ha = getResult("Height", i);
+			H = Ha/voxelheigth;
+			Bxo = Xmin + (L-Ray)/2;
+			Byo = Ymin + (H-Ray)/2;
+			if (x>Xmin && x<Xmin+La) { // dans l'intervalle des x
+				if (y>Ymin && y<Ymin+Ha) { // Dans l'intervalle des y
+					// Alors dans le quadrilatere de l'objet
+					// On change de couleur
+					// On enregistre le tag
+					//print("Changement d'etat");
+					// lecture de l'etat dans la fenetre RESULTS
+					tagval = getResult("Tag",i); 
+					if (tagval==2) { // NO CHANGE
+					} // if
+					else {// Inversion de cet etat
+						tagcor= !tagval;
+						// Enregistrement dans la fenetre RESULTS
+						setResult("Tag",i,tagcor);
+						// Changement de la couleur
+						if (tagcor==0) {// Couleur NOIR
+							// setForegroundColor(255,  0,  0);
+							run("Colors...", "foreground=black background=white selection=black");
+							makeOval(Xmin,Ymin,Ray,Ray);
+							//makeOval(Bxo,Byo,Ray,Ray);
+							run("Fill");	
+						} // if
+						if (tagcor==1) {// Couleur GRIS
+							// setForegroundColor(150,150,150);
+							run("Colors...", "foreground=cyan background=white selection=black");
+							makeOval(Xmin,Ymin,Ray,Ray);
+							// makeOval(Bxo,Byo,Ray,Ray);
+							run("Fill");	
+						} // if
+					} // else
+				} // if y
+			} // if x
+		} // for nbblobs
+	} // else
+} // while
+
+updateResults();
+
+// print("FIN des TAGs");
+
+//-----------------------------Fermeture de l'image-------------------------------------
+selectImage("temp_vis1.tif");
+run('Close');
+
+updateResults();
+
+ret = "1";
+return ret;
+

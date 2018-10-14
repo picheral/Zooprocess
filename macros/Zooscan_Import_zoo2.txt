@@ -1,0 +1,144 @@
+//------------------------Zooscan_Import------------------------------
+
+arg = getArgument(); 
+array = split(arg," ");
+chem= array[0];
+
+//------------------------ Effacement de la fenetre LOG
+print("A purger");
+selectWindow("Log");
+run("Close");
+
+// --------------------Test de l'existence du repertoire Zooscan_import
+chemimport = chem + "Zooscan_import\\";
+confimp = File.exists(chemimport);
+if (confimp==0) { // Le repertoire du fichier temporaire n'existe pas
+	showMessage("Error message"+chemimport+" folder doesn't exist, it is created now  ");  
+	File.makeDirectory(chemimport); 
+} // if
+
+
+//---------------------demander a copier les fichiers IMAGE, PAR et DATA dans ce repertoire
+Dialog.create("IMPORTATION Process");
+Dialog.addMessage("-------------------------------------------------------------        ");
+Dialog.addMessage("You must copy the files :   ");
+Dialog.addMessage("      *zoo2.tif");
+Dialog.addMessage("      *zoo2.par");
+Dialog.addMessage("      *zoo2.txt");
+Dialog.addMessage("to the folder  :\Zooscan\Zooscan_import");
+Dialog.addMessage("-------------------------------------------------------------        ");
+Dialog.addMessage("                                     Press OK when done ! ");
+Dialog.show();
+
+// --------------Choix des operations ( Extraction de vignettes ou non) 	// Choix de process BATCH ou ONE by ONE
+Dialog.create("IMPORTATION Process");
+Dialog.addMessage("------------------------------------------------------------------------------------        ");
+Dialog.addCheckbox("Extract Vignettes from images ?", true); 
+Dialog.addCheckbox("Batch process of all images ?", true); 
+Dialog.addMessage("------------------------------------------------------------------------------------        ");
+Dialog.addMessage("Already imported files will NOT be processed in BATCH mode        ");
+Dialog.addMessage("PAR files will be completed by the data of the first image header     ");
+Dialog.addMessage("------------------------------------------------------------------------------------        ");
+Dialog.show();
+savevig = Dialog.getCheckbox();
+batchimport = Dialog.getCheckbox();
+
+
+// Selection des fichiers dont le nom comporte le mot "zoo2.tif";
+		filelist  = getFileList(chemimport);
+		j = 0;
+		list = newArray(1000);
+		for (i=0; i<filelist.length ; i++) {	ctrl = endsWith(filelist[i],"zoo2.tif");
+			if (ctrl==1) 	{rr = filelist[i];
+				list[j] = rr;
+				// print(list[j]);
+				j = j + 1;		}
+			else ;	}	
+		// Purger les fichiers vides de la liste !
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];
+			listaff[i] = rr;	
+		} // for
+
+
+if (batchimport==1) { // -------------BATCH import ---------------
+	// Lecture des noms de fichiers
+	print("files to import= ",listaff.length);
+	for (k=0 ;k< listaff.length ; k++) { 
+		titre = listaff[k];
+		long = lengthOf(titre);
+		titrered = substring(titre, 0, long-4);
+		print("titre= ",titrered," indice= ",k);
+
+		// TEST de l'existence du repertoire de l'image pour stocker les donnees et qui deviendra le chemwork s'il existe
+		chemwork = chemimport + "\\"+titrered;
+		confwork = File.exists(chemwork);
+		if (confwork==0) { // Le repertoire du fichier source n'existe pas, on le cree
+			print(chemwork," folder created"); 
+			File.makeDirectory(chemwork); 
+			treat = 1;
+		} // if
+		else { print(chemwork," folder exits"); 
+			// Verification du repertoire "work et des fichiers PID,META et LOG
+			chemwork1 = chemimport + "\\"+titrered+ "\\";
+			// showMessage(chemwork1+ titrered+ "_dat1.pid");
+			pid= File.exists(chemwork1+ titrered+ "_dat1.pid");
+			meta= File.exists(chemwork1+ titrered+ "_meta.txt");
+			logfile= File.exists(chemwork1+ titrered+ "_log.txt");
+			if (pid==1 && meta==1 && logfile==1 && savevig==0 ) { 
+				//showMessage("Files and folder exist");
+				// ne pas importer 
+				treat=0;
+			} // if
+			else { treat= 1; 	// On importe l'image     
+			} // else
+		} // else
+		
+		if (treat==1) { //----- On importe le fichier
+			// Macro d'importation directe
+			batch = 1;
+			if (k==0) { // On va demander l'entete pour le premier fichier
+				batch = 0;
+			} // if
+			arg =chem+" "+ titrered+" " +savevig+" " +batch;
+				ret = runMacro("Zooscan_Import_image.txt",arg);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { showMessage("Error message : Zooscan_Import_image Process aborted for file "+ titrered +"    "); 
+			} // if	
+		} // if
+	} // for k
+} // if batchimport
+
+else { //----------------------Import ONE image-----------------
+	Dialog.create("SINGLE IMAGE PROCESS");
+	Dialog.addChoice("Select Image to process", listaff);
+	Dialog.show();
+	titre = Dialog.getChoice();
+
+
+	long = lengthOf(titre);
+	titrered = substring(titre, 0, long-4);
+	chemwork = chemimport + "\\"+titrered;
+	// chemwork = chemscan + "_work\\"+titrered;
+	confwork = File.exists(chemwork);
+	if (confwork==0) { // Le repertoire du fichier source n'existe pas, on le cree
+		 print(chemwork," folder created"); 
+		File.makeDirectory(chemwork); 
+		} // if
+	else { print(chemwork," folder exits"); 
+	} // else
+	// Macro d'importation directe
+	arg =chem+" "+ titrered+" " +savevig+" " +batchimport;
+		ret = runMacro("Zooscan_Import_image.txt",arg);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { showMessage("Error message : Zooscan_Import_image Process aborted     ");
+	 } // if
+} // else
+
+
+	
+
+ret = "1 1 1";
+return ret;

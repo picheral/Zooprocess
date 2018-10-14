@@ -1,0 +1,136 @@
+//-----------------------Zooscan_add_date_pid.txt-------------------------------------
+version = "6.15";
+date = "2009/11/02";
+// ------------- Picheral, CNRS --------------------------------
+
+arg = 		getArgument(); 
+array = 		split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+drive = 	substring(projfolder,0,2);
+lon = 	lengthOf(projfolder);
+zoosc = 	indexOf(projfolder,"Zooscan_");
+proj = 	substring(projfolder,zoosc+8,lon);
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+path = 	drive+"\\Zooscan_"+proj;
+
+//------------------PID folders---------------------------------------
+pathpid = 		path+"\\"+"\\PID_process";
+pathlearn = 		path+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+pathpidresults = 		path+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pathvig = 		path+"\\"+"\\PID_process\\"+"\\Unsorted_vignettes_pid\\";
+pathsortedvig = 		path+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+pathpredic = 		path+"\\"+"\\PID_process\\"+"\\Prediction\\";
+pathpidpredicted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+pathdat1extracted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_extracted\\";
+pathdat1validatted = 	path+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+
+// -------------------------------------------------------------------------------------------------
+rep = newArray(6);
+rep[0] = pathlearn;
+rep[1] = pathpidresults;
+rep[2] = pathvig;
+rep[3] = pathsortedvig;
+rep[4] = pathpredic;
+rep[5] = pathpidpredicted;
+
+// ---------------------Effacement de la fenetre LOG-----------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if	
+
+// ------------ Liste des repertoires pouvant contenir des PID a modifier ----------------------------------
+// ------------ work et sous repertoires samples -----------------------
+chemwork = 	chemscan + "_work\\";
+workfolder = 	File.exists(chemwork);	
+if (workfolder == 1) {			
+	filelist  = getFileList(chemwork);
+	//-------------- Selection des fichiers ---------------------
+	j = 0;	flagframe = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	  
+		 rr = filelist[i]; 
+		identlong = 	lengthOf(rr);
+		rr = 		substring(rr,0,identlong-1);	
+		//--------------- Recherche du fichier PID ----------
+		imagepid = chemwork+"\\"+rr+"\\"+rr+"_dat1.pid";
+		pidexist = File.exists(imagepid);
+		if ( pidexist == 1 ){
+			// -------------------------- Modification du PID ---------------------------------------------------------------------------
+			ret = runMacro("Zooscan_pid_modif_date",imagepid);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { showMessage("Error message : ''Zooscan_pid_modif_date'' aborted     ");			} // if
+		} // if
+	} // for
+} // if
+
+// -------------------------------------------- Boucle sur les repertoires ---------------------------------
+for (k=0; k<6; k++) {	
+	folder = 	rep[k];
+	identlong = 	lengthOf(folder);
+	folder = 		substring(folder,0,identlong-1);
+	if (File.exists(folder)) {
+		//-------------------------------- existe --------------------------------------
+		listefile = getFileList(folder);		size = listefile.length;	
+		if (size >0 ) { //----------------------Il existe quelque chose ----------------------
+			// -------------------------  Selection des fichiers dont le nom comporte le mot "_dat1.pid" ----------------------------
+			j = 0;
+			list = newArray(size);
+			for (i=0; i<size ; i++) {	ctrl = indexOf(listefile[i],"_dat1.pid");
+				if (ctrl>0  )	{	rr = listefile[i]; 	list[j] = rr;	j = j + 1;		} // if
+			} // for	
+			if (j != 0) 	{ 
+				// ------------------- Boucle sur les PID ----------------------------------------------
+				for (i=0; i<j; i++) {	
+					pidfile = list[i];		
+					imagepid = folder+"\\"+pidfile;
+					// -------------------------- Modification du PID ---------------------------------------------------------------------------
+					ret = runMacro("Zooscan_pid_modif_date",imagepid);
+					flag=toString(ret);
+					l= lengthOf(flag);
+					if (l==1)  { showMessage("Error message : ''Zooscan_pid_modif_date'' aborted     ");			} // if
+				} // for
+			} // if
+		} // if
+	} // if
+} // for
+
+// ------ sous repertoires de Learningset -----------------------	
+if (File.exists(pathlearn)) {			
+	replist  = getFileList(pathlearn);
+	//-------------- Selection des fichiers ---------------------
+	list = newArray(replist.length);
+	for (m=0; m<replist.length ; m++) {	  
+		folder = replist[m]; 
+		identlong = 	lengthOf(folder);
+		folder = 		substring(folder,0,identlong-1);
+		if (File.exists(folder)) {
+			//-------------------------------- existe --------------------------------------
+			listefile = getFileList(folder);		size = listefile.length;	
+			if (size >0 ) { //----------------------Il existe quelque chose ----------------------
+				// -------------------------  Selection des fichiers dont le nom comporte le mot "_dat1.pid" ----------------------------
+				j = 0;
+				list = newArray(size);
+				for (i=0; i<size ; i++) {	ctrl = indexOf(listefile[i],"_dat1.pid");
+					if (ctrl>0  )	{	rr = listefile[i]; 	list[j] = rr;	j = j + 1;		} // if
+				} // for	
+				if (j != 0) 	{ 
+					// ------------------- Boucle sur les PID ----------------------------------------------
+					for (i=0; i<j; i++) {	
+						pidfile = list[i];		
+						imagepid = folder+pidfile;
+						// -------------------------- Modification du PID ---------------------------------------------------------------------------
+						ret = runMacro("Zooscan_pid_modif_date",imagepid);
+						flag=toString(ret);
+						l= lengthOf(flag);
+						if (l==1)  { showMessage("Error message : ''Zooscan_pid_modif_date'' aborted     ");			} // if
+					} // for
+				} // if
+			} // if
+		} // if
+	} // for
+} // if
+
+// --------------------------- FIN ---------------------------------------------------------------------
+ret = "FIN";
+return ret;

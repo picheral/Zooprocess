@@ -1,0 +1,130 @@
+// ------------------------Zooscan_OD_Analysis------------------------------
+// Batch analysis of OD level in all images contained in a folder
+
+run("JPEG Quality...", "jpeg=100");
+arg = getArgument(); 
+array = split(arg," ");
+param = array[0];
+chem= array[1];
+
+//--------------------------Choix du fichier CONFIG dans _config---------------------------------
+chemconfig = chem + "Zooscan_config\\";
+filelist  = getFileList(chemconfig);
+// Selection des fichiers dont le nom comporte le mot "config";
+j = 0;
+list = newArray(100);
+for (i=0; i<filelist.length ; i++) {	ctrl = indexOf(filelist[i],"config");
+	if (ctrl>0) 	{rr = filelist[i];
+		list[j] = rr;
+		// print(list[j]);
+		j = j + 1;		}
+	else ;}	
+
+// Purger les fichiers vides de la liste !
+listaff = newArray(j);
+for (i=0; i<listaff.length ; i++) {	rr = list[i];
+	listaff[i] = rr;	}
+Dialog.create("Batch Zooscan_OD_Analysis");
+Dialog.addChoice("Configuration file", listaff);
+Dialog.show();
+configfile = Dialog.getChoice();
+
+
+//-----------------------------Ouverture et chargement des configurations------------------------------
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];	zip = array[4];	greycor = array[5];	resolution = array[6];	xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];	doecart = array[14];	subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];voxelunit = array[22];	backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27]; doyabspos = array[28];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+
+//-------------------------------Traitement de multiples images en batch--------------------------------------------------
+// Traitement de toutes les images du repertoire _scan
+// Selection des fichiers dont le nom comporte le mot ".tif";
+// chemscan = getDirectory("Select a Directory");
+
+Dialog.create("CONTROL");
+Dialog.addMessage("Have you checked that the folder contains at least 2 image files ?");
+Dialog.show();
+
+chemscan = chem  + "Zooscan_scan\\";
+filelist  = getFileList(chemscan);
+j = 0;
+list = newArray(1000);
+for (i=0; i<filelist.length ; i++) {	ctrl = endsWith(filelist[i],".tif");
+	if (ctrl==1) 	{rr = filelist[i];
+		list[j] = rr;
+		// print(list[j]);
+		j = j + 1;	
+		} // if
+	} // for	
+// Purger les fichiers vides de la liste !
+listaff = newArray(j);
+for (i=0; i<listaff.length ; i++) {	rr = list[i];
+	listaff[i] = rr;	}
+
+//----------------------------------------BOUCLE sur les fichiers-------------------------------------------------
+
+for (k=0 ;k< listaff.length ; k++) { 	titre = listaff[k]; 	
+	// Ouverture du fichier IMAGE a traiter
+	openimage = chemscan + titre;
+	open(openimage);
+	// Suppression des info de type de fichier
+	long = lengthOf(titre);
+	titrered = substring(titre, 0, long-4);
+		
+	// Mesure du niveau de gris
+	largeurcor = getWidth()/8;
+	hauteurcor = getHeight()/8;
+	cropx = 8*floor(largeurcor);
+	cropy = 8*floor(hauteurcor);
+	
+	xminref = (doxabspos) - xdimref/2;
+	yminref = cropy-ydimref-doyofset;
+
+	// Measure the grey level of the OD reference in the Zoopk image
+	makeRectangle(xminref, yminref, xdimref, ydimref);
+	run("Crop");
+	run("8-bit");
+	// Sauvegarde de la vignette
+	saveAs("jpeg",chemscan+titrered+"_od");
+	getStatistics(area, mean, min, max, std);
+	ecart = max-min;
+	print(titre, " ",mean," ",min," ",max," ",std);
+	wait(30000);
+} // for k
+
+
+selectWindow("Log");
+sauveavg = "save=" + chemscan + "mean_OD.txt";
+run("Text...",sauveavg);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

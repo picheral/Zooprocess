@@ -1,0 +1,418 @@
+// ----------------------------------- Zooscan_1m ----------------------------------------------------
+version =	 "7.21";
+date =	 "2015/09/11";
+
+print("-----------------Zooscan_1m "+version +" "+date+ " ------------------");
+// Appele par Zooscan_trt_1.txt
+//	arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+scan+" "+yyy+" "+savetag+" "+savedoub+" "+backimg;
+
+// Création Table pour EcoTaxa dans le répertoire WORK avec les vignettes
+
+arg = getArgument(); 
+array = split(arg," ");
+
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	yyy=array[22];	savetag= array[23];	savedoub=array[24];	backimg=array[25];
+projfolder = array[26];
+
+// -----------------------Suppression des info de type de fichier --------------------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+replace(titrered,".","_");
+drive = substring(chem,0,2);
+lon = lengthOf(projfolder);
+
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+
+chemwork = 	chemwork1+titrered+"\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+pathpidresults = 	projfolder+"\\PID_process\\"+"\\Pid_results\\";
+
+// -------------------- Lecture des options dans fichier optionnel -------------------
+option = "B";
+optionfile = 	chemconfig + "\\optionfile.txt";
+if (File.exists(optionfile)) {	open(optionfile);
+	config = getInfo();
+	run("Close");
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{	texte = array[i];	ssarray = split(texte," ");	array[i] = ssarray[1];		}// for
+	option = array[0];
+} // if
+
+TAG = 0;
+if (tag == "1") { TAG =1;	} // if
+flag=0;
+
+// ---------------------------Saisie des entetes, enregistrement du fichier Metadata.txt avec les infos de l'image en cours
+// CAS ou il ne faut pas saisir les entetes (le cas des traitements multiples est traite dans 1cm...)
+// ------------------------------ Saisie ou controle des entetes ----------------------------
+//	if (scan==0) { 	ret = runMacro("Zooscan_1cm",arg);	flag1cm = parseInt(ret);		} // if scan
+
+
+if (scan==0) { 	ret = runMacro("Zooscan_metadata_read",arg);	flag1cm = parseInt(ret);		} // if scan
+
+
+// ------------------------------ Pas de saisie des entetes car on vient de scanner et de saisir... --------------
+else { flag1cm=1; 			} // else
+if (flag1cm==0) {print("Zooscan_metadata_read = ABORTED");	getBoolean("Error Message :  Header process aborted. \n \nPress Cancel to abort !                 ");	} // if
+
+//----------------------------- DEBUT d'ecriture du LOG final (qui sera enregistre) ---------------------------------
+print("A purger");	selectWindow("Log");	run("Close");
+
+//------------------------------- Si le LOG existe, on reprend les informations concernant [Image] ---------------
+// Acquisition des donnees et lecture des infos de numerisation
+ret= runMacro("Zooscan_1e",arg);
+flag=toString(ret);
+l= lengthOf(flag);
+if (l==1)  { 	getBoolean("Warning message : ''Zooscan_get_resolution'' process aborted.   \n \nPress Cancel to abort !                   "); 	} // if
+else {		resolution= toString(ret);	} // else
+
+// ------------------------------- Lecture du fichier METADATA et ecriture dans le log ------------------------------
+runMacro("Zooscan_1d",chemtemp+" "+projfolder);
+selectWindow("metadata.txt");
+run("Close");
+print("[Process]");
+print("ConfigFile=",configfile);
+print("Version= "+version+ "_"+date+"_Picheral_CNRS");
+if (param==1) { print("Multiple_image_process= NO"); 			} // if
+else if (param==2) { print("Multiple_image_process= YES"); 		} // else
+
+// --------------------------Affichage de la date et de l'heure de traitement (debut) ---------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+print("Date= ",dateheure);
+print(" ");
+print("[Image_Process]");
+
+//-------------------------------------------------Macro de traitement des images sources
+arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "  + titre +" "+ sep +" "+   tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag+" "+savedoub+" "+backimg+" "+projfolder;
+
+// ---------------------------------------- On calcule le vis1 --------------------------------------
+flag1a = "0"; 
+if (vis==0) { print("vis1_file= PROCESS");
+	print("Date= ",dateheure);	
+		flag1a = runMacro("Zooscan_1asep",arg); 	
+	flag1a = toString(flag1a);
+	l= lengthOf(flag1a);
+	if (l==1) { getBoolean("Error Message :  Image process aborted. \n \nPress Cancel to abort !                 ");   	} // if
+} // if
+// ---------------------------------------- On calcule le vis1 --------------------------------------
+if (vis==1 && maskvis==1) { 
+	print("vis1_file= PROCESS");
+	print("Date= ",dateheure);
+		flag1a = runMacro("Zooscan_1asep",arg); 
+	flag1a = toString(flag1a);
+	l= lengthOf(flag1a);
+	if (l==1) { getBoolean("Error Message :  Image process aborted. \n \nPress Cancel to abort !                 ");   	} // if
+} // if
+if (vis==1 && maskvis==0) { 
+	// ------------------ Si pas de traitement du masque de separation...et que vis1 existe ------------
+	if (maskop==0) { 
+		// ---------------------------------------- On calcule le vis1 --------------------------------------
+		if (sep==1) { print("vis1_file= PROCESS");
+			print("Date= ",dateheure);
+				flag1a = runMacro("Zooscan_1asep",arg); 
+				flag1a = toString(flag1a);
+				l= lengthOf(flag1a);
+				if (l==1) { getBoolean("Error Message :  Image process aborted. \n \nPress Cancel to abort !                 ");   	} // if
+		} // if
+		// ------------------------------ Le sep n'existe PAS, c'est donc que le vis est correct...----------------------------------
+		else { 	print("vis1_file= LOAD");
+			//------------------RECHARGER les INFOS de traitement INITIAL dans le précédent LOG
+			// 	Si le LOG existe, on reprend les informations concernant [Image], [Fraction] et [Subsample]
+			logfile = File.exists(chemwork+titrered+"_log.txt");
+			if (logfile==1) {open(chemwork+titrered+"_log.txt");
+				Hardware= "none";		Unit= 0;	reduction=1;	XOffset= 0;	YOffset= 0;	PreviewYOffset=1;		PreviewXOffset=1;
+				data = getInfo();
+				ligne = split(data,"\n");
+				reduction = 1;
+				for(i=0;i<ligne.length;i++) { 	champ = ligne[i];
+					if (champ=="Image_Process" || champ=="[Image_Process]") { 	deb = i;		} // if ligne
+					if (champ=="Particules_Process" || champ=="[Particules_Process]") { 	end = i;		} // if ligne
+					//-------------------------------Type Hardware----------------
+					// Conversion des mesures faites pour 4800 dpi par VUESCAN !
+					pos = indexOf(champ,"[Input-");
+					if (pos>=0) { 	fin = lastIndexOf(champ,"]");		Hardware= substring(champ,pos+7,fin);			} // if
+					posr = indexOf(champ,"TIFFSizeReduction");
+					if (posr>=0 ) {	deb= indexOf(champ,"=");		reduction= substring(champ,deb+1,deb+2);		reduction = parseInt(reduction);		} // if
+					//-------------------------------Unite----------------
+					pos = indexOf(champ,"CropUnits");
+					if (pos>=0) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	Unit = parseInt(val);		} // if
+					if (Unit==0 && Hardware == "Perfection4990-Flatbed") { unit= "pixel"; } //
+					//-------------------------------Unite----------------
+					pos = indexOf(champ,"AutoOffset");
+					if (pos>=0) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	AutoOffset = parseInt(val);		} // if
+					//----------------- PreviewXOffset
+					pos1 = indexOf(champ,"PreviewXOffset");
+					if (pos1>=0 ) {	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	PreviewXOffset=parseInt(val);	} // if	
+					//----------------- X Offset
+					pos1 = indexOf(champ,"XOffset");
+					if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+						if (deb < 8)  { long= lengthOf(champ);		val = substring(champ,deb+1,long);	XOffset=parseInt(val);	} // if
+					} // if	
+					//----------------- X Size
+					pos1 = indexOf(champ,"XSize");
+					if (pos1>=0 ) {	deb= indexOf(champ,"=");
+						if (deb < 8) {long= lengthOf(champ);		val = substring(champ,deb+1,long);	XSize=parseInt(val);	} // if
+					} // if
+					//----------------- XSpacing
+					pos1 = indexOf(champ,"XSpacing");
+					if (pos1>=0 ) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	XSpacing=parseInt(val);	} // if		
+					//----------------- PreviewYOffset
+					pos1 = indexOf(champ,"PreviewYOffset");
+					if (pos1>=0 ) {	deb= indexOf(champ,"=");
+						long= lengthOf(champ);			val = substring(champ,deb+1,long);	PreviewYOffset=parseInt(val);
+					} // if	
+					//----------------- Y Offset
+					pos1 = indexOf(champ,"YOffset");
+					if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+						if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YOffset=parseInt(val);	} // if
+					} // if
+					//----------------- Y Size
+					pos1 = indexOf(champ,"YSize");
+					if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+						if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YSize=parseInt(val);	} // if
+					} // if	
+					// --------------------------- Biotom - Hydroptic v1 ----------------------------------------------
+					if (Hardware== "Perfection4990-Flatbed" && resolution=="2400" ) { reduction = 2; };
+					if (Hardware== "Perfection4990-Flatbed" && resolution=="1200" ) { reduction = 4; };
+					if (Hardware== "Perfection4990-Flatbed" && resolution=="600" ) { reduction = 8; };
+					if (Hardware== "Perfection4990-Flatbed" && resolution=="300" ) { reduction = 16; };
+					// -------------------------- Hydroptic v2 -----------------------------------------------------------
+					if (Hardware== "Perfection4490-Flatbed" && resolution=="2400" ) { reduction = 2; };
+					if (Hardware== "Perfection4490-Flatbed" && resolution=="1200" ) { reduction = 4; };
+					if (Hardware== "Perfection4490-Flatbed" && resolution=="600" ) { reduction = 8; };
+					if (Hardware== "Perfection4490-Flatbed" && resolution=="300" ) { reduction = 16; };
+				} // for
+				for (p=deb+2;p<end-1;p++) { print(ligne[p]); } // for
+				selectWindow(titrered+"_log.txt");
+				run('Close');
+			} // logfile
+			if (File.exists(chemwork+titrered+"_vis1.zip") )		{	open(chemwork+titrered+"_vis1.zip"); 				} //  if
+			else if (File.exists(chemwork+titrered+"_vis1.jpg") ) 	{	open(chemwork+titrered+"_vis1.jpg"); 			} // else if	
+			else if (param !=2) {	getBoolean("Error message :  "+chemwork+titrered+"_vis1.jpg       \nor \n "+chemwork+titrered+"_vis1.zip doesn't exist.      \n \nPress Cancel to abort !   ");	} // else	
+			else { // ------------ Rien a afficher
+			} // else
+			// -----------Sauvegarde d'un fichier temporaire en TIF -------------------------------
+			saveAs("Tiff", chemtemp+"temp_vis1.tif"); 	
+			PreviewXOffset=toString(PreviewXOffset);
+			XOffset = toString(XOffset);
+			XSize = toString(XSize);
+			reduction = toString(reduction);
+			flag1a = XOffset+" "+XSize+" "+reduction+" "+PreviewXOffset;
+		} // else
+		} // if maskop==0
+	else if (maskop==1) { // ------------------------------- Traitement du masque de separation -----------------------------------------------
+		print("vis1_file= LOAD");
+			//------------------RECHARGER les INFOS de traitement INITIAL dans le précédent LOG
+			// 	Si le LOG existe, on reprend les informations concernant [Image], [Fraction] et [Subsample]
+			logfile = File.exists(chemwork+titrered+"_log.txt");
+			if (logfile==1) {open(chemwork+titrered+"_log.txt");
+				Hardware= "none";		Unit= 0;	reduction=1;	XOffset= 0;	YOffset= 0;	PreviewYOffset=1;		PreviewXOffset=1;
+				data = getInfo();
+				ligne = split(data,"\n");
+				reduction = 1;
+				for(i=0;i<ligne.length;i++) { 	champ = ligne[i];
+					if (champ=="Image_Process" || champ=="[Image_Process]") { 	deb = i;		} // if ligne
+					if (champ=="Particules_Process" || champ=="[Particules_Process]") { 	end = i;		} // if ligne
+					//-------------------------------Type Hardware----------------
+					// Conversion des mesures faites pour 4800 dpi par VUESCAN !
+					pos = indexOf(champ,"[Input-");
+					if (pos>=0) { 	fin = lastIndexOf(champ,"]");		Hardware= substring(champ,pos+7,fin);			} // if
+				posr = indexOf(champ,"TIFFSizeReduction");
+				if (posr>=0 ) {	deb= indexOf(champ,"=");		reduction= substring(champ,deb+1,deb+2);		reduction = parseInt(reduction);		} // if
+				//-------------------------------Unite----------------
+				pos = indexOf(champ,"CropUnits");
+				if (pos>=0) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	Unit = parseInt(val);		} // if
+				if (Unit==0 && Hardware == "Perfection4990-Flatbed") { unit= "pixel"; } //
+				//-------------------------------Unite----------------
+				pos = indexOf(champ,"AutoOffset");
+				if (pos>=0) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	AutoOffset = parseInt(val);		} // if
+				//----------------- PreviewXOffset
+				pos1 = indexOf(champ,"PreviewXOffset");
+				if (pos1>=0 ) {	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	PreviewXOffset=parseInt(val);	} // if	
+				//----------------- X Offset
+				pos1 = indexOf(champ,"XOffset");
+				if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+					if (deb < 8)  { long= lengthOf(champ);		val = substring(champ,deb+1,long);	XOffset=parseInt(val);	} // if
+				} // if	
+				//----------------- X Size
+				pos1 = indexOf(champ,"XSize");
+				if (pos1>=0 ) {	deb= indexOf(champ,"=");
+					if (deb < 8) {long= lengthOf(champ);		val = substring(champ,deb+1,long);	XSize=parseInt(val);	} // if
+				} // if
+				//----------------- XSpacing
+				pos1 = indexOf(champ,"XSpacing");
+				if (pos1>=0 ) { 	deb= indexOf(champ,"=");		long= lengthOf(champ);		val = substring(champ,deb+1,long);	XSpacing=parseInt(val);	} // if		
+				//----------------- PreviewYOffset
+				pos1 = indexOf(champ,"PreviewYOffset");
+				if (pos1>=0 ) {	deb= indexOf(champ,"=");
+					long= lengthOf(champ);			val = substring(champ,deb+1,long);	PreviewYOffset=parseInt(val);
+				} // if	
+				//----------------- Y Offset
+				pos1 = indexOf(champ,"YOffset");
+				if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+					if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YOffset=parseInt(val);	} // if
+				} // if
+				//----------------- Y Size
+				pos1 = indexOf(champ,"YSize");
+				if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+					if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YSize=parseInt(val);	} // if
+				} // if	
+				// --------------------------- Biotom - Hydroptic v1 ----------------------------------------------
+				if (Hardware== "Perfection4990-Flatbed" && resolution=="2400" ) { reduction = 2; };
+				if (Hardware== "Perfection4990-Flatbed" && resolution=="1200" ) { reduction = 4; };
+				if (Hardware== "Perfection4990-Flatbed" && resolution=="600" ) { reduction = 8; };
+				if (Hardware== "Perfection4990-Flatbed" && resolution=="300" ) { reduction = 16; };
+				// -------------------------- Hydroptic v2 -----------------------------------------------------------
+				if (Hardware== "Perfection4490-Flatbed" && resolution=="2400" ) { reduction = 2; };
+				if (Hardware== "Perfection4490-Flatbed" && resolution=="1200" ) { reduction = 4; };
+				if (Hardware== "Perfection4490-Flatbed" && resolution=="600" ) { reduction = 8; };
+				if (Hardware== "Perfection4490-Flatbed" && resolution=="300" ) { reduction = 16; };
+			} // for
+				for (p=deb+2;p<end-1;p++) { print(ligne[p]); } // for
+				selectWindow(titrered+"_log.txt");
+				run('Close');
+			} // logfile
+			if (File.exists(chemwork+titrered+"_vis1.zip") )		{	open(chemwork+titrered+"_vis1.zip"); 				} //  if
+			else if (File.exists(chemwork+titrered+"_vis1.jpg") ) 	{	open(chemwork+titrered+"_vis1.jpg"); 			} // else if	
+			else if (param !=2) {	getBoolean(chemwork+titrered+"_vis1.jpg       \nor \n "+chemwork+titrered+"_vis1.zip doesn't exist.    \n \nPress Cancel to abort !    ");	} // else	
+			else { // ------------ Rien a afficher
+			} // else
+		// -----------Sauvegarde d'un fichier temporaire en TIF 
+		saveAs("Tiff", chemtemp+"temp_vis1.tif");
+		PreviewXOffset=toString(PreviewXOffset);
+		XOffset = toString(XOffset);
+		XSize = toString(XSize);
+		reduction = toString(reduction);
+		flag1a = XOffset+" "+XSize+" "+reduction+" "+PreviewXOffset;
+		} // else if
+	} // if
+
+l= lengthOf(flag1a);
+if (l==1) { a= 1;   print("Image_process= ABORTED                 ");   	getBoolean("Error Message : Image process aborted.             \n \nPRESS Cancel to end !                 ");   	} // if
+array= split(flag1a," ");
+XOffset = 	array[0];
+XSize = 		array[1];
+ratio = 		array[2];
+PreviewXOffset= 	array[3];
+
+//-------------------------Sauvegarde temporaire du LOG-----------------------------
+if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "temp_log.txt";	run("Text...",sauve);		} // if
+
+// ------------------------------------------ Traitement des PARTICULES--------------------------------------------------------
+print(" ");
+print("[Particules_Process]");
+dateheure =	runMacro("Zooscan_get_time_5");
+print("Particule_Process_Date= ",dateheure);
+
+//-------------------------------------------Macro d'analyse des Particules... et d'edition des separations --------------
+arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "  + titre +" "+ sep +" "+   tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag+" "+savedoub+" "+backimg+" "+projfolder;
+	arg = runMacro("Zooscan_separation_analyse",arg);
+flag=toString(arg);
+l= lengthOf(flag);
+if (l==1)  { getBoolean("Error message : Separation_Analyse process aborted !    \n \nPress Cancel to abort !                      ");     	} // if
+
+// ------------------------------------------ Results est OUVERTE ---------------------------------------------------------------
+
+//------------------------------------------Cas des images scannees en 2 frames--------------------------------------------
+//print("masktag= ",masktag," tag= ",tag," maskop= ",maskop," sep= ",sep);
+// On tag a 2 les doublons dans l'image N°2... lorsque des TAGs n'existent PAS dans le fichier
+// Ce traitement se fait lorsque l'on traite l'image *_2.tif pour la PREMIERE FOIS (scan=1)..................
+// Les TAGs sont en principe conserves lors des traitements suivants.
+long = lengthOf(titre);
+frame = substring(titre, long-6, long-4);
+
+if ((frame=="_2" && param==1 && scan==1) || ( frame=="_2" && savedoub=="1"))  { 	
+	long= lengthOf(titre);
+	val = substring(titre,0,long-6);
+	chemworka = chemwork1+val+"_1\\";
+	// ---------------- Test de l'existence du PID de la frame 1 ------------------------
+		if (tag == 1 && param != 2) { getBoolean("WARNING :    \nIf you have done some MANUAL tagging, it will be lost,           \nPress Cancel to Abort                \nPress YES to continue               ");	} // if
+		// Ne faire le traitement qu'UNE SEULE fois au debut (tag n'existe PAS encore) !
+		// TRAITEMENT et TAG a 2 dans le MEAS de l'image 2
+		showStatus("SCANNING FILES FOR DOUBLOONS   ");
+		print("Doubloons= TAG");
+			arg = runMacro("Zooscan_TAG_Doubloons",arg+" " +XOffset+" "+XSize+" "+ratio+" "+PreviewXOffset);
+		flag=toString(arg);
+		l= lengthOf(flag);
+		if (l==1)  { getBoolean("Error message : Zooscan_TAG_Doubloons Process aborted !    \n \nPress Cancel to abort !   ");  	} // if
+		else { TAG = 1;		} // else
+	// ---------------------------Sauvegarde des tags de DOUBLONS ----------------------------------------
+	res = isOpen("Results");
+	if (res== 1) {selectWindow("Results");  	saveAs("measurements",chemwork+titrered+"_meas.txt");	saveAs("measurements",chemtemp+"measurementsD.txt");	} // if	
+	tag=2; 
+} // if frame==2
+
+// ---------------------Affichage des RESULTS-----------------------------------
+updateResults();
+selectWindow("Results");  	
+saveAs("measurements",chemtemp+"measurementsD.txt");	
+
+// -------------------------------------------Traitement des TAG-----------------------------------------------------------
+arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "+ titre +" "+ sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag;
+arg = runMacro("Zooscan_main_tag1",arg);
+flag=toString(arg);
+l= lengthOf(flag);
+if (l==1)  { getBoolean("Error message : Zooscan_main_tag1 Process aborted !    \n \nPress Cancel to abort !                   "); } // if
+else { array = split(arg," "); TAG = array[0];	} // else
+
+//---------------------------------------------Sauvegarde finale des resultats-------------------------------------------
+selectWindow("Results");
+nbblobs = nResults;
+res = isOpen("Results");
+if (res== 1) {saveAs("measurements",chemtemp+"measurementsE.txt");	
+	saveAs("measurements",chemwork+titrered+"_meas.txt");
+	print("Results= ","SAVED");
+} // if
+
+//--------------------------------- Affichage de l'heure de fin de traitement ----------------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+print("Date= ",dateheure);
+
+// -----------------------------------Sauvegarde du LOG... ----------------------------------------------------------------
+selectWindow("Log");	sauve = "save=" + chemwork + titrered + "_log.txt";	run("Text...",sauve);
+
+// ----------------------------------- Sauvegarde du PID --------------------------------------------------------------------
+argpid = option+" "+nbblobs+" "+TAG+" "+titrered;
+argpid = runMacro("Zooscan_print_pid_5",argpid);
+flag =		toString(argpid);
+l= 		lengthOf(flag);
+if (l==1)  { getBoolean("Error message : Zooscan_print_pid_5 process aborted !    \n \nPress Cancel to abort !                   "); } // if
+selectWindow("Log");	
+sauvepid = "save=" + chemtemp +"temp_dat1.pid";			run("Text...",sauvepid);
+sauvepid = "save=" + chemwork + titrered + "_dat1.pid";			run("Text...",sauvepid);
+sauvepid = "save=" + pathpidresults + titrered + "_dat1.pid";		run("Text...",sauvepid);
+
+//--------------------------------- Identification process---------------------------------
+arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "+ titre +" "+ sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag;
+if (maskident==1) { ret =runMacro("Zooscan_identa",arg);
+	flagident = parseInt(ret);
+	if (flagident==0) { showMessage("Error message","Zooscan_identa Process ABORTED            "); 		} // if
+} // if
+
+//----------------------------------Vignettes extraction------------------------------------
+if (savevig==1) { 	
+	// ------------------- Vignettes --------------------------
+	arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "+ titre +" "+ sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag;	
+	arg = runMacro("Zooscan_vignettes",arg);
+	flag=toString(arg);
+	l= lengthOf(flag);
+	if (l==1)  { showMessage("Error message","Zooscan_vignettes Process aborted     "); } // if
+	// ------------------- Table ECOTAXA -----------------------
+	ret = runMacro("Zooprocess_pid_to_ecotaxa_zooscan",projfolder+" "+chemwork+" "+titrered + "_dat1.pid"+" "+"pid"+" "+false+" "+false+" new");
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	showMessage("Error message : ''Zooprocess_pid_to_ecotaxa'' process aborted.                       "); 	} // if
+} // if
+else { 	print("Vignettes_BackUp= NO");		} // else
+
+test = isOpen("Results");
+if (test==1) { selectWindow("Results");		run('Close'); 	} // if
+
+// --------------------------------------- FIN ---------------------------------------------------------
+ret = arg;
+return ret;

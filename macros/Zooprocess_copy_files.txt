@@ -1,0 +1,132 @@
+// -------------- Zooprocess_copy_files.txt ------------------------------
+version =	 "7.09";
+date =	 "2012/01/15";
+
+args = getArgument();
+arg = split(args," ");
+path_list = newArray(2);
+hd_path = arg[0];
+fd_path = arg[1];
+pathraw = arg[2];
+copie_option = arg[3];
+path_list[0] = hd_path;
+path_list[1] = fd_path;
+
+
+// ------------------- COPIE des fichiers ----------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+setBatchMode(true);
+
+//	hd_path = "E:\\uvp5_sn_003_20111128\\raw\\";
+//	fd_path = "E:\\uvp5_sn_003_20111128\\raw\\";
+//	pathraw = "E:\\uvp5_sn_003_20111128\\docs\\";
+print("Source_1= "+hd_path);
+print("Source_2= "+fd_path);
+print("Destination= "+pathraw);
+// ----------------- Boucle sur les répertoire -----------------------
+for (t = 0;t<path_list.length;t++) {
+	path_profiles = path_list[t];
+	if (File.exists(path_profiles)) {
+		// -------------- Liste des profiles HDR dans la source sur UVP5 HD ou FD -----------------
+		profile_list = getFileList(path_profiles);
+		for (x = 0;x<profile_list.length;x++){
+			showStatus("Checking PROFILE FOLDERS in UVP5");
+			profile_source = profile_list[x];
+			if (endsWith(profile_source,"/") && startsWith(profile_source,"HDR")){
+				copie = 0;
+				// ---------- Nombre de fichiers pour le profile ---------------
+				files_source = getFileList(path_profiles+"\\"+profile_source);
+				nb_files_source = files_source.length;
+				long = lengthOf(profile_source);
+				profile_source = substring(profile_source,0,long-1);
+				profile_source = profile_source+"\\";
+				// ---------- Existence dans RAW -------------------------------
+				if (File.exists(pathraw+"\\"+profile_source)) {
+					files_raw = getFileList(pathraw+"\\"+profile_source);
+					nb_files_raw = files_raw.length;
+					if (nb_files_source > nb_files_raw) { copie = 1;	} // if moins de fichiers
+					else { print("done");	}	
+				} // if exists
+				else { 
+					// ----------- Création répertoire destination ------------
+					File.makeDirectory(pathraw+"\\"+profile_source);												
+					copie = 1;
+				} // else si répertoire destination absent
+				if (copie == 1 ) {
+					// ---------------- Copie des fichiers ---------------------
+					for (f = 0; f<nb_files_source; f++ ) {
+						progress = f/nb_files_source;		showProgress(progress);
+						file = files_source[f];
+						long = lengthOf(file);
+						file_red = substring(file,0,long-4);
+						read_file = path_profiles+"\\"+profile_source+"\\"+file;
+						read_file_red = path_profiles+"\\"+profile_source+"\\"+file_red;													
+						save_file = pathraw+"\\"+profile_source+"\\"+file;
+						save_file_red = pathraw+"\\"+profile_source+"\\"+file_red;
+	print("read_file= "+read_file);					
+						if (endsWith(read_file,".bmp") || endsWith(read_file,".tif") || endsWith(read_file,".jgp")) {
+							if (endsWith(read_file,".bmp") && File.exists(save_file_red+".bmp") == 0 )		{open(read_file);	saveAs("Bmp",save_file_red);	close();}
+							else if (endsWith(read_file,".tif") && File.exists(save_file_red+".tif") == 0)		{open(read_file);	saveAs("Tif",save_file_red);	close();}
+							else if (endsWith(read_file,".jpg") && File.exists(save_file_red+".jpg") == 0)		{open(read_file);	saveAs("jpg",save_file_red);	close();}	
+						} // else if images
+						else if (endsWith(read_file,".dat") || endsWith(read_file,".bru" )){
+							if (File.exists(save_file) == 0 ) {
+								if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+								open(read_file);
+								wait(100);
+								data = getInfo();
+								run("Close");
+								showStatus("Processing "+read_file+"  WAIT !");
+								print(data);
+								text = "save="+save_file;
+								selectWindow("Log");
+								run("Text...",text);
+								run("Close");
+							}
+						}// else if dat bru
+						else if (endsWith(read_file,".ini")){
+							// ------------ CAS MODFILES et PROFILEUR.INI ----------------------
+							if (File.exists(save_file) == 0 ) {
+								if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+								open(read_file);
+								wait(100);
+								data = getInfo();
+								run("Close");
+								showStatus("Processing "+read_file+"  WAIT !");
+								print(data);
+								text = "save="+save_file;
+								selectWindow("Log");
+								run("Text...",text);
+								run("Close");
+							}
+						}// else if dat bru
+						else if (endsWith(read_file,".hdr")){
+							// ------- renommer --------------
+							if (File.exists(save_file_red+".hdr") == 0) {
+								File.rename(read_file,read_file_red+".txt");
+								open(read_file_red+".txt");	
+								wait(100);
+								data = getInfo();
+								run("Close");
+								File.rename(read_file_red+".txt",read_file_red+".hdr");
+								showStatus("Processing "+read_file+"  WAIT !");
+								if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+								print(data);
+								text = "save="+save_file_red+".txt";
+								selectWindow("Log");
+								run("Text...",text);
+								File.rename(save_file_red+".txt",save_file_red+".hdr");
+								run("Close");
+							} // if
+						}// hdr						
+					} // for fichier to copy	
+				}// fin copie des fichiers
+			} 			
+		}// / fo liste des profiles dans FD ou HD
+	} // si existe FD ou HD
+	else { showMessage(path_profiles+" does NOT exist ! \n \nPRESS OK !");	} // else
+} // for
+print("END");
+
+//  ------------------- FIN -------------------
+return args;

@@ -1,0 +1,648 @@
+// ------------------------------- Zooprocess_Zooscan_UVP5_FlowCam  ---------------------------------------------------------------------------------------------------
+run("Misc...", "divide=Infinity antialiased_tool");
+run("free memory");
+setBatchMode(false);
+version =	 "7.27";
+date =	 "2018/09/23";
+
+// Gestion presence advanced et user
+// uvp5 SN
+// pb text_stop / text_run
+// monitoring profile for UVP5
+
+imagejversion = "1.41o";
+if (isOpen("vuescan.htm")) {	selectWindow("vuescan.htm"); 	run("Close");	} // if
+if (isOpen("instrument.txt")) {	selectWindow("instrument.txt"); 		run("Close");	} // if
+if (isOpen("zooprocess.txt")) {	selectWindow("zooprocess.txt"); 	run("Close");	} // if
+if (isOpen("Zooprocess")) { 
+	ee = getBoolean("Zooprocess may already be started ! \nPress YES and close manually ''Zooprocess'' image if open !");	
+	if (ee == 1 && isOpen("Zooprocess")) {selectImage("Zooprocess"); 	close();		} // if
+} // if
+newImage("Zooprocess", "RGB Ramp",1100, 150, 1);
+run("Colors...", "foreground=green background=white selection=red");
+setFont("SansSerif", 60, " antialiased");
+//	drawString("Zooprocess being started !", 60, 100);
+drawString("Zooprocess OK for ECOTAXA !", 60, 100);
+                                                    
+requires(imagejversion);
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+
+ecranw= screenWidth();
+ecranh= screenHeight();
+
+path = "DO_NOT_SELECT";
+flagzooscan = " ";
+pathlist = newArray(1000);
+
+// --------------------------Affichage de la date et de l'heure ------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+// ---------------------- Instrument list -----------------------------------------------------------------------------------------------------------------------
+instrument = newArray("zooscan","uvp5","flowcam","generic");
+
+//----------------------Selection AUTOMATIQUE du repertoire de travail chem----------------------------------------------------------------------
+mat = newArray("C:\\Zooprocess\\","C:\\Zooprocess\\","D:\\Zooprocess\\","E:\\Zooprocess\\","F:\\Zooprocess\\","G:\\Zooprocess\\","H:\\Zooprocess\\");
+check= 0;
+flag=0;
+i = 0;
+while (i<mat.length) {
+	chem= mat[i];
+	text = chem+"instrument.txt";
+	text = toLowerCase(chem+"instrument.txt");
+	conf1= File.exists(text);
+	if (conf1==1) { flag = 1;		i=mat.length+1;	
+		// ---------------- Selection instrument -------------------------------------
+		open(chem+"instrument.txt");
+		wait(100);
+		info = getInfo();
+		data = split(info,"\n");
+		dat = split(data[0]," ");
+		instrum	 = dat[1];
+		dat = split(data[1]," ");
+		previouspath	 = dat[1];
+		run("Close");
+		longinst = 	lengthOf(instrum);
+	} // if
+	i++;
+} // while
+chemtemp =		chem+"\\temp\\";
+
+// ------------ Création RUN file ---------------------------
+text_run = chem+"batch_run.txt";
+text_stop = chem+"batch_stop.txt";
+if (File.exists(text_stop) && File.exists(text_run)) {
+	aa = getBoolean("Please delete the file ''"+text_stop+"'' before continuing.\n \nPress OK/YES then.");
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("Do not delete this file !");
+	text =  "save=" + text_run;
+	selectWindow("Log");
+	run("Text...",text);	
+	run("Close");	
+}//else
+
+// --------------------- Installation initiale --------------------------------------------------------------------------------------------------------------------
+install = 0;
+if (flag==0) {
+	// --------------- Selection du drive pour les repertoires -------------
+	drives = newArray("C:\\","D:\\","E:\\","F:\\","G:\\","H:\\","I:\\","J:\\","K:\\");
+	affdrive = newArray(15);
+	ind = 0;
+	t= 0;
+	while (t<drives.length) {
+		if (File.exists(drives[t])) { 	ex = drives[t];	affdrive[ind] = ex;	ind++;	} // if
+		t++;
+	} // while
+	aff = newArray(ind);
+	for (r=0;r<ind;r++) { aff[r] = affdrive[r];	} // for
+
+	// ------------------------ Selection de l'instrument ------------------------------------------------
+	Dialog.create("INSTALL MANAGER version "+version);
+	Dialog.addMessage("Select drive to install the Zoosprocess root folder (avoid to select CD drive) !              ");
+	Dialog.addMessage("The ''ZOOPROCESS root folder'' is a ''parent'' of the ''ZOOSCAN root folder'' (previous Zooscan users). \nCan be installed on C: ");
+	Dialog.addChoice("           ",aff);
+	Dialog.addMessage("Select instrument !               ");
+	Dialog.addChoice("           ",instrument);
+	Dialog.show();
+	drive = 		Dialog.getChoice();
+	instrum = 	Dialog.getChoice();
+//	showMessage("-"+instrum+"-");
+	if (instrum == "Zooscan" && (ecranw <1260 || ecranh < 1020)) { getBoolean("The dimensions of your monitor are less than 1280 x 1024.                                 \n     \nPress YES to Continue.     \nPress CANCEL to ABORT.             ");	} // if
+
+	// ---------------------- Creation repertoires Zooprocess -----------------------------------------
+	chem =		drive+"Zooprocess\\";
+	File.makeDirectory(chem);
+	chemtemp =		drive+"Zooprocess\\temp\\";
+	File.makeDirectory(chemtemp);
+	// ---------------------- Creation fichier instrument -----------------------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("Instrument= "+instrum);
+	print("path= xx");
+	print("created= "+dateheure);
+	text =  "save=" + chem+"\\instrument.txt";
+	selectWindow("Log");
+	run("Text...",text);	
+	run("Close");	
+	// --------------------- Création configuration UVP5 par défaut ------------------------------------
+	if (instrum == "uvp5") {
+		// --------------- N° de série --------------------------------------------------------------
+		uvp_sn_input = 0;
+		uvp_sn ="999";
+		// ------------------- N° SERIE UVP5 -----------------------------------------------------------------
+		while(uvp_sn_input == 0) {				
+			uvp_sn = getNumber("Input UVP5 serial number (3 numbers)",uvp_sn);
+			uvp_sn_txt = toString(uvp_sn);
+			uvp_sn_input = 1;
+			if 	(lengthOf(uvp_sn_txt) == 1) 	{	uvp_sn_txt = "00"+uvp_sn_txt;		}
+			else if (lengthOf(uvp_sn_txt) == 2) 	{	uvp_sn_txt = "0"+uvp_sn_txt;		}
+			else if (lengthOf(uvp_sn_txt) == 3) 	{	uvp_sn_txt = uvp_sn_txt;		}
+			else { showMessage("Serial number is not correct, enter again !");	uvp_sn_input  = 0;	}
+		} // while
+		uvp_type = "std";
+		if (parseInt(uvp_sn_txt) >= 200) uvp_type = "hd";
+		// --------------- Fichier de configuration (PILOT BOARD) ---------------------------
+		ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true "+uvp_sn_txt);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		com = "passed";
+		if (l==1)  { 	showMessage("Error message ''uvp5_edit_configuration'' process aborted.                       "); 	} // if
+		// --------------- Création du fichier de PARAMETRAGE ---------------------------------------
+		ret = runMacro("uvp5_edit_parameter",chem+" create "+chem+" "+uvp_type+" "+uvp_sn_txt);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		com = "passed";
+		if (l==1)  { 	showMessage("Error message ''uvp5_edit_parameter'' process aborted.                       "); 	} // if		
+	} // uvp5
+	// --------------------- Creation d'un premier projet -----------------------------------------------
+	if (instrum != "zooscan"){
+		showStatus("WAIT !");
+		showMessage("Zooprocess installed. \nYou must create a first project now.                                  ");
+		ret = runMacro("Zooprocess_create_project",chem+" "+dateheure+" "+instrum);
+		flag=toString(ret);
+		previouspath = ret;
+		l= lengthOf(flag);
+		if (l==1)  { 	aa = getBoolean("Error message ''Zooprocess_create_project'' process aborted.           \nPress CANCEL to END !            "); 	} // if
+	} // if
+	else {
+		// ------------------------------------ Vers ANCIENNE version limitee Zooscan -----------------------------------------------------------------------------
+		flagzooscan = runMacro("ZooProcess_",instrum+" "+chem);
+		flagzooscan = toString(flagzooscan);
+		if (flagzooscan == "0") flagzooscan = "zooscan";
+	} // else
+	install = 1;
+} // if
+
+// ------------------------------------- Taille ecran -----------------------------------------------------------------------------------------------------------------
+if (instrum == "Zooscan" && (ecranw <1260 || ecranh < 1020)) { getBoolean("The dimensions of your monitor are less than 1280 x 1024.                                 \n     \nPress YES to Continue.     \nPress CANCEL to ABORT.             ");	} // if
+
+// ------------------------------------ Vers ANCIENNE version limitee Zooscan -----------------------------------------------------------------------------
+if (instrum == "Zooscan" && flagzooscan  != "zooscan" ) {
+	if (isOpen("Zooprocess")) { selectImage("Zooprocess"); 				close();			} // if
+	ret = runMacro("ZooProcess_",instrum+" "+chem);
+} // if ZOOSCAN
+if (instrum == "flowcam" || instrum == "uvp5" || instrum == "Generic") {
+	// ------------------------------ Catalogue automatique des projets -----------------------------------------------------------------------------------------
+	drives = newArray("A:\\","B:\\","C:\\","D:\\","E:\\","F:\\","G:\\","H:\\","I:\\","J:\\","K:\\","L:\\","M:\\","N:\\","O:\\","P:\\","Q:\\","R:\\","S:\\","T:\\","U:\\","V:\\","W:\\","X:\\","Y:\\","Z:\\");
+	affdrive = newArray(25);
+	ind = 0;
+	t= 0;
+	while (t<drives.length) {
+		if (File.exists(drives[t])) { 	ex = drives[t];	affdrive[ind] = ex;	ind++;	} // if
+		t++;
+	} // while
+	aff = newArray(ind);
+
+	// ---------------- Recherche dans chaque drive ---------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	// ---------------- Dernier utilise = 1ere ligne Zooprocess ---------------------
+	print(previouspath);
+	pathlist[0] = previouspath;
+	j = 1;
+	list = newArray(1000);
+	display = newArray(1000);
+	for (r=0;r<ind;r++) { 
+		drive = affdrive[r];	
+		listrep = getFileList(drive);
+		// ------------ Si finit par / et commence par instrument ---------------------------------
+		for (x=0;x<listrep.length;x++) {
+			rep = listrep[x];
+			long = 		lengthOf(rep);
+			dir = 	substring(rep,0,long-1);
+			dir  = toLowerCase(dir);
+			// ---------------------- Flowcam et UVP5 ------------------------------------------------------
+			if (endsWith(rep,"/") && startsWith(dir,instrum+"_")) { 
+				longinst = 	lengthOf(instrum);
+				dirdisplay = 	substring(rep,longinst+1,long-1);
+				// --------------- test du projet ----------------------------------------------
+				proj = dirdisplay;
+				path = drive+instrum+"_"+proj;
+				pathconfig =	path+"\\"+"\\config";
+				pathmeta = 	path+"\\"+"\\meta\\";
+				pathwork = 	path+"\\"+"\\work";
+				pathraw = 	path+"\\"+"\\raw";
+				pathresults = 	path+"\\"+"\\results";
+				if (File.exists(pathconfig) && File.exists(pathmeta)   && File.exists(pathwork) && File.exists(pathraw) && File.exists(pathresults)) {
+					display[j] = dirdisplay;
+					pathlist[j] = drive+"\\"+dir;
+					print(pathlist[j]); 
+					j++;  
+				} // if
+			} // if
+		} // for
+	}// for
+
+	// ------------------------- PATHDISPLAY --------------------------------------
+	pathdisplay = newArray(j+1);
+	long = lengthOf(previouspath);
+	test = indexOf(previouspath,instrum);
+	if (test <0 || File.exists(previouspath)== false) { 	pathdisplay[0] = "DO_NOT_SELECT";				} // if
+	else {	a = indexOf(previouspath,"_");
+	//	getBoolean(previouspath+"   "+longinst+"  "+a);
+		pathdisplay[0] = substring(previouspath,a+1,long);
+		pathdisplay[0] = previouspath;				// new !
+	} // else
+	for (x=1;x<j;x++) { 
+		rr = display[x];
+		rr = pathlist[x];	// new !
+		pathdisplay[x] = rr;
+	} // for
+	pathdisplay[j] = "Create NEW project";
+
+	// ------------------------------ Menu principal ------------------------------------------------------------------------
+	if (isOpen("test")) { selectImage("test"); close();	} // if
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	// ========================================= SELECT PROJECT ==============================================
+	check = 0;
+	while (check == 0) {
+		Dialog.create("ZOOPROCESS                     version "+version+"                          "+date);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("-----------------------------------------  Instrument : "+toUpperCase(instrum)+"  ----------------------------------------------");
+		Dialog.addMessage("--------------------------------------            ZOOPROCESS             ----------------------------------------");
+		Dialog.addMessage("--------------------------------------     for ImageJ version "+imagejversion+"     ----------------------------------------");
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("                             Laboratoire d'Oceanologie de Villefranche sur mer");
+		Dialog.addMessage("                                                             CNRS - UPMC");
+		Dialog.addMessage("                                                     marc.picheral@obs-vlfr.fr");
+		Dialog.addMessage("                 Please refer to Zooprocess and ImageJ if used for Publication");
+		Dialog.addMessage("                                           http://rsb.info.nih.gov/ij/index.html");
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("SELECT (or CREATE) PROJECT ");
+		Dialog.addChoice("          ",pathdisplay);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.show();
+		proj = 		Dialog.getChoice();
+		// ---------------- STOP to RUN ---------------------------------------------
+		if (File.exists(text_stop)) { File.rename(text_stop,text_run);	}
+		// ---------------- Create NEW project --------------------------------------
+		if (proj == "Create NEW project") { 	
+			ret = runMacro("Zooprocess_create_project",chem+" "+dateheure+" "+instrum);
+			flag = toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message ''Create NEW project'' tool aborted.                       "); 	} // if
+			else { pathdisplay[0] = flag;	path = flag;							}	// else
+		} // if		
+
+		// ----------------------- Attribution PATH -----------------------------------------------
+		else if (proj != "DO_NOT_SELECT") {			// && File.exists(instrum+"_"+proj)) {
+			check = 1;
+			for (i=0;i<pathdisplay.length;i++) { 
+				if (pathdisplay[i] == proj) { 
+					path = pathlist[i];
+					index = i;
+				} // if
+			} // for
+		} // if		
+		else {	showMessage("Select (or create) a valid project before any process ! ");		} // else
+	} // while
+	pathdisplay[0] = proj;	
+	path = proj;
+
+	// ---------------------- USER / ADVANCED -----------------------------------
+	pathconfig =	path+"\\config";
+	mode_user = 	pathconfig+"\\mode_file_user.txt";
+	mode_advanced = pathconfig+"\\mode_file_advanced.txt";
+	if (File.exists(mode_advanced) == false && File.exists(mode_user) == false) {
+		// ----------------- Fichier de MODE ---------------------------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print("Do not delete");
+		selectWindow("Log");
+		text =  "save=" + mode_user;
+		run("Text...",text);	
+		run("Close");
+	} // if
+	advanced_mode = false;
+	if (File.exists(mode_advanced) == true && File.exists(mode_user) == true) {
+		showMessage("BOTH ''mode_file_user.txt'' & ''mode_file_advanced.txt'' files exits in "+pathconfig+"\n DELETE on of them before continuing !\nPress YES then.");
+	}
+	if (File.exists(mode_advanced)) advanced_mode = true;
+			
+	// ------------------------ MAJ du fichier instrument -----------------------------
+	open(chem+"instrument.txt");
+	wait(100);
+	info = getInfo();
+	data = split(info,"\n");
+	run("Close");
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print(data[0]);
+	print("path= "+path);
+	print(data[2]);
+	text =  "save=" + chem+"\\instrument.txt";
+	selectWindow("Log");
+	run("Text...",text);	
+	run("Close");
+	
+	// -----------------------------  Fermeture images ---------------------------------------
+	while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while
+	
+	// -------------------------------------- Liste des outils ADVANCESD -----------------------------------------------------------
+	a=newArray(39);
+	for (i=0;i<a.length;i++) {	a[i]=" ";		} // for
+	
+	a[0]=	"Fill in metadata";			//	OK !
+	if (instrum == "UVP5") {	
+		a[2]=	"Process DAT, BRU, PID and VIGNETTES";		
+		a[3] = "PLOT data profiles (from processed DAT files)";
+		a[4] = "PLOT monitoring profiles (from processed DAT files)";
+		if (indexOf(path,"uvp5_sn2") > 0)		a[5] = "PLOT data profiles (from in-situ TSV files)";
+	} // if 
+	else if (instrum == "Flowcam") {	
+		a[2]=	"Process PID and VIGNETTES";
+		if (indexOf(path,"flowcam_composite") < 0)	a[4]= 	"Process backgrounds";		
+	} // if		OK !
+	else if (instrum == "Generic") {	a[3]=	"Process PID and VIGNETTES";				} // if
+	
+	a[6]= 	"Edit / Modify metadata";
+	
+	a[8]=	"SORT vignettes in folders according to PREDICTION or VALIDATION";			
+	a[9]=	"Update Identifications in dat1 files after sorting in folders";			
+	a[10]=	"Extract SUBSET of validated Ids";				//	Projet
+	a[11]=	"Add detailed folders for validation";			//	OK !
+
+
+	a[13]=	"Edit configuration file";			//	OK !
+	a[14]=	"Select another instrument";			//	OK !
+
+	a[16]=	"SWITCH mode (advanced/user)";
+
+	a[17]=	"Create tables for ECOTAXA";		
+	
+	if (instrum == "UVP5") {
+		a[19]= "------------------------ SERIAL PORT TOOLS ----------------------------------------------";
+		a[20] = "UVP5 PILOTING TOOLS ";
+		a[21] = "UVP5 MONITORING TOOL";
+		a[22]= "------------------------------------------------------------------------------------------------------";
+	}// if
+		
+	if (instrum == "UVP5") {		
+		a[24]=	"Recover old metadata from meta files in profiles folders";			
+		a[25]=	"Update ALL metadata from metadata table";
+	} // if
+	if (instrum == "Flowcam") {				
+		a[25]=	"Update ALL metadata from metadata table";
+	} // if
+//	a[24]=	"UVP4_convert_BMP_to_JPG";					
+//	a[25] = 	"UVP4_convert_TIF_to_JPG";			//	Projet
+//	a[26] = 	"CLOSE all opened IMAGES";
+	
+	// --------------------------------------- USER Liste ---------------------------------	
+	a_use=newArray(36);
+	for (i=0;i<a_use.length;i++) {	a_use[i]=" ";		} // for
+	
+	a_use[0]=	"Fill in metadata";			//	OK !
+	if (instrum == "UVP5") {	
+		a_use[2]=	"Process DAT, BRU, PID and VIGNETTES";		
+		a_use[3] = "PLOT data profiles (from processed DAT files)";
+		a_use[4] = "PLOT monitoring profiles (from processed DAT files)";
+		if (indexOf(path,"uvp5_sn2") > 0)	a_use[5] = "PLOT data profiles (from in-situ TSV files)";
+	} // if 
+	else if (instrum == "Flowcam") {	
+		a_use[2]=	"Process PID and VIGNETTES";
+//		if (indexOf(path,"flowcam_composite") < 0) 		a_use[4]= 	"Process backgrounds";		
+	} // if		OK !
+	else if (instrum == "Generic") {	a_use[3]=	"Process PID and VIGNETTES";				} // if
+	
+	a_use[6]= 	"Edit / Modify metadata";	
+		
+	a_use[8]=	"SWITCH mode (advanced/user)";
+
+	if (instrum == "UVP5") {
+		a_use[14]= "------------------------ SERIAL PORT TOOLS ----------------------------------------------";
+		a_use[15] = "UVP5 PILOTING TOOLS ";
+		a_use[16] = "UVP5 MONITORING TOOL";
+		a_use[17]= "------------------------------------------------------------------------------------------------------";
+	}// if
+	
+	//===================================== SELECT TOOL =================================================
+	rin = 0;
+	while (rin== 0) {
+		Dialog.create("ZOOPROCESS                  version "+version+"                          "+date);	
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("PROJECT : "+proj);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("   SELECT PROCESS for "+toUpperCase(instrum));
+		if (advanced_mode == true) {	Dialog.addChoice("      ",a);	}
+		else {				Dialog.addChoice("      ",a_use);		}
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		if (advanced_mode == true) {	Dialog.addMessage("ADVANCED MODE");	}
+		else {				Dialog.addMessage("USER MODE");		}
+		Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+		Dialog.show();
+		op = 		Dialog.getChoice();
+		// ---------------- STOP to RUN ---------------------------------------------
+		if (File.exists(text_stop)) { File.rename(text_stop,text_run);	}
+		if (op == "Create NEW project") { 	proj = "NEW";				} // if
+		else if (op == "Select another instrument") { rin = 1;		}	// else if
+		else if (op == "Create project" && proj == "DO_NOT_SELECT") { check = 1;		}	// else if
+		//=====================================  SELECTION ==================================================
+	//	if (op != "EXIT UVP tools" ) dircruise = getDirectory("Select CRUISE root directory");
+		pathconfig =	path+"\\config\\";
+		//-------------------- "Select another instrument" ---------------------------------------------------------------------
+		if (op =="Select another instrument") {
+	///		getBoolean("OK");
+			ret = runMacro("Zooprocess_change_instrum",chem+" "+dateheure);
+			instrum=toString(ret);
+			l= lengthOf(instrum);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+			else { showMessage("New instrument : "+instrum+"\n \nRestart ZOOPROCESS !");	rin = 1;}	// else
+		} // if
+		else if (op == "SWITCH mode (advanced/user)") {
+			// ----------- MAJ des modes --------------------------------------------------------------------------------------
+			if (File.exists(mode_user)) { 		mode_select = File.rename(mode_user,mode_advanced);	advanced_mode = true;	} // if
+			else { 					mode_select = File.rename(mode_advanced,mode_user);	advanced_mode = false;	} // if	
+		} // if
+	
+		//-------------------- "UVP5 PILOTING TOOLS " ---------------------------------------------------------------------
+		else if (op =="UVP5 PILOTING TOOLS ") {
+			ret = runMacro("UVP5_pilot_module",pathconfig+" "+path+" "+chem);
+			flag=toString(ret);
+			l= lengthOf(flag);
+//			if (l==1)  { 					showMessage("Error message",op+" process aborted.                       "); 				} // if
+		} // if
+		//-------------------- "UVP5 MONITORING TOOL" ---------------------------------------------------------------------
+		else if (op =="UVP5 MONITORING TOOL") {
+			ret = runMacro("Zooprocess_uvp5_visu_real_time",pathconfig+" "+path+" "+chem);
+			flag=toString(ret);
+			l= lengthOf(flag);
+//			if (l==1)  { 					showMessage("Error message",op+" process aborted.                       "); 				} // if
+		} // if		
+
+		//-------------------- "Create project" ---------------------------------------------------------------------
+		else if (op =="Create project") {
+			ret = runMacro("Zooprocess_create_project",chem+" "+dateheure+" "+instrum);
+			flag = toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+			else { pathdisplay[0] = flag;	}	// else
+		} // if
+		//-------------------- "Edit configuration file" ---------------------------------------------------------------------
+		else if (op =="Edit configuration file") {
+			ret = runMacro("Zooprocess_edit_configuration",pathconfig+" "+instrum+" edit "+path);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // if
+	
+		//-------------------- "Fill in metadata" ---------------------------------------------------------------------
+		else if (op =="Fill in metadata" || op == "Edit / Modify metadata" || op == "Update ALL metadata from metadata table" ) {
+			option = " add ";
+			if (op == "Edit / Modify metadata") {					option  = " edit ";	}
+			else if (op == "Update ALL metadata from metadata table")	{	option = " update_all ";	}
+			if (instrum == "UVP5") {
+				ret = runMacro("Zooprocess_uvp5_metadata",instrum+option+path);
+			} //
+			else if (instrum == "Flowcam") {
+				ret = runMacro("Zooprocess_flowcam_metadata",instrum+option+path);
+			} //
+			else if (instrum == "Generic") {
+				ret = runMacro("Zooprocess_generic_metadata",instrum+option+path);
+			} //
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // if
+
+		//-------------------- "Create tables for ECOTAXA" ---------------------------------------------------------------------
+		else if (op =="Create tables for ECOTAXA" ) {
+			ret = runMacro("Zooprocess_pid_to_ecotaxa_main",path+" "+instrum);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // if
+
+		//-------------------- "Recover old metadata" ---------------------------------------------------------------------
+		else if (op =="Recover old metadata") {
+			ret = runMacro("Zooprocess_uvp5_metadata_recover",instrum+" recover "+path);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // if
+		//-------------------- "Recover old metadata from meta files in profiles folders" ------------------------------
+		else if (op == "Recover old metadata from meta files in profiles folders") {
+			ret = runMacro("Zooprocess_uvp5_metadata_recover_from_profiles",instrum+" "+path+" "+chem);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // if
+
+
+		// ------------------ "Process DAT, BRU, PID and VIGNETTES"-----------------------------------------------
+		else if (op =="Process DAT, BRU, PID and VIGNETTES") {
+			ret = runMacro("Zooprocess_main_process_dat_bru_pid_vig",path+" "+instrum+" "+chem);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+
+		// ------------------ "PLOT data profiles (from processed DAT files)"-----------------------------------------------
+		else if (op == "PLOT data profiles (from processed DAT files)") {
+			ret = runMacro("Zooprocess_visualize_uvp5_profiles",path+" "+instrum+" root");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+		
+		// ------------------ "PLOT data profiles (from in-situ TSV files)"-----------------------------------------------
+		else if (op == "PLOT data profiles (from in-situ TSV files)") {
+			ret = runMacro("Zooprocess_visualize_uvp5_profiles_from_tsv",path+" "+instrum+" root no");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+		
+		// ------------------ "PLOT monitoring profiles (from processed DAT files)"-----------------------------------------------
+		else if (op == "PLOT monitoring profiles (from processed DAT files)") {
+			ret = runMacro("Zooprocess_visualize_uvp5_monitoring_from_dat",path+" "+instrum+" root no");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+		
+		// ------------------ "Process PID and VIGNETTES"-----------------------------------------------	
+		else if (op == "Process PID and VIGNETTES" ) {
+			ret = runMacro("Zooprocess_main_process_flowcam_generic_pid_vig",path+" "+instrum+" "+chem);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+	
+		// ------------------ "Process backgrounds"-----------------------------------------------
+		else if (op == "Process backgrounds" ) {
+			ret = runMacro("Zooprocess_flowcam_background",path+" "+instrum+" "+pathconfig);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+		} // else if
+
+		//--------------------"CLOSE all opened IMAGES"---------------------------------------------------------------------
+		else if  (op =="CLOSE all opened IMAGES") {
+			while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+			//	rin = 1;
+		} // if
+	
+		// ------------------ "EXIT UVP tools" -------------------------------------------------------------------------------------
+		else if (op =="EXIT UVP tools") {
+			//----------------------- Close OPEN IMAGES---------------------------------
+			while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+			rin = 1;
+		} // if
+
+		// ------------------"UVP4_convert_BMP_to_JPG"------------------------------------------------
+		else if (op =="UVP4_convert_BMP_to_JPG") {
+			ret = runMacro("UVP4_convert_BMP_to_JPG");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+		
+		// ------------------"SORT vignettes in folders according to PREDICTION or VALIDATION"------------------------------------------------
+		else if (op =="SORT vignettes in folders according to PREDICTION or VALIDATION") {
+			ret = runMacro("Zooprocess_sort_vig_prediction",path+" "+instrum);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+	
+		// ------------------"Extract SUBSET of validated Ids"------------------------------------------------
+		else if (op =="Extract SUBSET of validated Ids") {
+			//	ret = runMacro("ZooscanUVP_extract_sub_learningset",path+" "+path+" "+instrum+" "+chemtemp);
+			ret = runMacro("Zooprocess_extract_sub_learning_set",chem+" "+path+" "+instrum+" "+chemtemp);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+	
+		// ------------------"Update Identifications in dat1 files after sorting in folders"------------------------------------------------
+		else if (op =="Update Identifications in dat1 files after sorting in folders") {
+			ret = runMacro("Zooscan_load_vignette_from_folders",path+" "+path+" "+instrum+" "+chemtemp);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+	
+		// ------------------"Add detailed folders for validation"------------------------------------------------
+		else if (op =="Add detailed folders for validation") {
+			ret = runMacro("Zooprocess_add_validation_folders",chem+" "+path+" "+instrum+" "+chemtemp+" root x");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+
+		// ------------------"UVP4_convert_TIF_to_JPG"------------------------------------------------
+		else if (op =="UVP4_convert_TIF_to_JPG") {
+			ret = runMacro("UVP4_convert_TIF_to_JPG");
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message",op+" process aborted.                       "); 	} // if
+		} // else if
+
+		else {	showMessage("Not a valid tool !");		}// else
+
+	//	showMessage("NORMAL END");	
+	} // while
+
+} // else
+// --------------------------------------------- FIN ------------------------------------------------------------------------------------------
+ret = "Normal end : \n \nZOOPROCESS";
+return ret;

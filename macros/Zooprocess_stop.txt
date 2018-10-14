@@ -1,0 +1,30 @@
+// ----------------- Zooprocess_stop.txt -----------------------
+version = 7.10;
+date = "2012/05/28";
+
+//----------------------Selection AUTOMATIQUE du repertoire de travail chem----------------------------------------------------------------------
+mat = newArray("A:\\Zooprocess\\","B:\\Zooprocess\\","C:\\Zooprocess\\","D:\\Zooprocess\\","E:\\Zooprocess\\","F:\\Zooprocess\\","G:\\Zooprocess\\","H:\\Zooprocess\\");
+i_stop = 0;
+while (i_stop <mat.length) {
+	chem= mat[i_stop];
+	text_run = chem+"batch_run.txt";
+	text_stop = chem+"batch_stop.txt";
+	if (File.exists(text_run) == 1) { run_stop = File.rename(text_run,text_stop);	i_stop = 100; 
+	}
+	i_stop++;
+} // while
+mat = newArray("A:\\Zooscan\\","B:\\Zooscan\\","C:\\Zooscan\\","D:\\Zooscan\\","E:\\Zooscan\\","F:\\Zooscan\\","G:\\Zooscan\\","H:\\Zooscan\\");
+i_stop = 0;
+while (i_stop <mat.length) {
+	chem= mat[i_stop];
+	text_run = chem+"batch_run.txt";
+	text_stop = chem+"batch_stop.txt";
+	if (File.exists(text_run) == 1) { run_stop = File.rename(text_run,text_stop);	i_stop = 100; 
+	}
+	i_stop++;
+} // while
+
+for (mm = 0; mm < 100; mm++) {showStatus("WAIT ! Process being stopped ASAP. ");  wait(1000);	} // for
+
+// -------------- FIN ----------------------
+	

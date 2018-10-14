@@ -1,0 +1,253 @@
+//--------------------------Zooscan_mainTag-----------------------------------
+
+// RESULTS est OUVERTE.... mais pas sauvegardee sous le nom du fichier en cours
+nbblobs = nResults;
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ 
+//maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+scan+" "+resolution+" "+savetag;
+
+arg = getArgument(); 
+array = split(arg," ");
+//for (i=0;i<array.length;i++) {print("i= ",i," val= ",array[i]); } // for
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	resolution=array[22];	savetag= array[23];
+
+// Ouverture et chargement des configurations
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		resolution = array[6];		xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+// Suppression des info de type de fichier
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+
+//-------------------FIN INITIALISATION-------------------------------------
+
+
+//print("masktag= ",masktag," tag= ",tag," maskop= ",maskop," sep= ",sep);
+
+//----------------------------- TAG routine----------------------------------------------------------------
+
+print("masktag= ",masktag," tag= ",tag," maskop= ",maskop," sep= ",sep);
+
+// La valeur 1 indique que l'objet est a conserver et doit etre affiche en GRIS
+// La valeur 0 indique que l'objet doit etre rejette et doit donc etre affiche en NOIR
+// nbblobs est le nombre d'objets dans la table des resultats
+
+if (masktag==1) {					// Tag des objets
+						//ret = runMacro("Zooscan_tag_control1");
+						//flagtag1 = parseInt(ret);
+						// if (flagtag1==1) { // TAG process....
+		print("TAG_data_process= YES");
+		check = 0;
+		tagloc = 0;
+		while (check==0) { //Tant que check est a 0;
+			if (tag==1) 	{ print("TAG_data_edit= YES");
+				// On travaille a partir du fichier _meas.txt
+				if (tagloc == 0) {// Un fichier des tags issu d'un precedent traitement existe, 
+					// On utilisera ce precedent fichier des mesures pour completer RESULTS en cours d'edition apres comparaison
+					// Ouverture et lecture du _meas.txt issu d'un traitement precedent et qui contient des TAGs
+					open(chemwork+titrered+"_meas.txt");
+					data = getInfo();
+					selectWindow(titrered+"_meas.txt");
+					run("Close");
+					ligne = split(data,"\n");
+					// Comparaison objet par objet. On indiquera le nb de correspondances valides
+					// On teste chaque objet du meas ayant un tag à 0 pour recopier sa valeur dans le results
+					// Si l'objet correspond, alors on reprend la valeur de son Tag et on la met dans le RESULTS, sinon les objets sont tagges 1 (à conserver) 
+					// Mise a 1 de tous les tags par defaut dans la fenetre RESULTS
+					for (i=0; i<nbblobs; i++) {   setResult("Tag",i,1);   }
+					updateResults();
+					// Determination de coltag (colonne du TAG)
+					coltag= 0;
+					mat = ligne[0];
+					item = split(mat,"\t ");
+					for (h=0;h<item.length;h++) {
+						ee = item[h];
+						if (ee=="Tag") { col=h; 
+							coltag = col+1;
+						} // if
+					} // for
+					nbtag = 0;
+					for (i=1; i<ligne.length; i++)	{
+						mat = ligne[i];
+						item = split(mat,"\t");
+						long = item.length;
+						last = long-1;
+						//print("LigneMeas= ",i," item28= ",item[28]);
+						if (item[coltag] == 0) {
+							// On teste POSITION (BX, BY) et l'aire (AREA)
+							for (j=0;j<nbblobs;j++) {
+								Area= getResult("Area", j);
+								BX= getResult("BX", j);
+								BY= getResult("BY", j);
+								//print("LigneMeas= ",i," LigneResults= ",j," Area= ",Area," item2= ",item[2] ," BX= ",BX, " item13= ",item[13] ," BY= ",BY, " item14= ",item[14] );
+								if ( item[2] == Area && item[13] == BX && item[14] == BY ) {
+									// Les objets correspondent, enregistrement du tag dans Results
+									setResult("Tag",j,item[coltag]);
+									nbtag++;
+								} // if
+							} // for j
+						} // if
+					} // for i
+					// Pour ne pas revenir dans cette routine
+					tagloc = 1;
+					print("Incorporated_0_tag= ",nbtag);
+					// Sauvegarde d'un nouveau _meas.txt incluant les modifications et fermeture
+					updateResults();
+					saveAs("measurements",chemwork+titrered+"_meas");
+					// Results reste ouvert
+				} // if tagloc=0
+				else { // le fichier Results issu de ce traitement contient des tags que l'on veut controler, tagloc = 1 
+					runMacro("Zooscan_tag1",arg + " "+ nbblobs);
+					close();
+					// Sauvegarde d'un nouveau _meas.txt incluant les modifications  et fermeture
+					updateResults();
+					saveAs("measurements",chemwork+titrered+"_meas");
+					//selectWindow(titrered+"_meas.txt");
+					//run("Close");
+					// Results reste ouvert
+				} // else
+			} // if tag = 1
+			else if (tag==0)	{ // Pas de fichier des tags existant, il faut le creer et l'enregistrer en _meas.txt
+				// Ajout d'une colonne TAG au fichier RESULTS qui est ouvert, remplie de 1
+				print("TAG_data_create= YES");
+				// Mise a 1 de tous les tags par defaut
+				for (i=0; i<nbblobs; i++) {   setResult("Tag",i,1);   }
+				updateResults();
+				// Edition des Tags
+				runMacro("Zooscan_tag1",arg + " "+ nbblobs);
+				close();
+				// Sauvegarde du RESULTS en _meas.txt et fermeture
+				updateResults();
+				saveAs("measurements",chemwork+titrered+"_meas");
+				//selectWindow(titrered+"_meas.txt");
+				//run("Close");
+				// Results reste ouvert
+			} // else if tag=0
+			// ------------------------ Condition de sortie LES TAGS sont-ils corrects ?------------------
+			listaff = newArray("EDIT","YES");
+			if (param == 1) { // Single image
+				choice = listaff[0];
+					ret = runMacro("Zooscan_tag_control");
+				flagtag = parseInt(ret);
+				if (flagtag==1) { choice=listaff[1]; 
+					// OUI, ils sont OK
+				} // if
+			} // if param
+			else if (param==2) { // Multiples images, on est toujours d'accord !
+				choice == listaff[1];
+			} // else if 
+			if (choice==listaff[1]) { // Sortie de la boucle while
+				// On conserve la fenetre RESULTS
+				check = 1;
+			} // if
+			else	{ // On complete le TAG
+				check = 0;
+				// On passe au cas ou le masque existe
+				tag = 1;
+				tagloc = 1;
+			} // else
+		} // while
+						//} // if flagtag = 1
+						// else {print("TAG_data_process= NO"); } // else
+} // if masktag
+
+else  { // masktag==0
+	// PAS d'utilisation du TAG, qu'il existe ou pas. On incorpore TOUTEFOIS les TAGs precedents (s'ils existent) au fichier RESULTS pour les conserver...
+	print("TAG_data_process= NO");
+	if (tag==1) { // Un fichier des tags issu d'un precedent traitement existe, 
+		// On utilisera ce precedent fichier des mesures pour completer RESULTS en cours d'edition
+		// Ouverture et lecture du _meas.txt issu d'un traitement precedent et qui contient des TAGs
+		open(chemwork+titrered+"_meas.txt");
+		data = getInfo();
+		selectWindow(titrered+"_meas.txt");
+		run("Close");
+		
+		// Comparaison objet par objet. On indiquera le nb de correspondances valides
+		// On teste chaque objet du meas ayant un tag à 0 pour recopier sa valeur dans le results
+		// Si l'objet correspond, alors on reprend la valeur de son Tag et on la met dans le RESULTS, sinon les objets sont tagges 1 (à conserver) 
+		// Mise a 1 de tous les tags par defaut dans la fenetre RESULTS
+		updateResults();
+		for (i=0; i<nbblobs; i++) {   setResult("Tag",i,1);   }
+		
+		ligne = split(data,"\n");
+		// Determination de coltag (colonne du TAG)
+		coltag= 0;
+		mat = ligne[0];
+		item = split(mat,"\t ");
+		for (h=0;h<item.length;h++) {
+			ee = item[h];
+			if (ee=="Tag") { col=h; 
+			coltag = col+1;
+			} // if
+		} // for
+		nbtag = 0;
+		for (i=1; i<ligne.length; i++)	{ 
+			mat = ligne[i];
+			item = split(mat,"\t");
+			long = item.length;
+			//print("LigneMeas= ",i," item[coltag]]= ",item[coltag]);
+			if (item[coltag] == 0) {
+				// On teste POSITION (BX, BY) et l'aire (AREA)
+				for (j=0;j<nbblobs;j++) {
+					Area= getResult("Area", j);
+					BX= getResult("BX", j);
+					BY= getResult("BY", j);
+					//print("LigneMeas= ",i," LigneResults= ",j," Area= ",Area," item2= ",item[2] ," BX= ",BX, " item13= ",item[13] ," BY= ",BY, " item14= ",item[14] );
+					if ( item[2] == Area && item[13] == BX && item[14] == BY ) {
+						// Les objets correspondent, enregistrement du tag dans Results
+						setResult("Tag",j,item[coltag]);
+						nbtag++;
+						} // if
+					} // for j
+				} // if
+			} // for i
+		print("Incorporated_0_tag= ",nbtag);
+		// Sauvegarde d'un nouveau _meas.txt incluant les modifications et fermeture
+		updateResults();
+		saveAs("measurements",chemwork+titrered+"_meas");
+		// Results reste ouvert
+		//wait(20000);
+	} // if tag==1
+} // else masktag==0
+
+// La fenetre RESULTS completee du Tag est toujours ouverte.
+//----------------------------fin TAG routine---------------------------------------------------------------
+
+// Sauvegarde du LOG...
+selectWindow("Log");
+sauve = "save=" + chemwork + titrered + "_log.txt";
+run("Text...",sauve);
+
+//----------------------------SAUVEGARDE RESULTATS---------------------------------------------
+// Sauvegarde finale des resultats 
+selectWindow("Results");
+saveAs("measurements",chemwork+titrered+"_meas");
+
+
+ret = arg;
+return ret;
+

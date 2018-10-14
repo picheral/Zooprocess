@@ -1,0 +1,16 @@
+//----------------Zooscan_Dialog_validateODpos-------------
+args = getArgument();
+arg = split(args," ");
+posinchx = arg[0];
+posinchy = arg[1];
+
+
+Dialog.create("CONTROL menu");
+Dialog.addMessage("doxabspos_inch= "+posinchx+"      doyabspos_inch= "+posinchy+"               ");
+message = "Is position OK ?         \n \nPress CANCEL if NOK !          " ;
+Dialog.addMessage(message);
+Dialog.show();
+
+ret="1 1";
+
+return ret;

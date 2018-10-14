@@ -1,0 +1,74 @@
+// ----------------------- Zooprocess_uvp5_pid_to_ecotaxa_main --------------------
+version = "7.19";
+date = "2014/12/16";
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+path= 		array[0];
+instrum = 	array[1];
+
+// ----------------- Choix répertoire de travail ---------------------
+options = newArray(3);
+options[0] = "ONE folder manually";
+options[1] = "ALL ''work'' subfolders (must contain vignettes)";
+options[2] = "ALL validated data (uses *_dat1.txt files from ''dat1_validated'' folder)";
+
+Dialog.create("MAKE TABLE FOR ECOTAXA          version : "+version);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("Project folder :       "+path);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("ALL ''*_dat1.pid'' and ''*_dat1.txt'' from the selected folder and its immediate chidren folders will be processed.   ");
+Dialog.addChoice("       ", options);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.show();
+option = 		Dialog.getChoice();
+
+if (option == options[0]) { 		path_job = getDirectory("SELECT FOLDER");		}// if
+else if (option == options[1]) {	path_job = path+"\\work";				}
+else if (option == options[2]) {	path_job = path+"\\PID_process\\Pid_results\\Dat1_validated";	}
+
+// -------------- Liste des sous-repertoires ----------------------------------------
+filelist = getFileList(path_job);
+j = 0;
+list_fold = newArray(filelist.length);
+if (option != options[2]) {
+	for (i = 0;i<filelist.length;i++) {
+		file =filelist[i];
+		pos_fold =  endsWith(file,"/");
+		if (pos_fold == true  )  {rr = filelist[i]; 	list_fold[j] = rr; 	j++;	} // if
+	} // for
+}//
+list_fold_comp = newArray(j+1);
+for (i = 0;i<j;i++) {	list_fold_comp[i] = list_fold[i];	}
+list_fold_comp[j] = path_job;
+
+// -------------- Recherche des fichiers PID ou DAT1.txt dans le répertoire ----------
+for (k = 0; k < list_fold_comp.length ; k++) {
+	showProgress((k+1)/list_fold_comp.length);
+	folder = path_job+"\\"+list_fold_comp[k];
+	if (option == options[2]) folder = path_job;	
+	filelist = getFileList(folder);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i = 0;i<filelist.length;i++) {
+		file =filelist[i];
+		pos_pid = endsWith(file,"dat1.pid");
+		pos_txt = endsWith(file,"dat1.txt");
+		if (pos_pid == true || pos_txt == true  )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+	} // for
+	// -------------- Boucle sur les fichiers du répertoire ---------------------------
+	for (i = 0; i<j ;i++) {
+		if (instrum == "uvp5") {
+			if (endsWith(list[i],"dat1.pid")) {		process_opt = "pid";	} //if
+			else if (endsWith(list[i],"dat1.txt")) {	process_opt = "text";	} //if
+			ret = runMacro("Zooprocess_uvp5_pid_to_ecotaxa",path+" "+folder+" "+list[i]+" "+process_opt);
+		}// if
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message : ''Zooprocess_uvp5_pid_to_ecotaxa'' process aborted.                       "); 	} // if
+	} // for
+}//
+
+// ----------------------- END ----------------------
+ret = "OK";
+return ret;

@@ -1,0 +1,65 @@
+// ------------- Zooscan_create_folders ----------------------------
+date = "2009/09/17";
+version = "6.14";
+
+// ------------- Choix du repertoire ------------------------------------
+chemsorted = getDirectory("Select folder where you will create the sub-folders");
+
+
+// -------------- Creation des repertoires -----------------------------
+File.makeDirectory(chemsorted+"\\"+"algues");
+File.makeDirectory(chemsorted+"\\"+"amphipods");
+File.makeDirectory(chemsorted+"\\"+"annelides");
+File.makeDirectory(chemsorted+"\\"+"appendicularia");
+File.makeDirectory(chemsorted+"\\"+"bad_focus");
+File.makeDirectory(chemsorted+"\\"+"bubbles");
+File.makeDirectory(chemsorted+"\\"+"chaetognatha");
+File.makeDirectory(chemsorted+"\\"+"clad_evadne");
+File.makeDirectory(chemsorted+"\\"+"clad_penillia");
+File.makeDirectory(chemsorted+"\\"+"copepoda");
+File.makeDirectory(chemsorted+"\\"+"copepoda_acartia");
+File.makeDirectory(chemsorted+"\\"+"copepoda_calanus");
+File.makeDirectory(chemsorted+"\\"+"copepoda_candacia");
+File.makeDirectory(chemsorted+"\\"+"copepoda_harpact");
+File.makeDirectory(chemsorted+"\\"+"copepoda_multiple");
+File.makeDirectory(chemsorted+"\\"+"copepoda_oithona");
+File.makeDirectory(chemsorted+"\\"+"copepoda_poecilo_corycaeus");
+File.makeDirectory(chemsorted+"\\"+"copepoda_poecilo_oncea");
+File.makeDirectory(chemsorted+"\\"+"copepoda_poecilo_sapphirini");
+File.makeDirectory(chemsorted+"\\"+"copepoda_temora");
+File.makeDirectory(chemsorted+"\\"+"crust_cut");
+File.makeDirectory(chemsorted+"\\"+"crust_decapod");
+File.makeDirectory(chemsorted+"\\"+"crust_decapod_large");
+File.makeDirectory(chemsorted+"\\"+"crust_nauplii");
+File.makeDirectory(chemsorted+"\\"+"det_aggregates");
+File.makeDirectory(chemsorted+"\\"+"det_aggregates_dark");
+File.makeDirectory(chemsorted+"\\"+"det_artefact");
+File.makeDirectory(chemsorted+"\\"+"det_fiber");
+File.makeDirectory(chemsorted+"\\"+"echinoderm");
+File.makeDirectory(chemsorted+"\\"+"egg");
+File.makeDirectory(chemsorted+"\\"+"egg_fish_egg");
+File.makeDirectory(chemsorted+"\\"+"fish");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_medusae_ephyrules");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_medusae");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_sipho_cloche");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_sipho_eudoxie");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_sipho_physonect");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_thaliacae_doliol");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_thaliacae_pyrosom");
+File.makeDirectory(chemsorted+"\\"+"gelatinous_thaliacae_salp");
+File.makeDirectory(chemsorted+"\\"+"moll_bivalve");
+File.makeDirectory(chemsorted+"\\"+"moll_heteropod");
+File.makeDirectory(chemsorted+"\\"+"moll_limacina");
+File.makeDirectory(chemsorted+"\\"+"multiple");
+File.makeDirectory(chemsorted+"\\"+"ostracods");
+File.makeDirectory(chemsorted+"\\"+"other");
+File.makeDirectory(chemsorted+"\\"+"pteropoda");
+File.makeDirectory(chemsorted+"\\"+"pteropoda_cavolinia");
+File.makeDirectory(chemsorted+"\\"+"pteropoda_creseis_like");
+File.makeDirectory(chemsorted+"\\"+"radiolaria");
+
+
+
+// -------------- FIN ------------------
+showMessage("All folders created in "+chemsorted);
+

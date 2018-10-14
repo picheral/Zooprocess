@@ -1,0 +1,20 @@
+
+arg = getArgument(); 
+array = split(arg,"\n");
+Labels =array[0];
+Ids = array[1];
+long =array.length;
+list = newArray(long-2);
+
+for (t=2;t<long;t++) { 
+	List = array[t];
+	list[t-2] = List;
+} // for
+
+Dialog.create("SELECT IDENTIFICATION");
+Dialog.addChoice(Labels+" "+Ids,list);
+Dialog.addMessage(" Press the ROLL button to END ! ");
+Dialog.show();
+newident = Dialog.getChoice();
+
+return newident;

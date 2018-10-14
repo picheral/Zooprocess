@@ -1,0 +1,473 @@
+//---------------------------Zooscan_create_learn_PID---------------------------------
+version = "7.19";
+date = "2015/02/02";
+// Cette routine ne fonctionne que dans le respect de l'arborescence Zooscan_scan\_work\ pour les fichiers image
+// Concatene plusieurs PID et ajoute la section "learning" a partir des vignettes triees dans le repertoire "learning_set"
+//"Learning_set" contient aussi les PID des vignettes
+//"PID_results" contient les PID a inclure. Si ces PID existent deja dans le "Learning_set", ils ne sont pas ajoutes (test doublons)
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+option = "tools";
+learn_folder = "na";
+
+if (lengthOf(arg) > 2 ) {
+	option = arg[2];
+	chemlearn = arg[3];
+}// if
+		
+defident ="Zoop";
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+if (startsWith(projfolder,"Zooscan_"))	{	chemtemp = chem + "Zooscan_temp\\";	}
+else {						chemtemp = chem + "temp\\";		}
+
+//--------------------------------- Affichage de l'heure de fin de traitement
+	getDateAndTime(year, month, dayOfWeek, dayOfMonth, hour, minute, second, msec);
+	year = toString(year);
+	month = month+1;
+	if (month<10) { month=toString(month);			month = "0"+month;			} // if
+	month=toString(month);
+	if (dayOfMonth<10) { dayOfMonth=toString(dayOfMonth);	dayOfMonth =  "0"+dayOfMonth;	} // if
+	dayOfMonth=toString(dayOfMonth);
+	if (hour<10) { hour=toString(hour);			hour =  "0"+hour;			} // if
+	hour=toString(hour);
+	if (minute<10) { minute=toString(minute);			minute =  "0"+minute;		} // if
+	minute=toString(minute);		
+	dateheure =year+month+dayOfMonth+"_"+hour+minute;
+if (option != "subset") {
+	chemlearn = 	projfolder+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+		Dialog.create("Create Learning files for TANAGRA  version "+version);
+		Dialog.addMessage( "---------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage( "Project  :  "+proj);
+		Dialog.addMessage( "---------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage( "Vignettes list will be read from their positions in the subfolders     ");
+		Dialog.addMessage("of the ''Learning_set'' subfolder located in ''PID_process'' folder.");
+		Dialog.addMessage( "---------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage( "The resulting file will be saved in the ''PID_results'' folder and named         ");
+		Dialog.addMessage("Learn_pid_"+ dateheure+".txt");
+		Dialog.addMessage( "Temporary   LearnPID.txt & ResPID.txt data files are also saved in the Zooscan_temp folder.                 ");
+		Dialog.addMessage( "---------------------------------------------------------------------------------------------------------------------------------------------");
+		Dialog.show();
+}// if
+
+//----------------------Test de "Learning_set"-----------------------------------------------------------------------------------		
+sortedfolder = 0;
+sizeidentlist =0;
+learnfolder = 	File.exists(chemlearn);
+if (learnfolder == true) {//--------------------------------Il existe un training, on peut continuer---------------------------------------
+	learnpid = getFileList(chemlearn);	sizepidlearn = learnpid.length;	
+	if (sizepidlearn >0 ) { //----------------------Il existe quelque chose dans le "Learning_set"-----------------------
+		// Selection des fichiers dont le nom comporte le mot "_dat1.pid";
+		j = 0;
+		list = newArray(sizepidlearn);
+		for (i=0; i<sizepidlearn ; i++) {	ctrl = indexOf(learnpid[i],"_dat1.pid");
+			if (ctrl>0  )	{	rr = learnpid[i]; 	list[j] = rr;	j = j + 1;		} // if
+		} // for	
+		if (j==0) 	{ 	getBoolean("No ''_dat1.pid'' file in \n"+projfolder+" PID_process\\Learning_set folder.                              \n\nThe resulting file cannot be used in TANAGRA.     \nPress YES to continue   \nPress CANCEL to Abort             ");	} // if
+		else {//----------------------------------------Il existe des PID dans le "Learning_set"----------------------------------------------------
+			sortedfolder = 1;
+			//-------------------- Purger les fichiers vides de la liste learnpid !
+			listpidlearn= newArray(j);
+			for (i=0; i<listpidlearn.length ; i++) {	rr = list[i];		listpidlearn[i] = rr;	} // for
+			//--------------------Creer la liste des repertoires d'identification
+			list = newArray(sizepidlearn);
+			j = 0;
+			for (i=0; i<sizepidlearn ; i++) {	data = learnpid[i];	ctrl = endsWith(data,"/");
+				if (ctrl ==1)  {rr = learnpid[i]; 	list[j] = rr;	j = j + 1;		} // if
+			} // for	
+			//-------------------- Purger les fichiers vides de la liste ident !
+			sizeidentlist = j;
+			if (sizeidentlist == 0 ) {	getBoolean("No folder containing sorted vignette in :                     \n"+projfolder+" PID_process\\Learning_set folder                  \n\nThe resulting file cannot be used in TANAGRA.   \nPress YES to continue   \nPress CANCEL to Abort                 ");	sortedfold = 0;		} // if
+			else {	
+				identlist= newArray(sizeidentlist);
+				for (i=0; i<sizeidentlist; i++) {	rr = list[i];		identlist[i] = rr;	print(rr);	} // for
+			} // else
+		} // else 
+	} // if sizepidlearn
+	else {	getBoolean(projfolder+"\\PID_process\\Learning_set folder is empty.                       \n  \nPress YES to continue   \nPress CANCEL to Abort     ");	sortedfolder = 0;		} // else 
+} // if learnfolder
+
+//------------------------------Test de l'existence de PID dans "PID_results"-----------------------------------------------------
+pidresults = 0;
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+pidresultsfolder = 	File.exists(pathpidresults);
+if (pidresultsfolder == true) {//--------------------------------Il existe un "PID_results", on peut continuer---------------------------------------
+	respid = getFileList(pathpidresults);
+	if (option == "subset") { 	respid = getFileList(chemlearn);	}
+	sizepidresults = respid.length;	
+	if (sizepidresults >0 ) { //----------------------Il existe des fichiers dans le "PID_results"-----------------------
+		// ---------------------Selection des fichiers dont le nom comporte le mot "_dat1.pid";
+		j = 0;
+		list = newArray(sizepidresults);
+		for (i=0; i<sizepidresults; i++) {	ctrl = indexOf(respid[i],"_dat1.pid");
+			if (ctrl>0  )	{rr = respid[i]; 	list[j] = rr;	j = j + 1;		} // if
+		} // for	
+		if (j==0) { message = "No ''_dat1.pid'' file in \n"+projfolder+" PID_process\\PID_results folder.                 \n \nPress YES to continue   \nPress CANCEL to Abort                                                             ";
+			getBoolean(message);
+		} // if
+		else {	pidresults = 1;						
+			//-------------------- Purger les fichiers vides de la liste !
+			listpidres= newArray(j);
+			for (i=0; i<listpidres.length ; i++) {	rr = list[i];		listpidres[i] = rr;	} // for
+		} // else 
+	} // if sizepidlearn
+	else {	
+		getBoolean(projfolder+"\\PID_process\\PID_results folder is empty                        ");		
+	} // else 
+} // 
+header =0;
+learnnb =0;
+
+print("A purger");	selectWindow("Log");	run("Close");
+
+if (sortedfolder == 1) {//----------------------Creation de la matrice de tous les PID contenus dans le "Learning_set" "--------------------
+	for (k=0;k<listpidlearn.length;k++) { 
+		pidfile = listpidlearn[k];
+		openpid = chemlearn +pidfile;
+		open(openpid);
+		wait(500);
+		config = getInfo();
+		pid = split(config,"\n");
+		run("Close");
+		//-----------------Recherche DATA section--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+			if (ctrl1>=0) deb=i+1;
+		} // for
+		//------------------Detection des N° de colonnes pour les champs-------------
+		coltag = 0;
+		a= replace(pid[deb],";"," ");
+		entete = split(a,"\ ");
+		for (i=0; i<entete.length ; i++) {	
+			v = entete[i];
+			if (v=="Tag") { 	coltag = i;		} //if
+		} // for
+		// ------------------------ Boucle sur les lignes---------------------------------
+		start = deb+1;
+		if (header ==0) { start = deb;	header =1;		} // if
+		showStatus("Loading "+pidfile);
+		for (i=start; i<pid.length; i++)	{
+			mat = pid[i];
+			mat = replace(mat,";"," ");
+			item = split(mat,"\ ");
+			// --------------------Boucle sur les items
+			valeur = item[0];
+			pligne = valeur;
+			long = item.length;
+			//----------------Suppression des TAG (dernier colonne) ----------------------------------------
+			if (coltag> 0) long = item.length - 1;
+			for (j=1; j<long; j++) {	valeur =  item[j];	pligne = pligne + ";"+ valeur;		} // if
+			// ---------- On n'imprime que les donnees tag = 1. On supprime donc les doublons du PID ainsi que les Tag = 0 ---------------
+			if (coltag == 0 || item[coltag] != "2" || item[coltag] != "0" ) {	print(pligne);	learnnb++;	} // if
+		} // for
+	} // for
+} //
+//--------------------------------Sauvegarde d'un fichier "Learning" dans le "temp"-----------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "LearnPID.txt";	run("Text...",sauve);		} // if
+
+if (pidresults == 1) {//----------------------Ajout de tous les PID contenus dans le "PID_results "--------------------
+	for (k=0;k<listpidres.length;k++) { 
+		pidfile = listpidres[k];
+		//------------------Existe-t-il deja dans le "Learning_set" ????-----------------------------------------------------------
+		test = 0;
+		if (sortedfolder ==1) {
+			for (h=0;h<listpidlearn.length;h++) { 	
+				learnpidfile = listpidlearn[h];
+				if (learnpidfile == pidfile)  test = 1;
+			} // for
+		} // if
+		if (test ==0) {
+			openpid = pathpidresults +pidfile;
+			if (option == "subset") { openpid = chemlearn +pidfile;	}
+			open(openpid);
+			wait(500);
+			config = getInfo();
+			pid = split(config,"\n");
+			run("Close");
+			//-----------------Recherche DATA section--------------------------
+			for (i=0; i<pid.length ; i++) {	
+				ctrl1 = indexOf(pid[i],"[Data]");
+				if (ctrl1>=0) {	deb=i+1;		} // if
+			} // for
+			//------------------Detection du N° de colonne pour le Tag-------------
+			coltag = 0;
+			a= replace(pid[deb],";"," ");
+			entete = split(a,"\ ");
+			for (i=0; i<entete.length ; i++) {	
+				v = entete[i];
+				if (v=="Tag") { 	coltag = i;		} //if
+			} // for
+			// ------------------------ Boucle sur les lignes---------------------------------
+			start = deb+1;
+			if (header ==0) { start = deb;	header =1;		} // if
+			showStatus("Loading "+pidfile);
+			for (i=start; i<pid.length; i++)	{
+				mat = pid[i];
+				mat = replace(mat,";"," ");
+				item = split(mat,"\ ");
+				// --------------------Boucle sur les items
+				valeur = item[0];
+				pligne = valeur;
+				long = item.length;
+				//----------------Suppression des TAG (dernier colonne) ----------------------------------------
+				if (coltag> 0) {		long = long-1;		} // if
+				for (g=1;g<long; g++) {	valeur =  item[g];		pligne = pligne+ ";"+valeur;			} //for
+				// ---------- On n'imprime que les donnees tag = 1. On supprime donc les doublons du PID ainsi que les Tag = 0 ---------------
+				if (coltag == 0 || item[coltag] != "2" || item[coltag] != "0" ) {	print(pligne);	} // if
+			} // for
+		} // if
+	} // for
+} //
+//--------------------------------Sauvegarde d'un fichier "PID" dans le "temp"-----------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "ResPID.txt";	run("Text...",sauve);		run("Close");	} // if
+
+if (pidresults != 0 || sortedfolder != 0) {
+	if (sizeidentlist != 0) {	//------------------------CREATION des vecteurs des vignettes-----------------------------------------------------------------------------------------------
+		//----------------------------Lecture des noms de folders (identifications) et calcul du nombre total de vignettes-------------------------------
+		// creation du vecteur de la liste des repertoires et calcul du nombre de vignettes dans chacun
+		print("Existing identification folders");
+		nbtotvignettes = 0;
+		showStatus("Loading vignettes from ''Learning_set''   ");
+		for (p=0;p<sizeidentlist;p++) { //----------------Suppression des "/" a la fin des noms
+			identlong = 	lengthOf(identlist[p]);
+			foldername = 	substring(identlist[p],0,identlong-1);
+			identlist[p] = 	foldername;
+			chemident = 	chemlearn+ "\\"+ foldername +"\\";
+			vignettelist  =  	getFileList(chemident);	
+			// ---------------------- On ne prend que les fichiers ".jpg" ---------------
+			gg = 0;
+			for (b = 0;b<vignettelist.length;b++) {
+				nomvig = vignettelist[b];
+				pos = lastIndexOf(nomvig,".jpg");
+				pos_ = lastIndexOf(nomvig,"_");
+				if (pos >= 0 && pos_>=0 ) { gg++;	} // if
+			} // for
+			nbtotvignettes = 	nbtotvignettes +gg;
+			print(identlist[p], " nbvignettes= ",gg);	
+		} // for
+		vignettesname = 	newArray(nbtotvignettes);
+		print("------------------------------------------------------------");
+		print("nbtotvignettes = ",nbtotvignettes);
+		print("------------------------------------------------------------");
+		//----------------------------Ajout de la liste des vignettes dans chaque folder------------------------
+		// Vecteur des N° d'images existantes
+		// Vecteur des N° de vignettes pour chaque image
+		// Tri par ordre decroissant comme pour le fichier TXT pour accelerer la recherche
+		//-----------Boucle sur les folder afin d'etablir la liste pour chacun d'eux---------------------
+		indvig = 0;
+		for (p=0;p<sizeidentlist;p++) {	//------------------Boucle sur les folders----------------------
+			foldername = identlist[p];
+			chemident = chemlearn+ "\\"+ foldername +"\\";
+			vignettelist  =  getFileList(chemident);	
+			sizevignettelist = vignettelist.length;
+			if (sizevignettelist>0) { //-------------Il y a des vignettes dans le repertoire
+				for (k=0;k<sizevignettelist;k++) { // ---------------------Boucle sur les vignettes du folder--------------------
+					nomvig = vignettelist[k];
+					pos_ = lastIndexOf(nomvig,"_");
+					pos = lastIndexOf(nomvig,".jpg");
+					if (pos >= 0 && pos_>=0 ){
+						imagename = substring(nomvig,0,pos_);
+						vigno = substring(nomvig,pos_+1,pos);
+						vignettesname[indvig] = 	imagename+" "+vigno+" "+foldername;
+						indvig++;
+					} // if
+				} // for
+			} // if		
+		} // for
+	//	for (f = 0;f<nbtotvignettes;f++) { print(vignettesname[f]);		} // for
+
+	//------------------------------TRI des vignettes image par image pour accelerer l'identification par la suite--------------------------------------------------------
+	index = 0;
+	col = 0;	
+	deb = 0;
+	sortedvignettes = 	newArray(nbtotvignettes);
+	vignetteslist = 	newArray(nbtotvignettes);
+	for (k=deb; k<nbtotvignettes ; k++) {	vignette = 	vignettesname[k];	vignetteslist[k] = vignette;		} // for
+	// --------------------------- Liste des images source d'au moins une vignette -------------------------------------------
+	listimages = 	newArray(3000);
+	debimage =	newArray(3000);
+	image =	"ZZZZZZ";
+	indimg = 0;
+	for (k=0; k<nbtotvignettes ; k++) {
+		vigligne = 		split(vignettesname[k]," ");
+		vigimage =	vigligne[0];
+		if (vigimage != image && vigimage !="ZZZZZZZZZZ" ) { 
+			listimages[indimg] = 	vigimage;
+			vignettesname[k] =		"ZZZZZZZZZZ Z Z";
+			for (g=0; g<nbtotvignettes ; g++) {
+				// -------------------- Mise a ZZZZZZZZZZ des images du meme nom --------------
+				vig = 	split(vignettesname[g]," ");
+				if (vigimage == vig[0]) { vignettesname[g] = "ZZZZZZZZZZ Z Z";		} // if
+			} // for
+			indimg++;	
+		} // if
+	} //  for
+	// ---------------------- Sauvegarde ----------------------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");		run("Close");	} // if
+	for (r=0;r<indimg;r++) { 	image = 	listimages[r]; 	print("Image= ",image);	} // for
+	if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "Image_list.txt";	run("Text...",sauve);		run("Close");	} // if
+	// ------------------------- Boucle de TRI --------------------------------------------
+		for (r=0;r<indimg;r++) { 	
+			imageref = 	listimages[r]; 
+			showStatus("Image = "+imageref+"  WAIT !");
+			for (k=deb; k<nbtotvignettes ; k++) {//---------------Trouvons tous les champs de cette valeur----------------
+				ligneval = vignetteslist[k];
+				val = split(ligneval,"\ ");
+				image = 	val[0];
+				if (image == imageref ) { 
+					sorted = vignetteslist[k];
+					sortedvignettes[index] = sorted;
+					index++;
+				} // if
+			}  // for
+		} // for
+	
+	//--------------------------------Sauvegarde d'un fichier dans le "temp"-----------------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	for (k=deb; k<nbtotvignettes ; k++) {		print(sortedvignettes[k]);		} // for
+	if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "sortedvignettes.txt";	run("Text...",sauve);		run("Close");	} // if
+
+	//-------------------Creation de la table des images pour accelerer la recherche--------------------------------------------------
+	listimages = 	newArray(3000);
+	debimage =	newArray(3000);
+	//------------Premiere image----------------------------
+	vigligne = 		split(sortedvignettes[0]," ");
+	vigimage =	vigligne[0];
+	image = 		vigimage;		
+	listimages[0] = 	vigimage;	
+	indimg = 1;
+	for (k=1; k<nbtotvignettes ; k++) {
+		vigligne = 		split(sortedvignettes[k]," ");
+		vigimage =	vigligne[0];
+	print("k= ",k," image= ",image," vigimage= ",vigimage);
+		if (vigimage != image) { 	//----------------On change d'image-----------------------------------------------------
+			image = 			vigimage;		
+			listimages[indimg] = 	vigimage;	
+			debimage[indimg] = 	k;
+			indimg++;	
+		} // if
+	} // for
+	//-------------------------On ne conserve que la vraie liste des images-------------------------
+	listimagesred = 	newArray(indimg);
+	debimagered =	newArray(indimg);
+	//--------------------------------Sauvegarde d'un fichier dans le "temp"-----------------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	for (r=0;r<indimg;r++) { 	
+		image = 	listimages[r]; 	listimagesred[r] = image;
+		debut =	debimage[r];	debimagered[r] = debut;
+		print("Image= ",image," deb= ",debut);
+	} // for
+	if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "Image_table.txt";	run("Text...",sauve);		run("Close");	} // if
+
+	//----------------------------Boucle principale sur les lignes du fichier TXT---------------------------------
+	// On sort des que la vignette est trouvee
+	// On recherche si l'image existe folders par folder, 
+	//	Si NON, on passe a la ligne suivante apres avoir ecrit "not_found"
+	//	Si OUI, on cherche dans le folder si la vignette existe 
+	//		si NON, on passe au folder suivant
+	//		si OUI, on ecrit l'identification dans le vecteur 
+	open(chemtemp + "\\ResPID.txt");
+	wait(500);
+	config = getInfo();
+	sortedligne = split(config,"\n");
+	run("Close");
+	deb = 1;
+	newident = 	newArray(sortedligne.length);
+	for (k=deb; k<sortedligne.length ; k++) {
+		newident[k] = "Zoop";
+		a= replace(sortedligne[k],";"," ");	
+		ligne = 	split(a," ");
+		no =	ligne[0];
+		image = 	ligne[1];
+		//------------------Recherche s'il y a au moins une vignette pour cette image---------------------
+		for (r=0;r<indimg;r++) { 
+			vigimage = 	listimagesred[r]; 	
+			if (vigimage == image ) {
+				//--------------Il existe une image representee dans les vignettes-----------------
+				if (r== indimg-1) { 	fin = nbtotvignettes;		} // if
+				else { 		fin = debimagered[r+1];	} // else
+				// -------------Recherche du N° de vignette correspondant dans l'intervalle--------------------
+				pos = debimagered[r];
+			//	pos = 0;
+				//	print("Image= ",image, " deb= ",pos," fin= ",fin);
+				while (pos < fin) {
+					lignevig = 		sortedvignettes[pos];
+					lignevig = 		split(lignevig," ");
+					novig = 		lignevig[1];
+					//	print("no =",no," novig= ",novig);
+					if (no == novig) {//---------------Vignette existe avec le meme N° pour l'image---------------
+						//	print(sortedligne[k]," ",lignevig[2]);
+						Newident = 	lignevig[2];
+						newident[k] = 	Newident;
+						pos = 		fin;
+						if ( k == 50*floor(k/50) ) {	tot = sortedligne.length;	progress = k/tot;	showProgress(progress);	showStatus("Vignette reading progress : ");	} // if						
+						//	print("ligne= ",k," image= ",image," no= ",no," pred= ",ligne[2]," ident= ",newident[k]);
+					} // if
+					pos++;
+				} // while		
+			} // if
+		} // for
+		//	print("ligne= ",k," image= ",image," no= ",no," pred= ",ligne[2]," ident= ",newident[k]);
+	} // for
+
+	//----------------------------Ecriture du fichier resultant---------------------------------------------------------------------
+	print("A purger");	selectWindow("Log");	run("Close");
+
+	//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+	showStatus("WRITING Learn_pid_"+ dateheure+".txt");
+	deb = 0;
+	for (k=deb; k<sortedligne.length; k++) {
+		a = sortedligne[k];
+		zoo = newident[k] ;
+		if (k ==deb) { 			a = a+";Ident;Status";		print(a);	} // if
+		else if (zoo != "Zoop") { 		a = a+";"+newident[k]+";"+"Learning";	print(a);	} // else
+		
+	} // for
+	for (k=deb+1; k<sortedligne.length; k++) {
+		a = sortedligne[k];
+		zoo = newident[k] ;
+		//	if (zoo == "Zoop") { 			a = a+";"+newident[k]+";"+"Sample";	print(a);	} // if
+		if (zoo == "Zoop") { 			a = a+";"+identlist[0]+";"+"Sample";	print(a);	} // if
+	} // for
+
+} // if sizeidentlist
+else { 	showStatus("Openning "+ "\\ResPID.txt");
+	open(chemtemp + "\\ResPID.txt");
+	wait(500);
+	config = getInfo();
+	sortedligne = split(config,"\n");
+	run("Close");
+	deb = 1;
+	newident = 	newArray(sortedligne.length);
+	for (k=deb; k<sortedligne.length ; k++) {		newident[k] = "Zoop";	} // if
+
+	//----------------------------Ecriture du fichier resultant---------------------------------------------------------------------
+	print("A purger");	selectWindow("Log");	run("Close");
+
+	//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+	showStatus("WRITING Learn_pid_"+ dateheure+".txt");
+	deb = 0;
+	for (k=deb; k<sortedligne.length; k++) {
+		a = sortedligne[k];
+		zoo = newident[k] ;
+		if (k ==deb) { 			a = a+";Ident;Status";		print(a);	} // if
+		else if (zoo == "Zoop") { 		a = a+";"+newident[k]+";"+"Sample";	print(a);	} // if
+	} // for
+} // else
+	selectWindow("Log");
+	savefile = "save="+pathpidresults +"\\"+"Learn_pid_"+ dateheure+".txt";
+	if (option == "subset" ) savefile = "save="+chemlearn +"\\"+"Learn_pid_subset_"+ dateheure+".txt";
+	run("Text...",savefile);
+	print(savefile);
+	showStatus("Learn_pid_"+ dateheure+".txt SAVED !         " );
+
+} // if (pidresults != 0 || sortedfolder != 0) 
+else { showMessage("Process aborted, no ''_dat1.pid'' file in any of the ''Learning_set'' or ''PID_results'' folder !                  ");	} // else
+
+ret = "OK";
+return ret;
+
+

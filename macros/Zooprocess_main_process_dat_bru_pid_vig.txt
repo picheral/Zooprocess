@@ -1,0 +1,489 @@
+// --------------------- Zooprocess_main_process_dat_bru_pid_vig.txt ------------------------------
+version = "7.22";
+date = "2016/06/20";
+
+// HD/STD for process DAT
+// Correction du "skip" pour PID & Vignettes
+// Gestion des BRU1 (sans image name)
+// Copie TSV des HD
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 	arg[0];
+instrum  = 	arg[1];
+chemzooprocess = arg[2];
+
+long = lengthOf(path);
+cruise = substring(path,3,long-1);
+
+pathconfig = path+"\\config\\";
+text_run = chemzooprocess+"batch_run.txt";
+text_stop = chemzooprocess+"batch_stop.txt";
+
+if (File.exists(text_run) == false && File.exists(text_stop) == false) {
+	// -------------- Creation du fichier BATCH ---------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("DO NOT DELETE !!!");
+	sauve = "save=" + text_run;
+	selectWindow("Log");
+	run("Text...",sauve);
+	run('Close');
+} // if
+// ----------------------- METADATA --------------------------------------
+filelist  = 	getFileList(path+"\\meta\\");
+//--------------- Selection des fichiers  -------------------
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],".txt");
+		ctrl1 = startsWith(filelist[i],"uvp5_header_");
+		if (ctrl == 1 && ctrl1 == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { configpres = 0;
+		getBoolean("No metadata file in the selected project. \nPress YES to create a file and add a profile !          ");
+		option = "create";
+} //
+else if (j==1) { configpres = 0;		metafile  = list[0];		} //
+else {
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	// ------------------------------- MENU -----------------------------------------------------------------
+	Dialog.create("Process DAT and BRU files            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	message = "SELECT Metadata FILE             " ;
+	Dialog.addMessage(message);
+	Dialog.addChoice("       ", listaff);	
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	metafile = Dialog.getChoice();	
+} // else
+// ---------------------- Lecture metafile ---------------------------------------------------
+open(path+"\\meta\\"+metafile);
+wait(100);
+metadata = getInfo();
+run('Close');
+array = split(metadata,"\n");
+filename = 		newArray(array.length);
+stationname =		newArray(array.length);
+firstimage =		newArray(array.length);
+liste = 		newArray(array.length);
+cruise = 		newArray(array.length);
+ship = 			newArray(array.length);
+lastimage = 		newArray(array.length);
+yoyo_opt = 		newArray(array.length);
+plot_opt = true;
+for (i=1; i<array.length ; i++) { 
+	ligne = replace(array[i],";"," ");
+	ligne = split(ligne,"\ ");
+	Filename = 	ligne[2];
+	Stationname =	ligne[3];
+	Firstimage =	ligne[8];
+	Yoyo_opt = ligne[19];
+	endimg = 999999999;
+	if (ligne.length > 18)	endimg = 	ligne[18];
+	Filename = 	toString(Filename);
+	Stationname =	toString(Stationname);
+	filename[i] = 		Filename;
+	stationname[i] =	Stationname;
+	firstimage[i] =		Firstimage;
+	lastimage[i] = 		endimg;
+	yoyo_opt[i] = 		Yoyo_opt;
+	if (Yoyo_opt == "H") plot_opt = false;
+}// for
+
+// ------------------------------- MENU -----------------------------------------------------------------
+Dialog.create("Process DAT and BRU files            version :  "+version);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+Dialog.addMessage("Instrument :  "+instrum);
+Dialog.addMessage("Project :        "+path);
+Dialog.addMessage("Metadatafile :   "+metafile);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+Dialog.addCheckbox("PROCESS DAT, BRU ?",true);
+Dialog.addCheckbox("Plot profiles ?",plot_opt);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+Dialog.addCheckbox("PROCESS PID and VIGNETTES ?",true);
+Dialog.addMessage("ECOTAXA tsv files are automatically saved with PID files.");
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+Dialog.addCheckbox("BATCH process ?",true);
+Dialog.addCheckbox("SKIP processed file ?",true);
+Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+Dialog.show;
+processbrudat = 	Dialog.getCheckbox();
+processplot = 		Dialog.getCheckbox();
+processpid = 		Dialog.getCheckbox();
+batch = 		Dialog.getCheckbox();
+skip = 			Dialog.getCheckbox();
+
+// ------------------------------------- RECOVER metadata if any work subfolder deleted ---------------------------
+recover = false;
+for (i=1; i<array.length ; i++) { 
+	message = "Some profiles directories were missing. \nTheir metadata have been recovered before the process : ";
+	// ----------------- Nom de fichier ---------------------------------------
+	ligne = replace(array[i],";"," ");
+	ligne = split(ligne,"\ ");
+	Cruise = 	ligne[0];
+	Ship = 		ligne[1];
+	Filename = 	ligne[2];
+	Stationname =	ligne[3];
+	pathprofile = path+"\\work\\"+Stationname+"\\";
+	pathprofilemeta  = pathprofile+Stationname+"_meta.txt";
+	if (File.exists(pathprofile) == false || File.exists(pathprofilemeta) == false ) {
+		message = message+"\n"+Stationname;
+		// ----------------- Impression de la premiere lignes -----------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print(array[0]);	
+		// ----------------- Impression de la ligne du profil -------------------	
+		print(array[i]);	
+		// ---------------- Creation repertoire profil -------------------------------------------------
+		File.makeDirectory(pathprofile);
+		// ---------------- Sauvegarde fichier individuel dans repertoire profil ---------------
+		sauve = "save=" + pathprofile+Stationname+"_meta.txt";
+//			getBoolean(sauve);
+		selectWindow("Log");
+		run("Text...",sauve);
+		run('Close');
+		recover = true;
+	} //  if
+} // for
+if (recover == true) showMessage("METADATA RECOVERED",message);
+
+//------------------------------------- Fichier CONFIG ------------------------------------------------------------------
+if (processpid == true) {
+	//-------------- Choix du fichier CONFIG dans _config, Selection des fichiers dont le nom comporte le mot "config";
+	filelist  = 	getFileList(pathconfig);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = indexOf(filelist[i],"config");
+		ctrl1 = endsWith(filelist[i],".txt");
+		if (ctrl>0 && ctrl1==1 )		{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0 ) {
+		getBoolean("No valid config file in "+pathconfig+". Press Cancel to abort.           ");
+	} // if
+	else if (j==1) {
+		configfile = list[0];
+	} // elseif
+	else {
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		Dialog.create("SELECT PROCESS CONFIG FILE ");
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "SELECT PROCESS CONFIG FILE from the list.             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		configfile = Dialog.getChoice();
+	}// else
+} // if
+
+// ======================================== DAT et BRU =======================================
+if ( processbrudat == true ) {
+	// ------------------------------------------- RAW profile pour UVP5 deja inclus dans METADATA --------------------------------	
+	j = 0;
+	exist = 0;
+	listraw = 		newArray(filename.length);
+	listprocessed = 	newArray(filename.length);
+	for (i=1; i<filename.length ; i++) {
+		Filename = "HDR"+filename[i];
+		showStatus("Checking RAW folder : "+filename[i]+"         =>  WAIT !");
+		showProgress(i/filename.length);
+		test = 0;
+		long = lengthOf(filename[i]);
+		Stationname = stationname[i];
+		file = substring(filename[i],0,long-1);
+		// ------------- Verification qu'il existe un fichier DAT, HDR et BRU au moins !--------------------------
+		dat = 0;
+		bru = 0;
+		hdr = 0;
+		if (File.exists(path+"\\raw\\"+Filename+"\\"+Filename+"_000.dat")) dat++;	
+		if (File.exists(path+"\\raw\\"+Filename+"\\"+Filename+".hdr")) hdr++;	
+		if (File.exists(path+"\\raw\\"+Filename+"\\"+Filename+"_000.bru")) bru++;
+		if (File.exists(path+"\\raw\\"+Filename+"\\"+Filename+"_000.bru1")) bru++;		
+		if (dat > 0 && bru > 0 && hdr > 0) { 	test = 1;	} // if
+		if (  test == 1 )	{
+			// ------------------------------------- Verification que le repertoire du processed profile existe -------------------------------
+			if (File.exists(path+"\\work\\"+stationname[i])) {
+				// ------------------------------ CAS SKIP ---------------------------------------------------
+				datfileprocessed = Stationname+"\\"+Stationname+"_datfile.txt";
+				brufileprocessed = Stationname+"\\"+Stationname+".bru";
+				if(File.exists(path+"\\work\\"+datfileprocessed) == false || File.exists(path+"\\work\\"+brufileprocessed) == false || skip == false) {
+					listraw[j] = Filename;		
+					listprocessed[j] = Stationname;		
+					j = j + 1;	
+				} // if
+			} // if
+		} // if
+	} // for
+
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0 && ((processbrudat == true && processpid == false)  ) || batch == false) { configpres = 0;
+		getBoolean("No un-processed raw profile file in the selected project. \nPress CANCEL to abort !          ");
+	} //
+	else { 	
+		listsel = newArray(j);
+		listrawsel = newArray(j);
+		for (k=0;k<listsel.length ;k++) {	rr = listraw[k];	ss = listprocessed[k];	listsel[k] = rr+"    -      "+ss;	listrawsel[k] = rr; 		} // for
+	} // else
+	
+	// -------------------------------------------- DAT & BRU --------------------------------------------------------------------------------------------	
+	if (batch == false) {
+		// ---------------------------- SELECT PROFILE ---------------------------------
+		Dialog.create("Process DAT and BRU files            version :  "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("SELECT PROFILE to PROCESS");
+		Dialog.addChoice("               ",       listsel           );
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show;
+		profileraw = 		Dialog.getChoice();
+		data = split(profileraw," ");
+		profileraw = data[0];
+		profileprocessed  = data[2];
+		// ----------------------- Recherche firstimg ---------------------------------------------------------------------------
+		for (g=0;g<firstimage.length;g++) {
+			if (profileprocessed == stationname[g] ) {	Firstimg = firstimage[g];	endimg = lastimage[g];	}
+		}// for
+		// ------------------------- COPIE TSV (HD) ----------------------------------------------------------------------------------------
+		read_file = path+"\\raw\\"+profileraw+"\\"+profileraw+"_histo.tsv";
+		save_file = path+"\\results\\"+profileprocessed+"_histo.tsv";
+		//aa = getBoolean(read_file+"\n \n"+save_file);
+		if (File.exists(read_file) && File.exists(save_file) == false) {			
+			if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+			open(read_file);
+			wait(100);
+			data = getInfo();
+			run("Close");
+			print(data);
+			text = "save="+save_file;
+			selectWindow("Log");
+			run("Text...",text);
+			run("Close");
+		}//
+		// ------------------------ HDR ----------------------------------------------------------------------------------------------
+		ret = runMacro("Zooprocess_UVP5_sum_HDR",path+" "+profileraw+" "+profileprocessed);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message HDR process aborted.                       "); 	} // if
+		// ------------------------ DAT ----------------------------------------------------------------------------------------------
+		ret = runMacro("Zooprocess_UVP5_sum_DAT",path+" "+profileraw+" "+profileprocessed+" process "+flag);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message DAT process aborted.                       "); 	} // if
+
+		// ------------------------ PLOT ----------------------------------------------------------------------------------------------
+		if (processplot == true) {
+			ret = runMacro("Zooprocess_visualize_uvp5_profiles",path+" "+instrum+" "+profileprocessed);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if (l==1)  { 	showMessage("Error message PLOT process aborted.                       "); 	} // if	
+			// -------------------- TSV -------------------------
+			if (File.exists(save_file)) {
+				ret = runMacro("Zooprocess_visualize_uvp5_profiles_from_tsv",path+" "+instrum+" "+profileprocessed+" "+save_file);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message PLOT process aborted.                       "); 	} // if	
+			}// TSV		
+		} // if
+		// ------------------------ BRU ----------------------------------------------------------------------------------------------
+		ret = runMacro("Zooprocess_UVP5_sum_BRU",path+" "+profileraw+" "+profileprocessed+" "+Firstimg+" "+endimg);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message BRU process aborted.                       "); 	} // if
+	} // if
+	else {
+		for (k=0;k<listsel.length ;k++) {
+			showProgress(k+1/listsel.length);
+			if (File.exists(text_run)) {
+				profileraw = listsel[k];
+				data = split(profileraw," ");
+				profileraw = data[0];
+				profileprocessed  = data[2];
+				// ----------------------- Recherche firstimg ---------------------------------------------------------------------------
+				for (g=0;g<firstimage.length;g++) {
+					if (profileprocessed == stationname[g] ) {	Firstimg = firstimage[g];	endimg = lastimage[g];	}
+				}// for
+				// ------------------------- COPIE TSV (HD) ----------------------------------------------------------------------------------------
+				read_file = path+"\\raw\\"+profileraw+"\\"+profileraw+"_histo.tsv";
+				save_file = path+"\\results\\"+profileprocessed+"_histo.tsv";
+				//aa = getBoolean(read_file+"\n \n"+save_file);
+				if (File.exists(read_file) && File.exists(save_file) == false) {			
+					if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+					open(read_file);
+					wait(100);
+					data = getInfo();
+					run("Close");
+					print(data);
+					text = "save="+save_file;
+					selectWindow("Log");
+					run("Text...",text);
+					run("Close");
+				}//
+				// ------------------------ HDR ----------------------------------------------------------------------------------------------
+				ret = runMacro("Zooprocess_UVP5_sum_HDR",path+" "+profileraw+" "+profileprocessed);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message HDR process aborted.                       "); 	} // if
+			
+				// ------------------------ DAT ----------------------------------------------------------------------------------------------
+				ret = runMacro("Zooprocess_UVP5_sum_DAT",path+" "+profileraw+" "+profileprocessed+" process "+flag);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message DAT process aborted.                       "); 	} // if
+				// ------------------------- COPIE TSV (HD) ----------------------------------------------------------------------------------------
+				if (File.exists(read_file) == 1 && File.exists(save_file) == 0) {
+					if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+					open(read_file);
+					wait(100);
+					data = getInfo();
+					run("Close");
+					print(data);
+					text = "save="+save_file;
+					selectWindow("Log");
+					run("Text...",text);
+					run("Close");
+				}//
+				// ------------------------ Plot Monitor --------------------------------------------------------------------------------------
+				ret = runMacro("Zooprocess_visualize_uvp5_monitoring_from_dat",path+" "+instrum+" "+profileprocessed+" "+save_file);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message ''Zooprocess_visualize_uvp5_monitoring_from_dat.txt'' process aborted.                       "); 	} // if	
+						
+				
+				// ------------------------ PLOT ----------------------------------------------------------------------------------------------
+				if (processplot == true) {
+					ret = runMacro("Zooprocess_visualize_uvp5_profiles",path+" "+instrum+" "+profileprocessed);
+					flag=toString(ret);
+					l= lengthOf(flag);
+					if (l==1)  { 	showMessage("Error message ''Zooprocess_visualize_uvp5_profiles.txt'' macro aborted.                       "); 	} // if	
+					// -------------------- TSV -------------------------
+					if (File.exists(save_file)) {
+						ret = runMacro("Zooprocess_visualize_uvp5_profiles_from_tsv",path+" "+instrum+" "+profileprocessed+" "+save_file);
+						flag=toString(ret);
+						l= lengthOf(flag);
+						if (l==1)  { 	showMessage("Error message ''Zooprocess_visualize_uvp5_profiles_from_tsv.txt'' process aborted.                       "); 	} // if	
+					}// TSV	
+				} // if
+				// ------------------------ BRU ----------------------------------------------------------------------------------------------
+				ret = runMacro("Zooprocess_UVP5_sum_BRU",path+" "+profileraw+" "+profileprocessed+" "+Firstimg+" "+endimg);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message BRU process aborted.                       "); 	} // if
+			} // if
+		} // for
+	} // else
+} // processbrudat
+
+// ==================================== PROCESSED ====================================================
+if (processpid == true) {
+	// ----------------- PROCESSED profile pour UVP5 --------------------------------	
+	filelist  = 	getFileList(path+"\\work\\");
+	j = 0;
+	exist = 0;
+	list = 		newArray(filelist.length);
+//	getBoolean(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		// ------------- Verification qu'il existe un fichier DAT !--------------------------
+		filelistprof = 			getFileList(path+"\\work\\"+filelist[i]);
+		profileprocessed = 		filelist[i];
+		long = lengthOf(profileprocessed);		
+		profileprocessed = 	substring(profileprocessed,0,long-1);
+		showStatus("Checking PROFILE folder : "+profileprocessed+"         =>  WAIT !");
+		showProgress(i/(filelist.length));
+		dat = 0;
+		bru = 0;
+		if (File.exists(path+"\\work\\"+profileprocessed+"\\"+profileprocessed+"_datfile.txt")== true) 	{	dat++;			} // if
+		if (dat > 0 ) 	{ 
+			profileraw = "nok";
+			// ------------- Nom du RAW profile -------------------------------------------------------
+			for (h=1; h<array.length ; h++) { 
+				ligne = replace(array[h],";"," ");
+				ligne = split(ligne,"\ ");
+				Filename = 	ligne[2];
+				Stationname =	ligne[3];
+				if (profileprocessed == Stationname) 				profileraw = "HDR"+Filename;
+			}// for
+			// ------------------------------ CAS SKIP ---------------------------------------------------
+			file = profileprocessed+"\\"+profileprocessed+"_dat1.pid";
+			if(profileraw != "nok" && File.exists(path+"\\work\\"+file) == false ) {
+				list[j] = profileraw+"     -     "+profileprocessed ;  		
+				j = j + 1;	
+			} // if
+			else if (profileraw != "nok" && skip == false) {	
+				list[j] = profileraw+"     -     "+profileprocessed ;  	
+				j = j + 1;	
+			} // if	
+		} // if				
+	} // for
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0 ) { configpres = 0;
+		aa = getBoolean("All profiles processed in the selected project. \nPress CANCEL to abort !          ");
+	} //
+	else { 	
+		listproc = newArray(j);
+		for (k=0;k<listproc.length ;k++) {	rr = list[k];	listproc[k] = rr;		} // for
+	} // else
+
+	// -------------------------------------------- PID et Vignettes --------------------------------------------------------------------------------------------	
+	if (batch == false) {
+		// ---------------------------- SELECT PROFILE ---------------------------------
+		Dialog.create("Process PID and Vignettes            version :  "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("SELECT PROFILE to PROCESS");
+		Dialog.addChoice("               ",       listproc         );
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show;
+		profile = 		Dialog.getChoice();
+		data = split(profile," ");
+		profileraw = data[0];
+		profileprocessed  = data[2];
+
+		// ----------------------- Recherche firstimg ---------------------------------------------------------------------------
+		for (g=0;g<firstimage.length;g++) {
+			if (profileprocessed == stationname[g] ) {	Firstimg = firstimage[g];	endimg = lastimage[g];	Yoyo_opt = yoyo_opt[g];	}
+		}// for
+		// ------------------------ PID ----------------------------------------------------------------------------------------------
+		ret = runMacro("Zooprocess_UVP5_PID_Vignettes",path+" "+profileprocessed+" "+configfile+" "+instrum+" "+Firstimg+" "+profileraw+" "+endimg+" "+Yoyo_opt);
+		flag=toString(ret);
+		l= lengthOf(flag);
+		if (l==1)  { 	showMessage("Error message PID process aborted.                       "); 	} // if
+	} // if
+	else {
+		for (k=0;k<listproc.length ;k++) {
+			if (File.exists(text_run)) {
+				profile = listproc[k];
+				data = split(profile," ");
+				profileraw = data[0];
+				profileprocessed  = data[2];
+				Firstimg = "1000000000000000";
+				// ----------------------- Recherche firstimg ---------------------------------------------------------------------------
+				for (g=0;g<firstimage.length;g++) {
+					if (profileprocessed == stationname[g] ) {	Firstimg = firstimage[g];	endimg = lastimage[g];	Yoyo_opt = yoyo_opt[g]; }
+				}// for
+				if (Firstimg == "1000000000000000")  aa = getBoolean("First image was not documented for profile : \n"+profileprocessed+" \n \nCheck folders and metadata ! \nPress Cancel to abort process.");
+				// ------------------------ PID ----------------------------------------------------------------------------------------------
+				ret = runMacro("Zooprocess_UVP5_PID_Vignettes",path+" "+profileprocessed+" "+configfile+" "+instrum+" "+Firstimg+" "+profileraw+" "+endimg+" "+Yoyo_opt);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if (l==1)  { 	showMessage("Error message PID process aborted.                       "); } // if
+			} // if
+		} // for
+	} // else
+} // if
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

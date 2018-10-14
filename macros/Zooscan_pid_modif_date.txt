@@ -1,0 +1,93 @@
+//-----------------------Zooscan_pid_modif_date-------------------------------------
+version = "6.15";
+date = "2009/11/02";
+imagepid = 	getArgument(); 
+
+// ---------------------Effacement de la fenetre LOG-----------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if	
+
+// ----------------- Ouverture du PID ------------------------------------------------------------------
+//	showMessage(imagepid);
+open(imagepid);
+wait(500);
+config = getInfo();
+run("Close");
+pid = split(config,"\n");
+toprint = newArray(pid.length);
+
+//-----------------Recherche DATA section  --------------------------
+for (i=0; i<pid.length ; i++) {	dat = pid[i];	toprint[i] = dat;
+	// ----------------- Recheche DATETIME et conversion DATE et TIME ------------------------
+	if (startsWith(dat,"StationId=")) { val = pid[i+1];
+		val = split(val,"\ ");
+		Date = val[1];
+		// --------------------- Annee ----------------------------
+		an = substring(Date,0,4);
+		an = parseInt(an);
+		// --------------------- Mois ----------------------------
+		mois = substring(Date,4,6);
+		mois = parseInt(mois);
+		// --------------------- Jour ----------------------------
+		jour = substring(Date,6,8);
+		jour = parseInt(jour);
+		day = 31*(mois-1)+jour;
+		day = toString(day);
+		// --------------------- Heure ----------------------------
+		heure= substring(Date,9,13);
+		time = parseInt(heure);
+		time = toString(time);
+	} // if date
+	// ----------------- Detection DATA --------------------------------------------------------------------
+	if (startsWith(dat,"[Data]")) 	deb=i+1;	
+} // for
+
+//	showMessage("mois= "+mois+"  jour= "+jour+"  day= "+day+" heure= "+heure+"  time= "+time);
+
+// ------------------ Recherche DATE ou TIME dans entete DATA -----------------------------------------
+entete = pid[deb];
+ctrl1 = indexOf(entete,"CompM1");
+ctrl2 = indexOf(entete,"CompM2");
+if (ctrl1 >= 0 && ctrl2 >= 0) { 
+	// ------------------ Impression des lignes jusqu'a [DATA] ---------
+	for (i=0; i<deb ; i++) {	print(toprint[i]);	} // for
+
+	// ----------------- Remplacement dans entete ----------------------
+	a= replace(entete,";"," ");
+	entete = split(a,"\ ");
+	valeur = entete[0];
+	pligne = valeur;
+	long = entete.length - 1;
+	for (j=1; j<long+1; j++) {	valeur =  entete[j];
+		if (valeur =="CompM1") { 	colCompM1 = j;	valeur = "Day";			} //if
+		if (valeur =="CompM2") { 	colCompM2 = j;	valeur = "Time";			} //if
+		pligne = pligne + ";"+ valeur;		
+	} // for
+	print(pligne);
+
+	// --------------- Remplacement ensuite ------------------------------
+	for (g=deb+1; g<pid.length ; g++) {	
+		a = toprint[g];
+		a= replace(a,";"," ");
+		entete = split(a,"\ ");
+		valeur = entete[0];
+		pligne = valeur;
+		long = entete.length - 1;
+		for (j=1; j<long+1; j++) {	
+			valeur =  entete[j];	
+			if (j == colCompM1) { 	valeur = day;		} //if
+			if (j == colCompM2) { 	valeur = time;		} //if
+			pligne = pligne + ";"+ valeur;	
+		} // for	
+		print(pligne);
+	} // for
+	// --------------- Enregistrement du PID ----------------------------------------------------------------------
+//	showMessage(imagepid);
+	selectWindow("Log");
+	sauve = "save=" + imagepid;
+	run("Text...",sauve);
+	run("Close");
+} // if
+
+// --------------------------- FIN ---------------------------------------------------------------------
+ret = "FIN";
+return ret;

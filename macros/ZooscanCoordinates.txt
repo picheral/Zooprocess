@@ -1,0 +1,8 @@
+//-------------- ZooscanCoordinates -----------------------
+getSelectionCoordinates(x, y);
+a = toString(x[0]);
+b = toString(y[0]);
+c = toString(x[1]);
+d = toString(y[1]);
+ret = a+" "+b+" "+c+" "+d;
+return ret;

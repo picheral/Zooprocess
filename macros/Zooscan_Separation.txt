@@ -1,0 +1,371 @@
+//--------------------------Zooscan_separation-----------------------------------
+// L'image VIS est OUVERTE, Results est fermee a chaque fois qu''on relance l'analyse des particules (s'i est ouvert !)
+print("Version= 25/01/2006_Picheral_CNRS")
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ 
+//maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+scan+" "+resolution+" "+savetag;
+
+arg = getArgument(); 
+array = split(arg," ");
+//for (i=0;i<array.length;i++) {print("i= ",i," val= ",array[i]); } // for
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	resolution=array[22];	savetag= array[23];
+
+// Ouverture et chargement des configurations
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{
+		//print("i= ",i,"  ",array[i]);
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+		}
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		 // resolution = array[6];		
+	xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+
+// Fermeure de la fenetre config
+//selectWindow("Zooscan_trt_config.txt");
+selectWindow(configfile);
+run("Close");
+// Suppression des info de type de fichier
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+
+//-------------------FIN INITIALISATION-------------------------------------
+
+//print("masktag= ",masktag," tag= ",tag," maskop= ",maskop," sep= ",sep);
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+//	text= "jpeg="+jpeg;
+//	run("JPEG Quality...", text);
+
+//---------------------------------------------
+print("Resolution= ",resolution);
+pixel = 25.4/resolution;
+print("PixSize=  ",pixel);
+print("Calibration= ","CNRS2003");
+print("Threshold= ",upper);
+print("Measures_unit= ",voxelunit);
+print("MinSize= ",minsize);
+print("MaxSize= ",maxsize);
+
+
+// Arrondi
+mind=parseFloat(minsize);
+maxd=parseFloat(maxsize);
+if (mind>0.01)  { min = 0.01*(floor(mind*100)); } // if
+if (mind>0.1) { min = 0.1*(floor(mind*10)); } // if
+if (mind>1) { min = floor(mind); } // if
+if (maxd>0.01) 	 { max = 0.01*(round(maxd*100)); } // if
+if (maxd>0.1)	 { max = 0.1*(round(maxd*10)); } // if
+if (maxd>1)	 { max = round(maxd); } // if
+if (maxd>10)	 { max = 10*round(maxd/10); } // if
+if (maxd>100)	 { max = 100*round(maxd/100); } // if
+
+print("Method= ","default [",min," - ",max,"]");
+Smmin=(3.1416/4)*pow(minsize,2);
+Spmin = round(Smmin/(pow(pixel,2)));
+Smmax=(3.1416/4)*pow(maxsize,2);
+Spmax = round(Smmax/(pow(pixel,2)));
+print("Min_Area= ",Spmin);
+print("Max_Area= ",Spmax);
+
+//------------------------------------------SEPARATION routine-----------------------------------------------------------
+// Travail avec le masque de separation
+// sep=1 : Le masque existe dans _work
+// maskop=1 : On decide de s'en servir, de le creer ou de le modifier
+
+nbblobs= 0;
+crol = 0;
+// Il est necessaire de passer par SEPARATION avant de passer par IDENT SSI sep = 1	
+
+					//print("sep= ",sep," maskident= ",maskident," maskop= ",maskop);
+
+if (sep==1 && maskident==1 && maskop==0 ) {crol = 1;
+	// passer les tests de qualite du sep mais reutiliser SANS CONTROLE comme pour traitement multiple
+	maskop=1;
+} // if
+
+// Si on a decide de ne pas se servir du masque qu'il existe ou pas
+if (maskop==0 || (param==2 && sep==0) )	{ 
+		print("Separation_Mask= UNUSED");
+		print("Particle_Analysis= YES");
+		// fermeture du RESULTS
+		test= isOpen("Results");
+		if (test==1) { selectWindow("Results");
+			run("Close");
+		} // test
+		setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+		selectWindow(titrered+"_vis1.jpg"); 
+		rename(titrered+".jpg");
+			//if (param==1) { setBatchMode(1); }
+			//run("Subtract...", "value=1");
+			//run("Add...", "value=1");
+			// Ouverture de l'image vis1 une deuxieme fois pour le calcul des attributs en niveaux de gris
+			//open(chemwork+titrered+"_vis1.jpg");
+			//setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+					ret = runMacro("Zooscan_Particle_Analysis.txt",arg);
+			//if (param==1) { setBatchMode(0); }
+		// RESULTS est sauvee pour "securite" dans le repertoire "config"
+		selectWindow("Results");
+		saveAs("measurements",chemconfig+"measurementsA.txt");
+		nbblobs = parseInt(ret);
+		if (nbblobs==0) { print("Particle Analysis ABORTED"); 
+			} // if flag
+		nbblobs = parseInt(ret);
+		print("Analysed_Objects= ",nbblobs);
+				//selectWindow(titrered+"_out1.gif");
+				//run("Close");
+		selectWindow(titrered+".jpg");
+		run("Close");
+		// Affichage des RESULTS....
+		updateResults();
+} // if
+else { //     (maskop==1 || (param==2 && sep==1)) { // On travaille avec le masque sauf si sep==0 et param==2
+	print("Separation_Mask= INCLUDE");
+	if ( sep==0) { // Creation d'un masque vide et sauvegarde
+			print("Separation_Mask= CREATE");
+			//-------------------CREATION d'un MASQUE de SEPARATION-------------------------------
+			// Creation de l'image pour sauvegarde et traitement.
+			largeurcor = getWidth();
+			hauteurcor = getHeight();
+			newImage("Separation", "8-bit Black", largeurcor,hauteurcor, 1);
+			// Sauvegarde de l'image des masques avec fond NOIR
+			saveAs("Gif",chemwork+titrered+"_sep");	
+			run('Close');
+		} // if sep==0
+		// Edition du masque si SINGLE treatment, sinon UTILISATION
+		if (param==1 && crol== 0 ) { // Single image treatment
+			check=0; // Passe a 1 lorsque le masque est OK
+			while (check==0) { // Edition du masque
+				// fermeture du RESULTS
+				test= isOpen("Results");
+				if (test==1) { selectWindow("Results");
+					run("Close");
+				} // test
+				// Il faut alors faire une analyse des particules en utilisant le masque existant ou que l'on vient de creer
+				// Car on doit AFFICHER les CONTOURS dans la routine de SEPARATION
+				// On a une image en cours, issue de asep... ou d'un traitement precedent
+				selectImage(titrered+"_vis1.jpg");	
+				rename("Zooplankton");
+				// Ouverture de l'image du masque
+				open(chemwork+titrered+"_sep.gif");
+				rename("Separation");
+				// Combinaison de l'image du masque avec celle des objets
+				run("Image Calculator...", "image1=Separation operation=Add image2=Zooplankton create");
+				selectImage("Zooplankton");
+				close();
+				selectImage("Separation");
+				close();
+				rename(titrered+"_vis1.jpg");	
+			
+				// On sauve l'image recombinee avec le masque de separation
+				// Sauvegarde de l'image source 8bits sans fond
+				saveAs("jpeg",chemwork+titrered+"_vis1");
+				rename(titrered+".jpg");
+					//if (param==1) { setBatchMode(1); }
+					//run("Subtract...", "value=1");
+					//run("Add...", "value=1");
+					// Ouverture d'une copie pour le calcul des attributs en niveaux de gris
+					//open(chemwork+titrered+"_vis1.jpg");
+					//setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+								ret = runMacro("Zooscan_Particle_Analysis.txt",arg);
+					nbblobs = parseInt(ret);
+					print("Analysed_Objects= ",nbblobs);
+					//  vis1 reste ouverte apres l'analyse, 
+					//if (param==1) { setBatchMode(0); }
+				// Affichage des RESULTS....
+				updateResults();
+				// AFFICHAGE de l'image AVEC les CONTOURS pour realiser la SEPARATION
+				// SEP est ferme car on ne peut avoir 3 images ouvertes simultanement
+				// Utilisation de l'image vis1 et des contours
+				selectWindow(titrered+".jpg");
+				run("Invert");
+				rename("Zooplankton");
+				// selection de l'image des contours
+				open(chemwork+titrered+"_out1.gif");
+				rename("Contours");
+				run("Image Calculator...", "image1=Contours operation=Add image2=Zooplankton create");
+				run("Invert");
+				selectImage("Zooplankton");
+				close();
+				selectImage("Contours");
+				close();
+				rename(titrered+"_vis1.jpg");
+				setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+					ret = runMacro("Zooscan_save_contours");
+				flagc = parseInt(ret);
+				if (flagc==1) { // Sauvegarde des contours et du zoo
+					saveAs("jpeg",chemwork+titrered+"_zoocont");
+					rename(titrered+"_vis1.jpg");
+				} // if
+				// Routine de SEPARATION "pure" qui necessite le masque _sep et l'image _vis1 avec les contours
+				run("View 100%");
+				// Si des Tags existent, on trace ceux qui sont a 0 ou a 2 (doublons)
+				if (tag==1) { // trace des Tags des doublons et des 0 dans l'image
+					arg = runMacro("Zooscan_tag2",arg);
+				} // if tag==1	
+						arg = runMacro("Zooscan_Split.txt",arg);
+					flag=toString(arg);
+					l= lengthOf(flag);
+					if (l==1)  { showMessage("Error message : SPLIT aborted     "); } // if
+				// Seule l'image _sep reste ouverte
+				
+			
+			//--------------------Controle de fin de process du masque--------------------------------------------
+			listaff = newArray("YES","EDIT","RESET");
+				ret = runMacro("Zooscan_masq_end_process");
+				choice=toString(ret);
+				l= lengthOf(choice);
+				if (l==1)  { choice = listaff[0];  } // if
+				
+			if (choice==listaff[0]) { // END
+				check = 1;
+				// fermeture du RESULTS
+				test= isOpen("Results");
+				if (test==1) { selectWindow("Results");
+					run("Close");
+				} // test
+				// Sortie de la boucle while, fermeture de l'image du zoo et contours en cours
+				// Sauvegarde de l'image des masques en fond NOIR
+				selectImage(titrered+"_sep.gif");
+				saveAs("Gif",chemwork+titrered+"_sep");
+				// RECALCUL des PARTICULES avec le masque
+				open(chemwork+titrered+"_vis1.jpg"); 
+				rename("Zooplankton");
+				// Ouverture de l'image du masque
+				selectImage(titrered+"_sep.gif");
+				rename("Separation");
+				// Combinaison de l'image du masque avec celle des objets
+				run("Image Calculator...", "image1=Separation operation=Add image2=Zooplankton create");
+				selectImage("Zooplankton");
+				close();
+				selectImage("Separation");
+				close();
+				rename(titrered+"_vis1.jpg");	
+				// On sauve l'image recombinee avec le masque de separation
+				// Sauvegarde de l'image source 8bits sans fond
+				saveAs("jpeg",chemwork+titrered+"_vis1");
+					//if (param==1) { setBatchMode(1); }
+					//run("Subtract...", "value=1");
+					//run("Add...", "value=1");
+				rename(titrered+".jpg");
+					// Ouverture d'une copie pour le calcul des attributs en niveaux de gris
+					//open(chemwork+titrered+"_vis1.jpg");
+					//setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+							ret = runMacro("Zooscan_Particle_Analysis.txt",arg);
+					//if (param==1) { setBatchMode(0); }
+				nbblobs = parseInt(ret);
+				if (nbblobs==0) { print("Particle Analysis ABORTED"); 
+					} // if flag
+				print("Analysed_Objects= ",nbblobs);
+				// vis1 reste ouverte apres l'analyse, on les FERME
+					//selectImage(titrered+"_out1.gif");
+					//run("Close");
+				selectImage(titrered+".jpg");
+				run("Close");
+				// Affichage des RESULTS....
+				updateResults();
+				}
+			else if (choice==listaff[1]) { // Edition du meme masque
+				// fermeture du RESULTS
+				selectWindow("Results");
+				run("Close");
+				selectImage(titrered+"_sep.gif");
+				saveAs("Gif",chemwork+titrered+"_sep");
+				close();
+				open(chemwork+titrered+"_vis1.jpg"); 
+				}
+			else if (choice==listaff[2])	{ // RESET
+				// Fermeture de l'image du zoo et separation en cours
+				selectImage(titrered+"_sep.gif");
+				run("Close");
+				// ----------------------On calcule une nouvelle image VIS avec la routine asep....
+				 runMacro("Zooscan_1asep",arg);
+				// vis1 reste ouverte...
+				//-------------------CREATION d'un MASQUE de SEPARATION VIDE-------------------------------
+				// Creation de l'image pour sauvegarde et traitement.
+				largeurcor = getWidth();
+				hauteurcor = getHeight();
+				newImage("Separation", "8-bit Black", largeurcor,hauteurcor, 1);
+				// Sauvegarde de l'image des masques avec fond NOIR
+				saveAs("Gif",chemwork+titrered+"_sep");	
+				run("Close");
+				}	
+			} // while check
+		} // if param==1
+	else if (param==2 || crol==1 ) { //--------------------------------on reprend le masque existant PAS de CONTROLE du MASQUE
+		// fermeture du RESULTS
+		res = isOpen("Results");
+		if (res== 1) { selectWindow("Results");
+			run("Close");
+		} // if
+		// Il faut alors faire une analyse des particules en utilisant le masque existant ou que l'on vient de creer
+		// RECALCUL des PARTICULES avec le masque
+				//open(chemwork+titrered+"_vis1.jpg"); 
+		rename("Zooplankton");
+		// Ouverture de l'image du masque
+		open(chemwork+titrered+"_sep.gif");
+		rename("Separation");
+		// Combinaison de l'image du masque avec celle des objets
+		run("Image Calculator...", "image1=Separation operation=Add image2=Zooplankton create");
+		selectImage("Zooplankton");
+		close();
+		selectImage("Separation");
+		close();
+		rename(titrered+"_vis1.jpg");	
+		// On sauve l'image recombinee avec le masque de separation
+		// Sauvegarde de l'image source 8bits sans fond
+		saveAs("jpeg",chemwork+titrered+"_vis1");
+			//if (param==1) { setBatchMode(1); }
+		// Pour conserver l'image ACTIVE et autoriser le chargement de sa copie !
+			//run("Subtract...", "value=1");
+			//run("Add...", "value=1");
+		rename(titrered+".jpg");
+		// Ouverture d'une copie pour le calcul des attributs en niveaux de gris
+				//open(chemwork+titrered+"_vis1.jpg");
+				//setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+			ret = runMacro("Zooscan_Particle_Analysis.txt",arg);
+			//if (param==1) { setBatchMode(0); }
+		nbblobs = parseInt(ret);
+		if (nbblobs==0) { print("Particle Analysis ABORTED"); 
+		} // if flag
+		print("Analysed_Objects= ",nbblobs);
+		// vis1 reste ouverte apres l'analyse, on les FERME
+			//selectImage(titrered+"_out1.gif");
+			//run("Close");
+		val = isOpen(titrered+".jpg");
+		if (val==1) { selectImage(titrered+".jpg");
+			run("Close");
+		} // if val
+		// RESULTS reste OUVERT
+	} // param==2
+} // else maskop
+
+//----------------------------SAUVEGARDE RESULTATS---------------------------------------------
+// La fenetre RESULTS n'est PAS fermee car on va travailler avec pour les TAG. 
+// Elle est sauvee pour "securite" dans le repertoire "config"
+res = isOpen("Results");
+if (res== 1) {saveAs("measurements",chemconfig+"measurementsB.txt");	} // if
+
+
+// Sauvegarde du LOG...
+selectWindow("Log");
+sauve = "save=" + chemwork + titrered + "_log.txt";
+run("Text...",sauve);
+
+ret = arg;
+return ret;

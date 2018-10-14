@@ -1,0 +1,21 @@
+// ------------------ Zooscan_free_memory ---------------------
+version = "6.01";
+date = "2009/03/13";
+
+nb = 4;
+
+args = getArgument();
+arg = split(args," ");
+chemtemp = 	arg[0];
+image = 		arg[1];
+if (arg.length == 3) nb = arg[2];
+
+selectImage(image);
+saveAs("Tiff",chemtemp+image);	
+close();				
+for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i)/nb;	showProgress(progress);	wait(1000);	} // for
+open(chemtemp+image);	
+
+// ------------------ FIN ---------------------------
+ret = "OK";
+return ret;

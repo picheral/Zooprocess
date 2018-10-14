@@ -1,0 +1,8 @@
+Dialog.create("SEPARATION CONTROL")
+Dialog.addMessage("SAVE image with CONTOURS before process ?          ");
+Dialog.addMessage("If previous image exists, it will be replaced.            ");
+Dialog.show();
+
+ret= "1";
+
+return ret;

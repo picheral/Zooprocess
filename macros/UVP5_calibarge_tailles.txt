@@ -1,0 +1,76 @@
+// ------------------- ANalyse calibrage ------------------------
+// Picheral 2015/10/05
+
+//while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+run("Set Measurements...", "area limit display redirect=None decimal=1");
+setBatchMode(true);
+print("A purger");	selectWindow("Log");		run("Close");
+
+// ------------------- CHOIX du RAW -----------------------------
+dir_raw = getDirectory("Select RAW directory ");
+raw_list  = 	getFileList(dir_raw);
+
+// ---------- saisie du threshold -------------------------------
+threshold = 4;
+threshold  = getNumber("Enter threshold (0-256) ",threshold);
+step = 10;
+for(m=0; m<raw_list.length;m++ ) {	
+	if (startsWith(raw_list[m],"HDR")) {
+
+		dir_seq = dir_raw+raw_list[m];
+		long = lengthOf(dir_seq);
+		name = substring(dir_seq,long-15,long-1);
+//		aa= getBoolean(dir_seq+name+"_sum.png");
+		
+		dir_img = dir_seq+"//00//";
+		
+		// ------------------- Choix du répertoire ----------------------
+//dir_seq = getDirectory("Select Image directory ");
+		filelist  = 	getFileList(dir_img);
+		print(dir_seq);
+
+
+
+		// ------------------- Création première image blanche -----------
+		newImage("SOMME", "8-bit White", 2048, 2048, 1);
+
+
+		// ------------------- Boucle sur les images --------------------
+		index = 0;
+		i = 0;
+		while ( i<filelist.length ) {	
+			//	print(dir_seq+filelist[i]);
+			if (endsWith(filelist[i],".bmp"))	{
+				index++;
+//			print(dir_seq+filelist[i]);
+				showProgress(index/filelist.length);
+				// --------- OUVERTURE -----------------------
+				open(dir_img+filelist[i]);
+				rename("new");
+				// ---------- segmentation --------------------------------------
+				setThreshold(threshold, 255);
+				run("Convert to Mask");
+
+				// ----------- ajout --------------------------------------------
+				run("Image Calculator...", "image1=SOMME operation=Difference image2=new");
+				selectImage("new");
+				close();
+				i=i+step;
+
+			} // if
+			else { i++;	}
+		} // for
+		selectImage("SOMME");
+		saveAs("png",dir_seq+name+"_sum.png");
+		rename("image");
+		selectImage("image");
+		close();
+		
+	}// raw
+}//
+setBatchMode(false);
+showMessage("END");
+
+
+
+

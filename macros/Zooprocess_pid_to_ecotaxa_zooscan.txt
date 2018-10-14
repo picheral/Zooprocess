@@ -1,0 +1,722 @@
+//------------- Zooprocess_pid_to_ecotaxa_zooscan ---------------
+version = "7.26";
+date = "2017/12/01";
+
+// barcode en minuscule
+// plastik 1_n
+// plastic FUI ajoute
+// pixel size (label en mm)
+// ParseFloat(mean)
+// Correction calcul ESD
+// Correction autres variables dérivées
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+projfolder = 		array[0];
+pid_folder= 		array[1];
+pid_file = 		array[2];
+process_opt = 		array[3];
+mask = 			array[4];
+status = 		array[5];
+option = 		array[6];
+link = "http://www.zooscan.obs-vlfr.fr//";
+if (array.length > 7) link = 			array[7];
+plastic = false;
+if (indexOf(projfolder,"manta_335_v3_sn065") 	> 1 && indexOf(pid_file,"microplastik") > 1 )	plastic = true;
+if (indexOf(projfolder,"manta_335_v3_sn033") 	> 1 && indexOf(pid_file,"microplastik") > 1 )	plastic = true;
+if (indexOf(projfolder,"fui_marseille_2016_manta") 	> 1 && indexOf(pid_file,"microplastik") > 1 )	plastic = true;
+if (plastic == true) mask = false;
+
+pid_file_short = substring(pid_file,0,lengthOf(pid_file)-9);
+ecotaxa_folder = pid_folder;
+path_work = projfolder+"\\Zooscan_scan\\_work\\";
+path_work_plastik = projfolder+"_color\\Zooscan_scan\\_work\\";
+chemsorted = projfolder+"\\PID_process\\Sorted_vignettes";
+img_exists = false;
+
+print("ECOTAXA TABLES");
+wait(200);
+
+Process_software = "zooprocess"+"_pid_to_ecotaxa_"+version+"_"+date;
+
+// -------------- Repertoire ecotaxa ----------------
+ecotaxa_root_folder = projfolder+"\\ecotaxa\\";
+if ( File.exists(ecotaxa_root_folder) == false)	File.makeDirectory(ecotaxa_root_folder);
+
+setBatchMode(true);
+
+// ---------- Ouverture PID -----------------------
+open(pid_folder+"\\"+pid_file);
+wait(100);
+data_read = getInfo();
+run("Close");
+data = split(data_read,"\n");
+pid = false;
+if (endsWith(pid_file,"pid")) 	pid = true;
+
+if (pid == false) {
+	// --------------- ANNOTATION -----------------------
+	annotation_list_A = newArray(6);
+	annotation_list_B = newArray(6);
+	annotation_list_A[0] = "object_annotation_date";			annotation_list_B[0] = "[t]";
+	annotation_list_A[1] = "object_annotation_time";			annotation_list_B[1] = "[t]";
+	annotation_list_A[2] = "object_annotation_category";			annotation_list_B[2] = "[t]";
+	annotation_list_A[3] = "object_annotation_person_name";			annotation_list_B[3] = "[t]";
+	annotation_list_A[4] = "object_annotation_person_email";		annotation_list_B[4] = "[t]";
+	annotation_list_A[5] = "object_annotation_status";			annotation_list_B[5] = "[t]";
+	
+	// ---------- Vérification de l'état de validation -----
+	annotation_list_C = newArray(6);
+	for (i = 0; i < annotation_list_C.length; i++) {	annotation_list_C[i] = "NaN";	}// for
+	if (endsWith(pid_file,"pid")) annotation_list_C[5] = "noid";
+}
+// ---------- Recherche data section ---------------
+// la ligne data_deb est la ligne d'entête des variables
+i = 0;
+while (i < data.length) {
+	// ----------- Recherche si validé ----------------
+	if (startsWith(data[i],"[Validation]")) annotation_list_C[5] = "validated";
+	if (startsWith(data[i],"First_name")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val_first = text[text.length-1];
+	}//
+	if (startsWith(data[i],"Last_name")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val_last = text[text.length-1];
+		annotation_list_C[3] = val_first+" "+val_last;
+	}//
+	if (startsWith(data[i],"Validation_upload_time")) { val = replace(data[i],"="," ");	
+		text = split(val,"\ ");	
+		if (text.length > 1) val = text[text.length-1];
+		annotation_list_C[0] = substring(val,0,8);
+		annotation_list_C[1] = substring(val,9,13)+"00";
+	}//
+	if (startsWith(data[i],"[Data]")) { data_deb = i+1; 	i = data.length; 	}//if
+	i++;
+}// while
+if (pid == false) {
+	// ------------ si pas PID et pas Validated ----------------------
+	if (annotation_list_C[5] == "NaN" ) annotation_list_C[5] = "predicted";
+}
+// --------------- SI PID, vérification de la présence de toutes les vignettes, sinon création -----------------
+extract_vignettes_work = false;
+if (pid == true) {
+	for (j = data_deb+1;j < data.length;j++) {
+		val = replace(data[j],";"," ");
+		val = split(val,"\ ");
+		No = val[0];
+		titrered = val[1];
+		vigname = titrered+"_"+No+".jpg";
+		// ---------------- Existence de la vignette ----------------
+		if (File.exists(path_work+titrered+"\\"+vigname) == false) {		extract_vignettes_work = true;		}
+	} // for
+}
+
+// ----------------------- Extraction vignettes dans WORK ------------------
+if (extract_vignettes_work == true && plastic == false ) {
+//	aa = getBoolean("Process vignettes for "+titrered);
+	gg = runMacro("Zooscan_vignettes_to_work_light.txt",projfolder+" "+titrered);
+	if (gg == titrered) {	extract_vignettes_work == false;	}
+	else { aa = getBoolean("Extraction of vignettes from "+titrered+" image failed ! \n \n Press YES to continue and check your file then !");	}
+}
+// ---------- Liste des champs ---------------------
+img_list_A = newArray(10);
+img_list_B = newArray(10);
+img_list_C = newArray(10);
+img_list_A[0] = "img_file_name";	img_list_C[0] = "[t]";	
+img_list_A[1] = "img_rank";		img_list_C[1] = "[f]"; 
+
+// -------------- OBJECT ----------------------------
+object_list_A = newArray(10);
+object_list_B = newArray(10);
+object_list_C = newArray(10);
+for (i = 0; i < object_list_B.length; i++) {	object_list_B[i] = "NaN";	object_list_C[i] = "NaN";	}// for
+object_list_A[0] = "object_id";			object_list_C[0] = "[t]";
+object_list_A[1] = "object_link";		object_list_C[1] = "[t]";
+object_list_A[2] = "object_lat";		object_list_C[2] = "[f]";	
+object_list_A[3] = "object_lon";		object_list_C[3] = "[f]";	
+object_list_A[4] = "object_date";		object_list_C[4] = "[t]";
+object_list_A[5] = "object_time";		object_list_C[5] = "[t]";
+object_list_A[6] = "object_depth_min";		object_list_C[6] = "[f]";	
+object_list_A[7] = "object_depth_max";		object_list_C[7] = "[f]";	
+object_list_A[8] = "object_lat_end";		object_list_C[8] = "[f]";	
+object_list_A[9] = "object_lon_end";		object_list_C[9] = "[f]";	
+
+object_list_B[1] = link;	//	"http://www.obs-vlfr.fr/gallery2/v/ZooplanctonPtB/";
+i = 0;
+while (data[i] != "[Fraction]" && data[i] != "[Data]"){
+	i++;
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"Latitude=")) { 	oo = val; sign = 1;	
+		if (oo < 0) sign = -1;
+		oo = abs(oo);
+		oo_int = floor(oo);
+		object_list_B[2] = sign * (oo_int+100*(oo - oo_int)/60);
+	}//if		
+	else if (startsWith(data[i],"Longitude=")) { 		oo = val; sign = 1;	                                                               
+		if (oo < 0) {	sign = -1;	}//
+		oo = abs(oo);
+		oo_int = floor(oo);
+		// ------------ La longitude est inversée dans les données Zooscan --------
+		object_list_B[3] = -1 *sign * (oo_int+100*(oo - oo_int)/60);
+	}//if	
+	else if (startsWith(data[i],"Date=")) { 	object_list_B[4] = substring(val,0,8); 
+							object_list_B[5] = substring(val,9,13)+"00"; 						
+	}//if	
+	else if (startsWith(data[i],"Zmin=")) { 	object_list_B[6] = toString(val);			}// if
+	else if (startsWith(data[i],"Zmax=")) { 	object_list_B[7] = toString(val);			}// if
+	else if (startsWith(data[i],"latitude_end=")) { 	oo = val; sign = 1;	
+		if (oo < 0) sign = -1;
+		oo = abs(oo);
+		oo_int = floor(oo);
+		object_list_B[8] = sign * (oo_int+100*(oo - oo_int)/60);
+	}//if		
+	else if (startsWith(data[i],"longitude_end=")) { 		oo = val; sign = 1;	                                                               
+		if (oo < 0) {	sign = -1;	}//
+		oo = abs(oo);
+		oo_int = floor(oo);
+		// ------------ La longitude est inversée dans les données Zooscan --------
+		object_list_B[9] = -1 *sign * (oo_int+100*(oo - oo_int)/60);
+	}//if	
+}
+
+// --------------------------- Variables dérivées -------------------------------------
+objet_derived_A = newArray(13);
+objet_derived_B = newArray(13);
+objet_derived_C = newArray(13);
+for (i = 0; i < objet_derived_C.length; i++) {	objet_derived_C[i] = "NaN";		objet_derived_B[i] = "[f]"; }// for
+objet_derived_A[0] = "object_esd";					
+objet_derived_A[1] = "object_elongation";				
+objet_derived_A[2] = "object_range";					
+objet_derived_A[3] = "object_meanpos";				
+objet_derived_A[4] = "object_centroids";				
+objet_derived_A[5] = "object_cv";					
+objet_derived_A[6] = "object_sr";					
+objet_derived_A[7] = "object_perimareaexc";				
+objet_derived_A[8] = "object_feretareaexc";				
+objet_derived_A[9] = "object_perimferet";				
+objet_derived_A[10] = "object_perimmajor";				
+objet_derived_A[11] = "object_circex";					
+objet_derived_A[12] = "object_cdexc";					
+
+// -------------- ACQU -------------------------------------
+acqu_list_A = newArray(29);
+acqu_list_B = newArray(29);
+acqu_list_C = newArray(29);
+for (i = 0; i < acqu_list_B.length; i++) {	acqu_list_B[i] = "NaN";	acqu_list_C[i] = "NaN";	acqu_list_C[i] = "[f]";		}// for
+acqu_list_A[0] = "acq_id";			acqu_list_C[0] = "[t]";	//fracid
+acqu_list_A[1] = "acq_min_mesh";		
+acqu_list_A[2] = "acq_max_mesh";		
+acqu_list_A[3] = "acq_sub_part";		
+acqu_list_A[4] = "acq_sub_method";		acqu_list_C[4] = "[t]";
+acqu_list_A[5] = "acq_hardware";		acqu_list_C[5] = "[t]";
+acqu_list_A[6] = "acq_software";		acqu_list_C[6] = "[t]";
+acqu_list_A[7] = "acq_author";			acqu_list_C[7] = "[t]";
+acqu_list_A[8] = "acq_imgtype";			acqu_list_C[8] = "[t]";
+acqu_list_A[9] = "acq_scan_date";		acqu_list_C[9] = "[t]";
+acqu_list_A[10] = "acq_scan_time";		acqu_list_C[10] = "[t]";
+acqu_list_A[11] = "acq_quality";		acqu_list_C[11] = "[t]";	
+acqu_list_A[12] = "acq_bitpixel";			
+acqu_list_A[13] = "acq_greyfrom";			
+acqu_list_A[14] = "acq_scan_resolution";		
+acqu_list_A[15] = "acq_rotation";			
+acqu_list_A[16] = "acq_miror";				
+acqu_list_A[17] = "acq_xsize";				
+acqu_list_A[18] = "acq_ysize";				
+acqu_list_A[19] = "acq_xoffset";			
+acqu_list_A[20] = "acq_yoffset";			
+acqu_list_A[21] = "acq_lut_color_balance";		
+acqu_list_A[22] = "acq_lut_filter";			
+acqu_list_A[23] = "acq_lut_min";			
+acqu_list_A[24] = "acq_lut_max";			
+acqu_list_A[25] = "acq_lut_odrange";			
+acqu_list_A[26] = "acq_lut_ratio";			
+acqu_list_A[27] = "acq_lut_16b_median";			
+acqu_list_A[28] = "acq_instrument";		acqu_list_C[28] = "[t]";	acqu_list_B[28] = "zooscan";
+// ---------- recherche des paramètres -------------
+i = 0;
+while (data[i] != "[Subsample]" && data[i] != "[Data]"){
+	i++;
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"FracId=")) { 			acqu_list_B[0] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Min=")) { 			acqu_list_B[1] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Max=")) { 			acqu_list_B[2] = toString(val); 						}//if	
+}//
+i = 0;
+while (data[i] != "[Process]" && data[i] != "[Data]"){
+	i++;
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"SubPart=")) { 			acqu_list_B[3] = toString(val); 						}//if	
+	else if (startsWith(data[i],"SubMethod=")) { 		acqu_list_B[4] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Hardware=")) { 		
+		hh = toString(text[1]);	
+		for (t= 2; t < text.length; t++) { hh = hh +"_"+ text[t];	}	
+		acqu_list_B[5] = hh; 						
+	}//if	
+	else if (startsWith(data[i],"Software=")) { 		acqu_list_B[6] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Author=")) { 		acqu_list_B[7] = toString(val); 						}//if	
+	else if (startsWith(data[i],"ImageType=")) { 		acqu_list_B[8] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Scanning_date=")) { 	acqu_list_B[9] = substring(val,0,8); 		
+								acqu_list_B[10] = substring(val,9,13)+"00"; 						
+	}//if	
+	else if (startsWith(data[i],"Quality=")) { 		acqu_list_B[11] = toString(val); 						}//if	
+	else if (startsWith(data[i],"BitsPerPixel=")) { 	acqu_list_B[12] = toString(val); 						}//if	
+	else if (startsWith(data[i],"MakeGrayFrom=")) { 	acqu_list_B[13] = toString(val); 						}//if	
+	else if (startsWith(data[i],"ScanResolution=")) { 	acqu_list_B[14] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Rotation=")) { 		acqu_list_B[15] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Mirror=")) { 		acqu_list_B[16] = toString(val); 				}//if	
+	else if (startsWith(data[i],"XSize=")) { 		acqu_list_B[17] = toString(val); 				}//if	
+	else if (startsWith(data[i],"YSize=")) { 		acqu_list_B[18] = toString(val); 				}//if	
+	else if (startsWith(data[i],"PreviewXOffset=")) { 	acqu_list_B[19] = toString(val); 				}//if	
+	else if (startsWith(data[i],"PreviewYOffset=")) { 	acqu_list_B[20] = toString(val); 				}//if	
+}// while
+i = 0;
+while (data[i] != "[Info]" && data[i] != "[Data]"){
+	i++;
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"Color_Balance=")) { 		acqu_list_B[21] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Filter=")) { 		acqu_list_B[22] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Min=")) { 			acqu_list_B[23] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Max=")) { 			acqu_list_B[24] = toString(val); 				}//if	
+	else if (startsWith(data[i],"OD_range=")) { 		acqu_list_B[25] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Ratio=")) { 		acqu_list_B[26] = toString(val); 				}//if	
+	else if (startsWith(data[i],"Median_level=")) { 	acqu_list_B[27] = toString(val); 				}//if	
+}// while
+
+// ---------------- SAMPLE -------------------------------------
+sample_list_A = newArray(29);
+sample_list_B = newArray(29);
+sample_list_C = newArray(29);
+for (i = 0; i < sample_list_B.length; i++) {	sample_list_B[i] = "NaN";	sample_list_C[i] = "[f]";	}// for
+sample_list_A[0] = "sample_id";			sample_list_C[0] = "[t]";//
+sample_list_A[1] = "sample_scan_operator";	sample_list_C[1] = "[t]";//
+sample_list_A[2] = "sample_ship";		sample_list_C[2] = "[t]";//
+sample_list_A[3] = "sample_program";		sample_list_C[3] = "[t]";//
+sample_list_A[4] = "sample_stationid";		sample_list_C[4] = "[t]";//
+sample_list_A[5] = "sample_bottomdepth";	
+sample_list_A[6] = "sample_ctdrosettefilename";	sample_list_C[6] = "[t]";//
+sample_list_A[7] = "sample_other_ref";		sample_list_C[7] = "[t]";//
+sample_list_A[8] = "sample_tow_nb";		
+sample_list_A[9] = "sample_tow_type";		sample_list_C[9] = "[t]";//
+sample_list_A[10] = "sample_net_type";		sample_list_C[10] = "[t]";//
+sample_list_A[11] = "sample_net_mesh";		
+sample_list_A[12] = "sample_net_surf";		
+sample_list_A[13] = "sample_zmax";		
+sample_list_A[14] = "sample_zmin";		
+sample_list_A[15] = "sample_tot_vol";		
+sample_list_A[16] = "sample_comment";		sample_list_C[16] = "[t]";//
+sample_list_A[17] = "sample_tot_vol_qc";			
+sample_list_A[18] = "sample_depth_qc";		
+sample_list_A[19] = "sample_sample_qc";		
+sample_list_A[20] = "sample_barcode";		sample_list_C[20] = "[t]";//
+sample_list_A[21] = "sample_duration";		
+sample_list_A[22] = "sample_ship_speed";		
+sample_list_A[23] = "sample_cable_length";	
+sample_list_A[24] = "sample_cable_angle";		
+sample_list_A[25] = "sample_cable_speed";		
+sample_list_A[26] = "sample_nb_jar";		
+		
+// ------------------- Ligne à formater selon ALTIDEV ----------------
+sample_list_A[27] = "sample_dataportal_descriptor";	sample_list_C[27] = "[t]";	
+if (indexOf(toLowerCase(projfolder),"tara") > = 0) {
+	sample_list_B[27] = "<bioimagingdescriptors><bioimagingdescriptor domain=\"Bio-imaging\" trait=\"Automated Imaging Modalities\" descriptor=\"ZOOSCAN\" /><bioimagingdescriptor domain=\"Bio-imaging\" trait=\"Sample Fixation\" descriptor=\"Ethanol\" /><bioimagingdescriptor domain=\"Bio-imaging\" trait=\"Staining Methods\" descriptor=\"No Staining\" /></bioimagingdescriptors>";	
+}
+sample_list_A[28] = "sample_open";			sample_list_C[28] = "[t]";	
+// ---------- recherche des paramètres -------------
+toto = "-";
+i = 0;
+while (data[i] != "[Process]" && data[i] != "[Data]"){
+	i++;
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"SampleId=")) { 			sample_list_B[0] = toString(val);							}//if
+	else if (startsWith(data[i],"Scanop=")) { 		sample_list_B[1] = toString(val); 						}//if
+	else if (startsWith(data[i],"Ship=")) { 		sample_list_B[2] = toString(val); 						}//if
+	else if (startsWith(data[i],"Scientificprog=")) { 	sample_list_B[3] = toString(val); 						}//if
+	else if (startsWith(data[i],"StationId=")) { 		sample_list_B[4] = toString(val); 						}//if
+	else if (startsWith(data[i],"Depth=")) { 		sample_list_B[5] = toString(val); 						}//if
+	else if (startsWith(data[i],"CTDref=")) { 		sample_list_B[6] = toString(val); 						}//if
+	else if (startsWith(data[i],"Otherref=")) { 		sample_list_B[7] = toString(val); 						}//if
+	else if (startsWith(data[i],"Townb=")) { 		sample_list_B[8] = toString(val); 						}//if
+	else if (startsWith(data[i],"Towtype=")) { 		sample_list_B[9] = toString(val); 						}//if
+	else if (startsWith(data[i],"Nettype=")) { 		sample_list_B[10] = toString(val); 						}//if
+	else if (startsWith(data[i],"Netmesh=")) { 		sample_list_B[11] = toString(val); 						}//if
+	else if (startsWith(data[i],"Netsurf=")) { 		sample_list_B[12] = toString(val); 						}//if
+	else if (startsWith(data[i],"Zmax=")) { 		sample_list_B[13] = toString(val); 						}//if
+	else if (startsWith(data[i],"Zmin=")) { 		sample_list_B[14] = toString(val); 						}//if
+	else if (startsWith(data[i],"Vol=")) { 			sample_list_B[15] = toString(val); 						}//if
+	else if (startsWith(data[i],"Sample_comment=")) { 	sample_list_B[16] = toString(val); 						}//if
+	else if (startsWith(data[i],"vol_qc=")) { 		sample_list_B[17] = toString(val); 						}//if
+	else if (startsWith(data[i],"depth_qc=")) { 		sample_list_B[18] = toString(val); 						}//if
+	else if (startsWith(data[i],"sample_qc=")) { 		sample_list_B[19] = toString(val); 						}//if
+	else if (startsWith(data[i],"barcode=")) { 		sample_list_B[20] = toLowerCase(toString(val)); 						}//if
+	else if (startsWith(data[i],"net_duration=")) { 	sample_list_B[21] = toString(val); 						}//if
+	else if (startsWith(data[i],"ship_speed_knots=")) { 	sample_list_B[22] = toString(val); 						}//if
+	else if (startsWith(data[i],"cable_length=")) { 	sample_list_B[23] = toString(val); 						}//if
+	else if (startsWith(data[i],"cable_angle=")) { 		sample_list_B[24] = toString(val); 						}//if
+	else if (startsWith(data[i],"cable_speed=")) { 		sample_list_B[25] = toString(val); 						}//if
+	else if (startsWith(data[i],"nb_jar=")) { 		sample_list_B[26] = toString(val); 						}//if
+}// for
+
+// ------------------ PROCESS --------------------------------------
+process_list_A = newArray(16);
+process_list_B = newArray(16);
+process_list_C = newArray(16);
+for (i = 0; i < process_list_B.length; i++) {	process_list_B[i] = "NaN";	process_list_C[i] = "[t]";		}// for
+process_list_A[0] = "process_id";			
+process_list_A[1] = "process_date";			
+process_list_A[2] = "process_time";			
+process_list_A[3] = "process_img_software_version";	
+process_list_A[4] = "process_img_resolution";		process_list_C[4] = "[f]";//
+process_list_A[5] = "process_img_od_grey";		process_list_C[5] = "[f]";//
+process_list_A[6] = "process_img_od_std";		process_list_C[6] = "[f]";//
+process_list_A[7] = "process_img_background_img";		
+process_list_A[8] = "process_particle_version";		
+process_list_A[9] = "process_particle_threshold";	process_list_C[9] = "[f]";//
+process_list_A[10] = "process_particle_pixel_size_mm";	process_list_C[10] = "[f]";//
+process_list_A[11] = "process_particle_min_size_mm";	process_list_C[11] = "[f]";//
+process_list_A[12] = "process_particle_max_size_mm";	process_list_C[12] = "[f]";//
+process_list_A[13] = "process_particle_sep_mask";		
+process_list_A[14] = "process_particle_bw_ratio";	process_list_C[14] = "[f]";//
+process_list_A[15] = "process_software";		process_list_B[15] = Process_software;
+
+
+// ---------- recherche des paramètres -------------
+toto = "-";
+i = 0;
+while (data[i] != "[Particules_Process]" && data[i] != "[Data]"){
+	i++;	
+	text = replace(data[i],"  "," ");
+	text = replace(text,"="," ");
+	text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"Date=")) { 	
+		if (lengthOf(val) == 13) {	process_list_B[1] = substring(val,0,8); 
+						process_list_B[2] = substring(val,9,13)+"00"; 
+		}
+		else {				process_list_B[1] = "00000000";
+						process_list_B[2] = "000000";
+		}
+	}// if
+	else if (startsWith(data[i],"Version=")) { 			process_list_B[3] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Resolution=")) { 			process_list_B[4] = toString(val); 						}//if	
+	else if (startsWith(data[i],"OD_measured=")) { 			process_list_B[5] = toString(val); 						}//if	
+	else if (startsWith(data[i],"STD=")) { 				process_list_B[6] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Background_correct_using=")) { 	process_list_B[7] = toString(val); 						}//if	
+}// for
+toto = "-";
+i = 0;
+while (data[i] != "[Data]"){
+	i++;	
+	text = replace(data[i],"="," "); text = split(text,"\ "); 
+	if (text.length > 1) val = text[text.length-1];
+	if (startsWith(data[i],"Version=")) { 			process_list_B[8] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Threshold=")) { 		process_list_B[9] = toString(val); 						}//if	
+	else if (startsWith(data[i],"PixSize=")) { 		process_list_B[10] = toString(parseFloat(val)*1); 					}//if	
+	else if (startsWith(data[i],"MinSize=")) { 		process_list_B[11] = toString(val); 						}//if	
+	else if (startsWith(data[i],"MaxSize=")) { 		process_list_B[12] = toString(val); 						}//if	
+	else if (startsWith(data[i],"Separation_Mask=")) { 	process_list_B[13] = toString(val); 						}//if	
+	else if (startsWith(data[i],"B/W_ratio==")) { 		process_list_B[14] = toString(val); 						}//if		
+}// while
+
+// --------------------- Ecriture du fichier ----------------------
+// ----------------------------------------------------------------
+
+// -------------------- ProcessId et Acq_Id ---------------------------------------------
+process_list_B[0] = "Zooprocess_"+sample_list_B[0];
+acqu_list_B[0] = acqu_list_B[0]+"_"+sample_list_B[0];
+
+
+// ----------------- Repertoire final ----------------------------------------------------
+if (process_opt == "text") {
+	// --------------- Creation du répertoire EcoTaxa Valide -------------
+	ecotaxa_folder = projfolder+"\\ecotaxa\\"+pid_file_short+"\\";
+	if (option == "new")	File.makeDirectory(ecotaxa_folder);
+}//
+
+// ----------------- Entete ---------------------
+data_ligne = newArray(data.length - data_deb + 2);
+if (mask == true || plastic == true) data_ligne = newArray((data.length - data_deb) * 2 + 2);
+m = 0;
+ligne = "img_file_name"+"\t"+"img_rank";
+for(i=0; i<object_list_A.length ;i++) {		ligne = ligne +"\t"+object_list_A[i];			} // if	
+
+// ---------------- Lire entete data -----------------------------
+entete = data[data_deb];
+field_sup_nb = 2;
+if (indexOf(entete,"Status") > 0) field_sup_nb = 4;
+
+//-----------------Recherche Type de separateur ( tabs, ; ou space)--------------------------
+sep = "tabs";
+ctrl1 = indexOf(entete,";");
+if (ctrl1>=0) { 		sep = "dotcoma";	} // if
+ctrl1 = indexOf(entete," ");
+if (ctrl1>=0) { 		sep = "space";	} // if
+if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+long = entete.length;
+if (pid == false) {
+	if (annotation_list_C[5] == "validated") long = entete.length - field_sup_nb;
+}
+for (k = 2; k<long ;k++) {			ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);	} // for
+for(i=0;i<objet_derived_A.length;i++) {		ligne = ligne +"\t"+toLowerCase(objet_derived_A[i]);	} // if	
+if (pid == false) {
+	for(i=0;i<annotation_list_A.length;i++) {	ligne = ligne +"\t"+toLowerCase(annotation_list_A[i]);	} // if
+}
+for(i=0;i<process_list_A.length;i++) {		ligne = ligne +"\t"+toLowerCase(process_list_A[i]);	} // if
+for(i=0;i<acqu_list_A.length;i++) {		ligne = ligne +"\t"+toLowerCase(acqu_list_A[i]);	} // if
+for(i=0;i<sample_list_A.length;i++) {		ligne = ligne +"\t"+toLowerCase(sample_list_A[i]);	} // if
+data_ligne[m] = ligne;
+m++;
+
+// ----------------- Entete ---------------------
+ligne = img_list_C[0]+"\t"+img_list_C[1];
+for(i=0; i<object_list_C.length ;i++) {		ligne = ligne +"\t"+object_list_C[i];			} // if	
+
+// ---------------- Lire unites format -----------------------------
+entete = data[data_deb];
+if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+long = entete.length;
+if (pid == false) {
+	if (annotation_list_C[5] == "validated") long = entete.length - field_sup_nb;
+}
+for (k = 2; k<long ;k++) {			ligne = ligne +"\t"+"[f]";	} // for
+for(i=0;i<objet_derived_B.length;i++) {		ligne = ligne +"\t"+toLowerCase(objet_derived_B[i]);	} // if	
+if (pid == false) {
+	for(i=0;i<annotation_list_B.length;i++) {	ligne = ligne +"\t"+toLowerCase(annotation_list_B[i]);	} // if
+}
+for(i=0;i<process_list_C.length;i++) {		ligne = ligne +"\t"+toLowerCase(process_list_C[i]);	} // if
+for(i=0;i<acqu_list_C.length;i++) {		ligne = ligne +"\t"+toLowerCase(acqu_list_C[i]);	} // if
+for(i=0;i<sample_list_C.length;i++) {		ligne = ligne +"\t"+toLowerCase(sample_list_C[i]);	} // if
+data_ligne[m] = ligne;
+m++;
+
+// ----------------- Data ---------------------
+list_sorted = getFileList(chemsorted);
+t = 0;
+read_file_dir = "hello";
+while ( t < list_sorted.length ) {
+	if (indexOf(list_sorted[t],pid_file_short) >= 0) {
+		read_file_dir = chemsorted+"\\"+list_sorted[t]+"\\";
+		t = list_sorted.length;
+	}//
+	t++;
+}// while				
+				
+loop = 1;
+ext = newArray(2);
+ext[0] = ".jpg"+"\t"+"0";
+ext[1] = "_msk.jpg"+"\t"+"1";
+// --------- L'image de rank 1 est l'image N&B ------
+if (plastic == true) 	ext[1] = ".jpg"+"\t"+"1";
+// --------- Deux images dans ce cas ----------------
+if (mask == true || plastic == true)  loop = 2;	
+
+for (j = data_deb+1;j < data.length;j++) {
+	entete = data[j];
+	if (sep == "dotcoma") {	entete= replace(entete,";"," ");	entete = split(entete,"\ ");		} // if
+	else if (sep == "tabs") {					entete = split(entete,"\t");		} // if
+	else if (sep == "space") {					entete = split(entete,"\ ");		} // if
+	object_list_B[0] = entete[1]+"_"+entete[0];
+	// ---------- Id de la vignette ---------------
+	vig_id = entete[entete.length - 1 ];
+	vigname  = object_list_B[0]+".jpg";
+	// ------------- Fichiers vignettes ----------------------------------
+	read_file = path_work+"\\"+pid_file_short+"\\"+vigname;
+	save_file_red = ecotaxa_folder + "\\"+ object_list_B[0];
+	read_file_sorted = read_file_dir + vig_id+"\\"+vigname;	
+//	if (File.exists(read_file)) img_exists = true;
+	// ------------- COPIE vignettes (si nécessaire) ---------------------
+	if (process_opt == "text" && option == "new") {
+		img_exists = false;
+		if (File.exists(save_file_red+".jpg") == false){ 	
+			if (File.exists(read_file_sorted) == true) {
+				open(read_file_sorted);	
+				saveAs("jpg",save_file_red);
+				rename("img");
+				img_exists = true;
+			} // if
+		} // if 
+		if (img_exists == false && File.exists(read_file)) {
+			open(read_file);	
+			saveAs("jpg",save_file_red);
+			rename("img");	
+			img_exists = true;
+		}// if
+	}// if
+	
+	// ----------------- Ajout image MASK --------------
+	if (mask == true && img_exists == true) {
+		if (isOpen("img") == false) {
+			open(read_file);	
+			rename("img");
+		}
+		selectImage("img");
+		run("Duplicate...", "msk");
+		setThreshold(0, 243);
+		run("Convert to Mask");
+		saveAs("jpg",save_file_red+"_msk");
+		close();
+	}// if	
+	// ----------------- Plastic ----------------------------
+	if (plastic == true) {
+		texte_pid = pid_file_short;
+
+		if (indexOf(pid_file_short,"k_1_sur_2") >1) { 	add = "_1_sur_2_"; 	}
+		else if (indexOf(pid_file_short,"k_2_sur_2") >1) { 	add = "_2_sur_2_"; 	}
+		else if (indexOf(pid_file_short,"k_1_sur_3") >1) { 	add = "_1_sur_3_"; 	}
+		else if (indexOf(pid_file_short,"k_2_sur_3") >1) { 	add = "_2_sur_3_"; 	}
+		else if (indexOf(pid_file_short,"k_3_sur_3") >1) { 	add = "_3_sur_3_"; 	}
+		
+		else if (indexOf(pid_file_short,"k_1_sur_4") >1) { 	add = "_1_sur_4_"; 	}
+		else if (indexOf(pid_file_short,"k_2_sur_4") >1) { 	add = "_2_sur_4_"; 	}
+		else if (indexOf(pid_file_short,"k_3_sur_4") >1) { 	add = "_3_sur_4_"; 	}
+		else if (indexOf(pid_file_short,"k_4_sur_4") >1) { 	add = "_4_sur_4_"; 	}	
+
+		else if (indexOf(pid_file_short,"k_1_sur_5") >1) { 	add = "_1_sur_5_"; 	}
+		else if (indexOf(pid_file_short,"k_2_sur_5") >1) { 	add = "_2_sur_5_"; 	}
+		else if (indexOf(pid_file_short,"k_3_sur_5") >1) { 	add = "_3_sur_5_"; 	}
+		else if (indexOf(pid_file_short,"k_4_sur_5") >1) { 	add = "_4_sur_5_"; 	}
+		else if (indexOf(pid_file_short,"k_5_sur_5") >1) { 	add = "_5_sur_5_"; 	}		
+		
+		else if (indexOf(pid_file_short,"k_1_sur_19") >1) { 	add = "_1_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_2_sur_19") >1) { 	add = "_2_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_3_sur_19") >1) { 	add = "_3_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_4_sur_19") >1) { 	add = "_4_sur_19_"; 	}			
+		else if (indexOf(pid_file_short,"k_5_sur_19") >1) { 	add = "_5_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_6_sur_19") >1) { 	add = "_6_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_7_sur_19") >1) { 	add = "_7_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_8_sur_19") >1) { 	add = "_8_sur_19_"; 	}				
+		else if (indexOf(pid_file_short,"k_9_sur_19") >1) { 	add = "_9_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_10_sur_19") >1) { 	add = "_10_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_11_sur_19") >1) { 	add = "_11_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_12_sur_19") >1) { 	add = "_12_sur_19_"; 	}				
+		else if (indexOf(pid_file_short,"k_13_sur_19") >1) { 	add = "_13_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_14_sur_19") >1) { 	add = "_14_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_15_sur_19") >1) { 	add = "_15_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_16_sur_19") >1) { 	add = "_16_sur_19_"; 	}				
+		else if (indexOf(pid_file_short,"k_17_sur_19") >1) { 	add = "_17_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_18_sur_19") >1) { 	add = "_18_sur_19_"; 	}
+		else if (indexOf(pid_file_short,"k_19_sur_19") >1) { 	add = "_19_sur_19_"; 	}
+		else {						add = "_";	}
+
+//	aa = getBoolean(pid_file_short+"---"+add);
+		// -------------- On remplace n_m par _ (nettoyage) -----------------
+		texte_obj = replace(object_list_B[0],add,"_");
+		texte_pid = replace(pid_file_short,add,"_");
+		// -------------- Vignette à ouvrir ---------------------
+		vigname  = replace(texte_obj,"microplastik","microplastik"+add+"color")+".jpg";	
+		aa = replace(texte_pid,"microplastik","microplastik"+add+"color");	
+		read_file = path_work_plastik+"\\"+ aa +"\\"+vigname;		
+//		aa = getBoolean(pid_file_short+"---- ----"+read_file);
+			
+		// -------------- Vignette à sauver ----------------------
+		aa = replace(texte_obj,"microplastik","microplastik"+add+"color");		
+		save_file_red = ecotaxa_folder + "\\"+ aa;		
+//	aa = getBoolean(	read_file+"   \n \n "+	save_file_red);
+		if (File.exists(read_file) && File.exists(save_file_red+".jpg") == false) {
+			open(read_file);	
+			saveAs("jpg",save_file_red);
+			close();	
+		}// if
+	}	
+	// ------------ Variables dérivées -----------------------------	
+	if (indexOf(toLowerCase(data[data_deb]),"kurt")>1) {
+		area = 		parseInt(entete[2]);	major = 	parseInt(entete[17]);	minor = 	parseInt(entete[18]);
+		mean = 		parseFloat(entete[3]);	min = 		parseInt(entete[6]);	max = 		parseInt(entete[7]);
+		stddev = 	parseInt(entete[4]);	perim = 	parseInt(entete[12]);	area_exc = 	parseInt(entete[29]);
+		feret = 	parseInt(entete[21]);	xm = 		parseInt(entete[10]);	ym = 		parseInt(entete[11]);
+		x = 		parseInt(entete[8]);	y = 		parseInt(entete[9]);
+	
+//		esd = 2*((area/PI)^0.5);				objet_derived_C[0] = esd;
+		esd = 2*(sqrt(area/PI));				objet_derived_C[0] = esd;
+				
+		elongation = major/minor;				objet_derived_C[1] = elongation;
+		range = max-min;					objet_derived_C[2] =	range;
+		if (mean-min != 0 ) {
+			meanpos = (mean-max)/(mean-min);		objet_derived_C[3] = meanpos;
+		}
+		else  { meanpos  = "NaN";	}
+//		centroids = ((xm-x)^2+(ym-y)^2)^0.5;			objet_derived_C[4] = centroids;
+		centroids = sqrt(pow(xm-x,2)+ pow(ym-y,2));		objet_derived_C[4] = centroids;
+		cv = 	 100*(stddev/mean);				objet_derived_C[5] = cv;
+		if (max-min != 0) {
+			sr = 	 100*(stddev/(max-min));			objet_derived_C[6] = sr;
+		}
+		else {	sr = "NaN";	}
+//		perimareaexc = perim/(area_exc^0.5);			objet_derived_C[7] = perimareaexc;
+//		feretareaexc = feret/(area_exc^0.5);			objet_derived_C[8] = feretareaexc;
+		perimareaexc = perim/(sqrt(area_exc));			objet_derived_C[7] = perimareaexc;
+		feretareaexc = feret/(sqrt(area_exc));			objet_derived_C[8] = feretareaexc;
+		perimferet = perim/feret;				objet_derived_C[9] = perimferet;
+		perimmajor = perim/major;				objet_derived_C[10] = perimmajor;
+//		circexc = (4*PI*area_exc)/(perim^2);			objet_derived_C[11] = circexc;
+//		cdexc = (1/(area_exc^0.5)) * (((xm-x)^2+(ym-y)^2)^0.5);	objet_derived_C[12] = cdexc;
+		circexc = (4*PI*area_exc)/(pow(perim,2));			objet_derived_C[11] = circexc;
+		cdexc = (1/(sqrt(area_exc))) * sqrt(pow(xm-x,2)+pow(ym-y,2));	objet_derived_C[12] = cdexc;
+	} // if
+
+	// ------------ Boucle sur les types d'images ------------------
+	for (g = 0; g < loop ; g++) {
+		// ---------- img_file_name ------------
+		ligne = object_list_B[0]+ext[g]+"\t"+object_list_B[0];
+		// ---------- PLASTIC (rank 0) -------------------------
+		if (plastic == true && g == 0) {
+			aa = replace(texte_obj,"microplastik","microplastik"+add+"color");
+//			aa = replace(object_list_B[0],"microplastik","microplastik_color");
+			ligne = aa + ext[g] + "\t" + object_list_B[0];		
+//	aa = getBoolean(ligne);
+		}
+		// ---------- ajout object -------------
+		for(i=1;i<object_list_B.length;i++) {		ligne = ligne +"\t"+object_list_B[i];			} // if	
+		
+		// ---------------- Lire entete data -----------------------------
+		if (pid == false) {
+			if (annotation_list_C[5] == "validated" || annotation_list_C[5] == "predicted" || annotation_list_C[5] == "dubious") {	long = entete.length - field_sup_nb;
+				annotation_list_C[2] = vig_id; // entete[long];
+			}// if
+			if (status == true && process_opt == "text") annotation_list_C[5] = "predicted";
+		}
+		for (k = 2; k<long ;k++) {			ligne = ligne +"\t"+toLowerCase(entete[k]);		} // for
+		for(i=0;i<objet_derived_C.length;i++) {		ligne = ligne +"\t"+toLowerCase(objet_derived_C[i]);	} // if
+		if (pid == false) {
+			for(i=0;i<annotation_list_C.length;i++) {	ligne = ligne +"\t"+toLowerCase(annotation_list_C[i]);	} // if
+		}
+		for(i=0;i<process_list_B.length;i++) {		ligne = ligne +"\t"+toLowerCase(process_list_B[i]);	} // if
+		for(i=0;i<acqu_list_B.length;i++) {		ligne = ligne +"\t"+toLowerCase(acqu_list_B[i]);	} // if
+		for(i=0;i<sample_list_B.length;i++) {		ligne = ligne +"\t"+toLowerCase(sample_list_B[i]);	} // if
+		data_ligne[m] = ligne;
+		m++;
+	}// for
+	if (isOpen("img") == true) {
+		selectImage("img");	
+		close();	
+	}//if
+}//
+// ------------------ Ecriture du fichier --------------------------- 
+if (isOpen("Log")) {	selectWindow("Log"); run("Close");;	}//
+for (j = 0; j < m;j++) {	print(data_ligne[j]);		}// if
+	
+// ----------------- Enregistrement fichier TSV dans le même dossier ------------------------
+selectWindow("Log");
+save_tsv = "no";
+aa = indexOf(pid_file,".");
+//	ecotaxa_file = "ecotaxa_"+ substring(pid_file,0,aa-5)+"_"+annotation_list_C[5]+".tsv";
+ecotaxa_file = "ecotaxa_"+ substring(pid_file,0,aa-5)+".tsv";
+text =  "save=" + ecotaxa_folder + "\\" + ecotaxa_file;
+//if ((option == "maj" && File.exists(ecotaxa_folder + "\\" + ecotaxa_file)) || option == "new" ) {
+	run("Text...",text);
+	save_tsv = "yes";
+//}
+run("Close");
+
+// ----------------------- END ----------------------
+ret = save_tsv;
+return ret;

@@ -1,0 +1,298 @@
+//-----------------Zooscan_OD_position_5----------------------------------------
+// Pour scan image entiere pour determiner la position de reference a entrer ensuite dans le fichier de config
+version = "7.21";
+date = "2015/09/07";
+// v800
+
+scanfile= "vuescan_zooscan_calibration_OD_posA4.ini";
+check = 0;
+
+// args = chem+" "+chemvue+" "+proc+" "+chemconfig+" "+op;
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+chemvue = 	arg[1];
+framesize = 	arg[2];
+proj = 		arg[3];
+projfolder = 	arg[4];
+ecranw= screenWidth();
+ecranh= screenHeight();
+vuescanofsetx = 10;
+vuescanofsety = 10;
+ratio = 0.6;
+time = 10;
+nb=1;
+Ray= 40;
+//	showMessage(args);
+
+//---------------------Lecture fichier "Zooscan" ---------------------------------
+if (File.exists(chem+"\\Zooscan.txt")) {
+	open(chem+"\\Zooscan.txt");
+	data = getInfo();
+	run('Close');
+	ligne = split(data,"\n");
+	scanner = ligne[0];
+} // if
+
+// -------------------------------------- CHOIX du repertoire de travail ----------------------------------------------------------------------------------------
+select = newArray(proj,"Zooscan root folder");
+select[0] = proj;
+Dialog.create("OD position   version : "+version);
+Dialog.addMessage("-----------------------------------------------------------------------------------");
+Dialog.addChoice("       Select working folder ",select);
+Dialog.addMessage("-----------------------------------------------------------------------------------");
+Dialog.show();
+folder = 		Dialog.getChoice();
+
+if (folder == proj) { 	folder = projfolder;	drive = 	substring(folder,0,2);		textefolder =drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_calib";		} // if
+else { 			folder = chem;		drive = 	substring(chem,0,2);		textefolder =drive+"\\"+"\\"+"Zooscan\\"+"\\"+"Zooscan_calib";			} // else
+chemconfig = 	folder + "\\Zooscan_config\\";
+chemcalib = 	folder + "\\Zooscan_calib\\";
+chemconfigroot = 	chem + "\\Zooscan_config\\";
+
+// --------------------------------------- Test sur l'existence du repertoire _calib -----------------------------------
+confcalib = File.exists(chemcalib);
+if (confcalib==0) { File.makeDirectory(chemcalib); 
+	//	showMessage(chemcalib+" folder created  ");  
+} // if
+
+//--------------------------Test sur l'existence du repertoire des fichiers de config ------------------------------------------------------------------------
+chemODnarrow = 	chemconfig + "\\process_install_narrow_config.txt";
+chemODboth= 	chemconfig + "\\process_install_both_config.txt";
+// --------------Le repertoire du fichier de config n'est pas bon ----------------------------------------------
+if (File.exists(chemODnarrow) && File.exists(chemODboth)) { showMessage("Error message : No config file in "+chemconfig+", automatic CONFIG update aborted  ");  	} // if
+//------------ Lecture des valeurs dans les fichiers --------------------------------------
+else (File.exists(chemODnarrow) || File.exists(chemODboth)) {
+	if (File.exists(chemODnarrow)) {		
+		open(chemODnarrow);	
+		configf = "process_install_narrow_config.txt";			
+		config = getInfo();
+		selectWindow(configf);		
+		run("Close");	
+	} // if
+	if (File.exists(chemODboth)) {		
+		open(chemODboth);	
+		configf = "process_install_both_config.txt";			
+		config = getInfo();
+		selectWindow(configf);		
+		run("Close");
+	} // if 	
+	array = split(config,"\n");
+	for (i=0; i<array.length; i++)	{	texte = array[i];		ssarray = split(texte," ");		array[i] = ssarray[1];	} // for
+	vuescanrep = array[2]; 	jpeg = array[3];
+	zip = array[4];		greycor = array[5];		//resolution = array[6];
+	xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+	ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+	voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+	doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];
+
+// ----------------------- Date -----------------------------------------------------------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+titre = dateheure+"_calibration_ODpos.tif";
+titrered = dateheure+"_calibration_ODpos";
+if (scanner == "Hydroptic v3 Window7" || scanner == "Hydroptic v4 Window7/8" ) titre = textefolder+"\\"+"\\"+titrered;
+
+//------------------Copie du fichier INI dans chemvue sous le nom "VUESCAN.INI"-------------------
+print("A purger");		selectWindow("Log");		run("Close");
+// ------------------- test sur l'existence du fichier de config vuescan pour la calibration -----------
+calfile = File.exists(chemconfigroot+scanfile);
+if (calfile!=1) { showMessage("Open vuescan calibration INI file by yourself... or CANCEL");		open()		} // if
+else {  open(chemconfigroot+scanfile); 			} // else
+vueinfo = getInfo();
+run('Close');
+ligne = split(vueinfo,"\n");
+for (k=0;k<ligne.length;k++) {
+	champ= ligne[k];
+	texte= champ;
+	//-------------------------------Repertoire de sauvegarde CALIB----------------
+	pos = indexOf(champ,"DefaultFolder");
+	if (pos>=0) {		texte =  "DefaultFolder="+textefolder;			} // if
+	//-------------------------------Window Position & size----------------
+	pos = indexOf(champ,"WindowXOffset");
+	if (pos>=0) { texte = "WindowXOffset="+vuescanofsetx; } // if
+	pos = indexOf(champ,"WindowYOffset");
+	if (pos>=0) { texte = "WindowYOffset="+vuescanofsety; } // if
+	pos = indexOf(champ,"WindowXSize");
+	if (pos>=0) { dim = ecranw*ratio;		valeur = floor(dim);		texte = "WindowXSize="+valeur;	 } // if
+	pos = indexOf(champ,"WindowYSize");
+	if (pos>=0) { valeur = ecranh-vuescanofsetx-50;			 texte = "WindowYSize="+valeur; 	} // if
+	// -------------------------------Nom du fichier-------------------------------
+	pos = indexOf(champ,"TIFFFileName");
+	if (pos>=0) { texte= "TIFFFileName="+titre;	} // if
+	print(texte);
+} // for k
+selectWindow("Log");
+sauveini = "save=" + chemvue +"vuescan.ini";
+run("Text...",sauveini);
+
+//---------------------------- Dialog d'information sur le protocole--------------------------
+	ret = runMacro("Zooscan_dialog_calibration_procedure");
+flag=toString(ret);
+l= lengthOf(flag);
+if (l>1)  {  // On continue le processus car on a presse OK .................
+
+//--------------------Scan de l'arrivee du FICHIER -----------------------------------
+read= 0;
+r=0;
+while (read==0) { wait(500);
+	if (scanner == "Hydroptic v3 Window7" || scanner == "Hydroptic v4 Window7/8" )	 	read = File.exists(titre+".tif");	
+	else {											read = File.exists(chemcalib+titre);	} // 
+	showStatus("WAITING FOR "+read+" IMAGE ");
+	r++;
+	print(r,"  WAITING for ",titre+".tif");
+} // while
+// Lorsqu'il arrive, attendre la fin de l'enregistrement
+for (i=0;i<time;i++) { wait(1000);
+	showStatus("SAVING FROM ZOOSCAN TO DISK  : WAIT ! ");
+	if (i==0) {wait(1000);}
+	maxtime = time-1;
+	progress = i/maxtime;
+	showProgress(progress);
+	print("SAVING FROM ZOOSCAN TO DISK ",i," - ",maxtime);
+} // for
+
+//------------------------------Fermeture de VUESCAN ------------------------------
+showStatus("QUIT Vuescan NOW ! ");
+runMacro("Zooscan_dialog_close_vuescan");
+
+//------------------Determination de la position de DO-------------------------------
+// Fonctionne pour un scan a 300 dpi et image MAXI du scanner
+if (scanner == "Hydroptic v3 Window7" || scanner == "Hydroptic v4 Window7/8" ) {	open(titre+".tif");			} // if
+else {	
+	open(chemcalib+titre);		
+	setMinAndMax(0, 65535);
+} // else
+titre =  dateheure+"_calibration_ODpos.tif";
+run("8-bit");
+largeur = getWidth();
+hauteur= getHeight();
+resolution=300;
+y = hauteur/3;
+meandat = newArray(500);
+meanpos = newArray(500);
+i= 0;
+
+//------------mesures------------------------
+while (y < hauteur*0.66) {
+	makeRectangle(largeur-300, y, 200, hauteur*0.001);	
+	getStatistics(area, mean, min, max, std);
+	meandat[i]=mean;
+	meanpos[i]=y;
+	i++;
+	y = y+hauteur*0.001;
+} // while
+
+//-----------------determination de la position Y--------------
+min=255;
+for (j=0;j<i;j++) { mean = meandat[j];	min=minOf(mean,min);	} // for
+for (j=0;j<i;j++) { 	mean = meandat[j];
+	if (mean==min) { 		posy = meanpos[j];		} // if
+} // for
+
+print("posy= ",posy);
+makeRectangle(largeur-300, posy-hauteur*0.01, 300, hauteur*0.02);
+run("Plot Profile");
+showStatus("WAIT !");
+wait(5000);
+
+//---------------Position en X---------------------------------------
+selectWindow(titre);
+grey = 0;
+bord= 0;
+k = largeur-300;
+while (k< largeur) { grey = getPixel(k,posy);
+	if (grey < 210) { 		bord = k;		k=largeur;	} // if
+	k++;
+} // while
+posx = bord+ (largeur-bord)/2;
+selectWindow( titre);
+makeOval(posx-Ray/2,posy-Ray/2,Ray,Ray);
+posinchy = posy/resolution;
+print("posinchx= ",posinchy);
+posinchx = posx/resolution;
+print("XOfsetDO= ",11.7-posinchx);
+		
+//-----------------Validation de la position-------------------------------------------
+l=1;
+while (l==1) { selectWindow( titre);
+	posx = posinchx*resolution;
+	posy = posinchy*resolution;
+	makeOval(posx-Ray/2,posy-Ray/2,Ray,Ray);
+	valx = toString(posinchx);
+	valy = toString(posinchy);
+	val  = 11.7 - posinchx;
+	val = toString(val);
+	arg = val+" "+valy;
+		ret = runMacro("Zooscan_Dialog_validateODpos",arg);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	 // ------------------------------ saisie manuelle de la position ----------------------------
+	if (l==1) {
+		ret = runMacro("Zooscan_OD_ManualPos");
+		flag=toString(ret);
+		u = lengthOf(flag);
+		if (u > 1) {  selectWindow( titre);
+			check = 0;
+			while (check==0) { wait(100);
+				getCursorLoc(x, y, z, flags);
+				if (flags == broll) {
+					posinchx = x/resolution;
+					posinchy = y/resolution;
+					check = 1;
+					showMessage("OK");
+				} // if flags
+			} // while 
+		} // if
+	} // if
+} // while
+selectWindow( titre);
+run('Close');	
+
+//------------------Update config file -----------------------------------
+update = 0;
+open(chemconfig+"process_install_both_config.txt");
+config = getInfo();
+run("Close");
+array = split(config,"\n");
+print("A purger");		selectWindow("Log");		run("Close");
+for (i=0; i<array.length; i++)	{ 	champ = array[i];
+	//-------------------------------doxabspos_inch----------------
+	pos = indexOf(champ,"doxabspos_inch");
+	if (pos>=0 ) { val  = 11.7 - posinchx;		champ= "doxabspos_inch= "+val;		update++;	} // if	
+	//-------------------------------doyabspos_inch----------------
+	pos1 = indexOf(champ,"doyabspos_inch");
+	if (pos1>=0 ) { champ = "doyabspos_inch= "+posinchy;		update++;	} // if	
+	print(champ); 
+} // for
+
+Dialog.create("UPDATE INFORMATIONS");
+Dialog.addMessage(update+" values updated in "+chemconfig+"process_install_both_config.txt");
+Dialog.addMessage("doxabspos is measured (inch) from the right of the Zooscan (OD side) !     ");
+Dialog.addMessage("doxabspos_inch= "+val+"      doyabspos_inch= "+valy+"               ");
+Dialog.show();
+
+// ---------------------------- Sauvegarde du config ---------------------------------------------------------------------------
+selectWindow("Log");	sauve = "save=" + chemconfig+"process_install_both_config.txt";	run("Text...",sauve);
+
+// ----------------------Enregistrement des informations du LOG de l'image a partir du fichier de VUESCAN.INI ---------------
+print("A purger");		selectWindow("Log");		run("Close");
+open(chemvue +"vuescan.ini");
+vueinfo = getInfo();
+run('Close');
+ligne = split(vueinfo,"\n");
+for (k=0;k<ligne.length;k++) {	champ= ligne[k];		print(champ);	} // for k
+selectWindow("Log");
+sauve = "save=" + chemcalib+"\\" + titrered+"_log.txt";
+run("Text...",sauve);
+
+selectWindow("Plot of "+titrered); 
+close();
+
+ret = "11";			
+
+} // if continue le processus apres "Zooscan_dialog_calibration_procedure"
+
+} // else configfile
+
+return ret;
+

@@ -1,0 +1,171 @@
+// --------------- uvp5_edit_parameter -----------
+version = "7.21";
+date = "2016/05/02";
+
+// UVP5 HD
+// Sauvegarde dans Zooprocess (defauts)
+// uvp5 SN
+// [config]
+
+args = getArgument();
+arg = split(args," ");
+chem = arg[0];
+config_option = arg[1];
+pathconfig = arg[2];
+uvp_type = arg[3];
+uvp_sn_txt = arg[4];
+
+if (config_option == "create") {
+	// -------------------------------- Choix STD / HD -------------------------------------------
+//	listaff = newArray("UVP5 (1 Mp)","UVP5 HD (4 Mp)");
+//	Dialog.create("SELECT UVP5 model ");
+//	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+//	Dialog.addMessage("Instrument :     UVP5");
+//	Dialog.addMessage("sn      :        "+uvp_sn);
+//	Dialog.addMessage("Project :        "+chem);
+//	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+//	message = "SELECT UVP5 model from the list.             " ;
+//	Dialog.addMessage(message);
+//	Dialog.addChoice("       ", listaff);
+//	Dialog.show();
+//	uvp_choice = Dialog.getChoice();
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	dateheure =	runMacro("Zooscan_get_time_5");
+//	if (uvp_choice == "UVP5 (1 Mp)") {	
+	print("[config]");
+	print(dateheure);
+	print("light1= hXXX");
+	print("light2= hXXX");
+	if (uvp_type == "std") {
+		print("lens_model= tamron");
+		print("lens_focal= 8");
+		print("fovx= 190");
+		print("fovy= 142");
+		print("pixel= 0.148");
+		print("focal_distance= 370");
+		print("aa_calib= 0.0032");
+		print("exp_calib= 1.36");
+		print("img_vol= 0.96");
+		print("xsize= 1280");
+		print("ysize= 960");
+	}//
+	else {	print("lens_model= kowa");
+		print("lens_focal= 12.5");
+		print("fovx= 180");
+		print("fovy= 180");
+		print("pixel= 0.086");
+		print("focal_distance= 210");
+		print("aa_calib= 0.00055");
+		print("exp_calib= 1.392");
+		print("img_vol= 0.85");
+		print("xsize= 2048");
+		print("ysize= 2048");
+	}//
+	print("sn= "+uvp_sn_txt);
+	// ------------------------ Sauvegarde -----------------------
+	selectWindow("Log");
+	text =  "save=" + chem+"\\uvp5_configuration_data.txt";
+	run("Text...",text);	
+	wait(100);
+	run("Close");
+	config_option = "edit";
+} //
+// ------------------------ EDITION du fichier de PARAMETRAGE ---------------------------
+if ( config_option == "edit" || config_option == "createproj") {
+	// ------- Ouverture du fichier de configuration du module de pilotage ------------
+	open(chem+"\\uvp5_configuration_data.txt");
+	wait(100);
+	config = getInfo();
+	run("Close");
+	conf  = split(config,"\n");
+	for (i=1;i<conf.length;i++){
+		data = replace(conf[i],"="," ");
+		dat = split(data," ");		
+		if (startsWith(dat[0],"light1")) 	light1 = dat[1];
+		if (startsWith(dat[0],"light2")) 	light2 = dat[1];
+		if (startsWith(dat[0],"lens_model")) 	lens_model = dat[1];
+		if (startsWith(dat[0],"lens_focal")) 	lens_focal = parseFloat(dat[1]);
+		if (startsWith(dat[0],"fovx")) 		fovx = parseInt(dat[1]);
+		if (startsWith(dat[0],"fovy")) 		fovy = dat[1];
+		if (startsWith(dat[0],"pixel"))		pixel = dat[1];
+		if (startsWith(dat[0],"focal_distance"))	focal_distance = parseInt(dat[1]);
+		if (startsWith(dat[0],"aa_calib"))		aa_calib = parseFloat(dat[1]);
+		if (startsWith(dat[0],"exp_calib"))		exp_calib = parseFloat(dat[1]);
+		if (startsWith(dat[0],"img_vol"))		img_vol = parseFloat(dat[1]);
+		if (startsWith(dat[0],"xsize"))		xsize = parseFloat(dat[1]);
+		if (startsWith(dat[0],"ysize"))		ysize = parseFloat(dat[1]);
+	}// for	
+		
+	message = "Some settings are wrong. \n \n";
+	check = 0;
+	while (check == 0) {
+		Dialog.create("EDIT CONFIGURATION DATA FILE for UVP5   ");
+		Dialog.addMessage("----------------------------------------------------------------------------------------------        ");			
+		Dialog.addMessage("    CHECK CONFIGURATION FROM UVP DATASHEET");
+		Dialog.addString("        Enter LIGHT 1 sn ",light1);
+		Dialog.addString("        Enter LIGHT 2 sn ",light2);
+		Dialog.addString("        Enter LENS model ",lens_model);	
+		Dialog.addNumber("        Enter LENS focal ",lens_focal);	
+		Dialog.addNumber("        Enter X FOV (mm) ",fovx);	
+		Dialog.addNumber("        Enter IMAGE VOLUME (L) ",img_vol);			
+		Dialog.addNumber("        Enter FOCAL DISTANCE (mm) ",focal_distance);	
+		Dialog.addNumber("        Enter Aa (from calibration) ",aa_calib);	
+		Dialog.addNumber("        Enter Exp (from calibration) ",exp_calib);	
+		Dialog.addNumber("        Enter Camera X pixel number ",xsize);	
+		Dialog.addNumber("        Enter Camera Y pixel number ",ysize);
+		Dialog.addMessage("----------------------------------------------------------------------------------------------        ");
+		//=====================================================================================
+		Dialog.show;	
+		//=====================================================================================
+		light1 =  Dialog.getString();
+		light2 =  Dialog.getString();
+		lens_model =  Dialog.getString();
+		lens_focal = Dialog.getNumber();
+		fovx = Dialog.getNumber();
+		img_vol = Dialog.getNumber();
+		focal_distance = Dialog.getNumber();
+		aa_calib = Dialog.getNumber();
+		exp_calib = Dialog.getNumber();
+		xsize = Dialog.getNumber();
+		ysize = Dialog.getNumber();
+		pixel = fovx/xsize;
+		fovy = ysize*pixel;
+		check = 1;
+		check = getBoolean("COMPUTED PARAMETERS : \nFOV X (mm) = "+toString(fovx)+"\nFOV Y (computed) (mm) = "+toString(fovy)+"\nPIXEL (mm) = "+toString(pixel)+"\n \nPRESS YES if OK !");
+	}
+	
+	// --------------------- Impression ----------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if		
+	print("[config]");
+	dateheure =	runMacro("Zooscan_get_time_5");
+	print(dateheure);
+	print("light1= "+light1);
+	print("light2= "+light2);
+	print("lens_model= "+lens_model);
+	print("lens_focal= "+toString(lens_focal));
+	print("fovx= "+toString(fovx));
+	print("fovy= "+toString(fovy));
+	print("pixel= "+toString(pixel));
+	print("focal_distance= "+toString(focal_distance));
+	print("aa_calib= "+toString(aa_calib));
+	print("exp_calib= "+toString(exp_calib));
+	print("img_vol= "+toString(img_vol));
+	print("xsize= "+toString(xsize));
+	print("ysize= "+toString(ysize));
+	print("sn= "+uvp_sn_txt);
+	
+	// ------------------------ Sauvegarde -----------------------
+	selectWindow("Log");
+	text =  "save=" + chem+"\\uvp5_configuration_data.txt";
+	run("Text...",text);	
+	wait(100);
+	text =  "save=" + pathconfig+"\\uvp5_settings\\uvp5_configuration_data.txt";
+	run("Text...",text);	
+	wait(100);
+	run("Close");
+	config_option = "create";
+	showMessage("WARNING","These settings (and this UVP5) are now the default settings on your PC");
+}
+
+// ------------------- FIN -------------------------------
+return config_option;

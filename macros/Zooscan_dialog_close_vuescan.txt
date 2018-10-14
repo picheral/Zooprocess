@@ -1,0 +1,3 @@
+showMessage("OPERATING MESSAGE","Vuescan must be CLOSED when you PRESS OK !      ");
+ret = "1";
+return ret;

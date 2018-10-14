@@ -1,0 +1,641 @@
+//---------------------------Zooscan_graph.txt---------------------------------
+version = "3.11";
+date = "2007/06/04";
+
+// Cette routine ne fonctionne que dans le respect de l'arborescence Zooscan_scan\_work\
+args = getArgument();
+arg = split(args," ");
+	chem = 	arg[0];
+	option = 	arg[1];
+	C = 	arg[2];
+	titrered = 	arg[3];
+	savefig = 	arg[4];
+	savehis = 	arg[5];
+projfolder = 	arg[6];
+
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemwork = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+
+//------------------------ Test sur l'existence du repertoire RESULTS
+conftemp = File.exists(chemresults);
+if (conftemp==0) { // Le repertoire du fichier temporaire n'existe pas
+	showMessage("Warning : "+chemresults+" folder doesn't exist, it is created now  ");  
+	File.makeDirectory(chemresults); 
+} // if
+ret = "1";
+resolution = "2400";
+longline = "1";
+contrast = 0.02;
+axesauto = 0;
+
+x1 = 10;
+vignettetext = longline;
+longline = parseFloat(longline);
+pidfile = 1;
+nbval2 = 0;
+
+//---------------------------- Recherche de dossiers ''complets'' dans le repertoire "work" ----------------------------
+	workfolder = 	File.exists(chemwork);	
+	if (workfolder == 1) {			
+		filelist  = getFileList(chemwork);
+		//-------------- Selection des fichiers ---------------------
+		j = 0;	flagframe = 0;
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			 rr = filelist[i]; 
+			identlong = 	lengthOf(rr);
+			rr = 		substring(rr,0,identlong-1);	
+			//--------------- Recherche du fichier PID ----------
+			imagepid = chemwork+"\\"+rr+"\\"+rr+"_dat1.pid";
+			pidexist = File.exists(imagepid);
+			if ( pidexist == 1 ){ list[j] = rr;  j++;  	flagframe = 0; 		} // if
+		} // for
+		if (j==0) { print("No valid ''sample'' folder in the "+projfolder);
+			configpres = 0;
+			getBoolean("No valid sample folder in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+		} //
+		else {	// ---------------------------Purger les lignes vides  ----------------------
+			listaff = newArray(j);
+			for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;		} // for	
+		}// else
+	} // if
+	else { getBoolean("No "+chemwork+" folder, press CANCEL to ABORT !");		} // else
+
+list = newArray("From a selected sample frame","From a sample (includes frame 2 if exists)","From all samples of the project");
+Dialog.create("Zooscan graphs.    version : "+version);
+Dialog.addMessage("--------------------- SELECT METHOD --------------------------------             ");
+Dialog.addChoice(" ",list);
+Dialog.addMessage( "-------------------------------------------------------------------------------");
+Dialog.show();
+job = Dialog.getChoice();
+
+//----------------------------- DEBUT d'ecriture du LOG final (qui sera enregistre)
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+
+// ------------------ Traitement des 3 options ----------------------------------------------
+if (job == list[0]) { //---------------------- Donnees d'une seule image ------------------------
+	Dialog.create("Graph from a single IMAGE  v : "+version);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project :  "+proj);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage("SELECT Image from the project            ");
+	Dialog.addChoice("    ", listaff);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.show();
+	titrered = 	Dialog.getChoice();
+	// -------------------------------------- Ouverture PID ---------------------------
+	chemwork1 = 	chemwork+titrered+"\\";
+	textpid = 		chemwork1+titrered+"_dat1.pid";
+	open(textpid);
+	wait(500);
+	config = getInfo();
+	pid = split(config,"\n");
+	run("Close");
+	//-----------------Recherche DATA section--------------------------
+	for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+		if (ctrl1>=0) { deb=i+1;	} // if
+	} // for
+	//-----------------Recherche de la resolution de l'image--------------------------
+	for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"Resolution");
+		if (ctrl1==0) { texte = pid[i];
+			res = split(texte,"\ ");
+			resolution = res[1];
+		} // if
+	} // for
+	// ------------------Detection du TAG et impression des lignes pour TAG = 1 -------------
+	a= replace(pid[deb],";"," ");
+	print(a);
+	entete = split(a,"\ ");
+	coltag = 0;
+	for (i=0; i<entete.length ; i++) {	
+		v = entete[i];
+		if (v=="Tag") { 	coltag = i;	} //if
+	} // for
+		for (i=deb+1; i<pid.length ; i++) {	a= pid[i];
+			if (coltag == 0) { print(a);	} // if		
+			else { 	aa= replace(pid[i],";"," ");
+				data = split(aa,"\ ");
+				if (data[coltag] == "1") {	print(a);		} // if
+			} // else
+		} // for
+} // if
+
+if (job == list[1]) { //---------------------- Donnees d'un seul echantillon ------------------------
+	// ------------------- Definition de la liste des echantillons  ---------------------------------
+	sample = 0;
+	listsample = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = listaff[i]; 	long = lengthOf(rr);	frame = substring(rr, long-2, long);	
+		if (frame != "2") { 		rr =substring(rr, 0, long-2); 	listsample[i] = rr;	sample++;	} // if	
+	} // for	
+	// ---------------------------Purger les lignes vides  ----------------------
+	listaff = newArray(sample-1);
+	for (i=0; i<listaff.length ; i++) {	rr = listsample[i]; 	listaff[i] = rr;		} // for	
+	Dialog.create("Graph from a SAMPLE  v : "+version);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project :  "+proj);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.addMessage("SELECT a SAMPLE  from the project            ");
+	Dialog.addChoice("    ", listaff);
+	Dialog.addMessage( "-------------------------------------------------------------------------------");
+	Dialog.show();
+	titrered = 	Dialog.getChoice();
+	// ---------------- Creation de la matrice de l'echantillon ----------------------------------
+	// -------------------------------------- Ouverture PID ---------------------------
+	chemwork1 = 	chemwork+titrered+"_1\\";
+	textpid = 		chemwork1+titrered+"_1_dat1.pid";
+	open(textpid);
+	wait(500);
+	config = getInfo();
+	pid = split(config,"\n");
+	run("Close");
+	//-----------------Recherche DATA section--------------------------
+	for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+		if (ctrl1>=0) { deb=i+1;	} // if
+	} // for
+	//-----------------Recherche de la resolution de l'image--------------------------
+	for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"Resolution");
+		if (ctrl1==0) { texte = pid[i];
+			res = split(texte,"\ ");
+			resolution = res[1];
+			//	print("Resolution= ",resolution);
+		} // if
+	} // for
+	// ------------------Detection du TAG et impression des lignes pour TAG = 1 -------------
+	a= replace(pid[deb],";"," ");
+	print(a);
+	entete = split(a,"\ ");
+	coltag = 0;
+	for (i=0; i<entete.length ; i++) {	
+		v = entete[i];
+		if (v=="Tag") { 	coltag = i;	} //if
+	} // for
+		for (i=deb+1; i<pid.length ; i++) {	a= pid[i];
+			if (coltag == 0) { print(a);	} // if		
+			else { 	aa= replace(pid[i],";"," ");
+				data = split(aa,"\ ");
+				if (data[coltag] == "1") {	print(a);		} // if
+			} // else
+		} // for
+	// ----------------------- Ajout eventuel frame 2 si existe -----------------------
+	chemwork1 = 	chemwork+titrered+"_2\\";
+	textpid = 		chemwork1+titrered+"_2_dat1.pid";
+	if (File.exists(textpid)) {
+		open(textpid);
+		wait(500);
+		config = getInfo();
+		pid = split(config,"\n");
+		run("Close");
+		//-----------------Recherche DATA section--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+			if (ctrl1>=0) { deb=i+1;	} // if
+		} // for
+	} // if
+	// ------------------Detection du TAG et impression des lignes pour TAG = 1 -------------
+	a= replace(pid[deb],";"," ");
+	entete = split(a,"\ ");
+	coltag = 0;
+	for (i=0; i<entete.length ; i++) {	
+		v = entete[i];
+		if (v=="Tag") { 	coltag = i;	} //if
+	} // for
+		for (i=deb+1; i<pid.length ; i++) {	a= pid[i];
+			if (coltag == 0) { print(a);	} // if		
+			else { 	aa= replace(pid[i],";"," ");
+				data = split(aa,"\ ");
+				if (data[coltag] == "1") {	print(a);		} // if
+			} // else
+		} // for
+} // if
+
+if (job == list[2]) { //---------------------- Donnees de tout le projet ------------------------
+	for (k = 0;k<listaff.length;k++) {
+		titrered = listaff[k];
+		// -------------------------------------- Ouverture PID ---------------------------
+		chemwork1 = 	chemwork+titrered+"\\";
+		textpid = 		chemwork1+titrered+"_dat1.pid";
+		open(textpid);
+		wait(500);
+		config = getInfo();
+		pid = split(config,"\n");
+		run("Close");
+		//-----------------Recherche DATA section--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+			if (ctrl1>=0) { deb=i+1;	} // if
+		} // for
+		//-----------------Recherche de la resolution de l'image--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"Resolution");
+			if (ctrl1==0) { texte = pid[i];
+				res = split(texte,"\ ");
+				resolution = res[1];
+				//	print("Resolution= ",resolution);
+			} // if
+		} // for
+		// ------------------Detection du TAG et impression des lignes pour TAG = 1 -------------
+		a= replace(pid[deb],";"," ");
+		if (titrered == listaff[0] ) {	print(a);		} // if
+		entete = split(a,"\ ");
+		coltag = 0;
+		for (i=0; i<entete.length ; i++) {	
+			v = entete[i];
+			if (v=="Tag") { 	coltag = i;	} //if
+		} // for
+		for (i=deb+1; i<pid.length ; i++) {	a= pid[i];
+			if (coltag == 0) { print(a);	} // if		
+			else { 	aa= replace(pid[i],";"," ");
+				data = split(aa,"\ ");
+				if (data[coltag] == "1") {	print(a);		} // if
+			} // else
+		} // for
+	} // for
+	titrered = proj;
+} // if
+
+// ---------------------- Sauvegarde des donnees ---------------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "temp_log.txt";	run("Text...",sauve);
+
+open(chemtemp + "temp_log.txt");
+wait(500);
+config = getInfo();
+pid = split(config,"\n");
+run("Close");
+
+nbval = pid.length-1;
+	surf = 	newArray(nbval);
+	moy = 	newArray(nbval);
+	bx = 	newArray(nbval);
+	by = 	newArray(nbval);
+	width = 	newArray(nbval);
+	height = 	newArray(nbval);
+	feret = 	newArray(nbval);
+	esd = 	newArray(nbval);
+	no = 	newArray(nbval);
+	major =	newArray(nbval);
+	minor = 	newArray(nbval);
+	circ = 	newArray(nbval);
+	mini = 	newArray(nbval);
+	maxi = 	newArray(nbval);
+	median = newArray(nbval);
+	kurt = 	newArray(nbval);
+	areaexc = newArray(nbval);
+	elong = 	newArray(nbval);
+	fractal = 	newArray(nbval);
+	skelarea = newArray(nbval);
+	parea = 	newArray(nbval);
+
+
+//------------------Creation des vecteurs---------------------------------
+colarea = 0;
+collabel = 0;
+colmean = 0;
+colbx = 0;
+colby = 0;
+colwidth = 0;
+colheight = 0;
+colferet = 0;
+colno = 0;
+colmajor =  0;
+colminor = 0;
+colcirc =  0;
+colmin = 0;
+colmax = 0;
+colmed = 0;
+colkurt = 0;
+colareaexc = 0;
+colfractal =  0;
+colskelarea = 0;
+colparea = 0;
+
+//------------------Detection des N° de colonnes pour les champs-------------
+a= replace(pid[0],";"," ");
+entete = split(a,"\ ");
+for (i=0; i<entete.length ; i++) {	
+	v = entete[i];
+	if (v=="Area") { 	colarea = i;	} //if
+	if (v=="Label") { 	collabel = i;	} //if
+	if (v=="Mean") { 	colmean = i;	} //if
+	if (v=="BX") { 	colbx = i;		} //if
+	if (v=="BY") { 	colby = i;		} //if
+	if (v=="Width") { 	colwidth = i;	} //if
+	if (v=="Height") { 	colheight = i;	} //if
+	if (v=="Feret") { 	colferet = i;	} //if
+	if (v=="!Item") { 	colno = i;		} //if
+	if (v=="Major") { 	colmajor = i;	} //if
+	if (v=="Minor") { 	colminor = i;	} //if
+	if (v=="Circ.") { 	colcirc = i;		} //if
+	if (v=="Min") { 	colmin = i;	} //if
+	if (v=="Max") { 	colmax = i;	} //if
+	if (v=="Median") { 	colmed = i;	} //if
+	if (v=="Kurt") { 	colkurt = i;		} //if
+	if (v=="Area_exc") { 	colareaexc = i;	} //if
+	if (v=="Fractal") { 	colfractal = i;	} //if
+	if (v=="Skelarea") { 	colskelarea = i;	} //if
+	if (v=="%Area") { 	colparea = i;	} //if
+} // for
+
+//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+pixels = 25.4/resolution;
+
+for (i=1; i<pid.length ; i++) {
+	a= replace(pid[i],";"," ");
+	ind = i-1;
+	ligne = split(a,"\ ");
+
+	if (job != list[0]) { 	No = i;				} // if
+	else {		No = 	ligne[colno];		} // else
+	Area = 	ligne[colarea];
+	Mean = 	ligne[colmean];
+	Bx = 	ligne[colbx];
+	By = 	ligne[colby];
+	Width = 	ligne[colwidth];
+	Height = 	ligne[colheight];
+	Feret = 	ligne[colferet];
+	Feret=	parseFloat(Feret)*pixels;
+	Major = 	ligne[colmajor];
+	Major =	parseFloat(Major)*pixels;
+	Minor = 	ligne[colminor];
+	Minor =	parseFloat(Minor)*pixels;
+	Circ = 	ligne[colcirc];
+
+	Min = 	ligne[colmin];
+	Max = 	ligne[colmax];	
+	Median = 	ligne[colmed];
+	Kurt = 	ligne[colkurt];
+	Areaexc = 	ligne[colareaexc];
+	Elong = 	Major/Minor;
+
+	Smm = 	parseInt(Area);
+	Smm = 	Smm * pixels * pixels;
+	Smm = 	Smm /3.1416 ;
+	Esd = 	2* pow(Smm,0.5);
+	Fractal = 	ligne[colfractal];
+	Skelarea =	ligne[colskelarea];
+	Parea =		ligne[colparea];
+	no[ind] = 		No;	
+	surf[ind] = 	Area;
+	moy[ind] = 	Mean;
+	bx[ind] = 		Bx;
+	by[ind] = 		By;
+	width[ind] = 	Width;
+	height[ind] = 	Height;
+	feret[ind] = 	Feret;
+	esd[ind] = 	Esd;
+	circ[ind] =		Circ;
+	minor[ind] =	Minor;
+	major[ind] =	Major;
+	mini[ind] =	Min;
+	maxi[ind] = 	Max;
+	median[ind] = 	Median;
+	kurt[ind] =		Kurt;
+	areaexc[ind] =	Areaexc;
+	elong[ind] =	Elong;
+	fractal[ind] =		Fractal;
+	skelarea[ind] =	Skelarea;
+	parea[ind] =	Parea;
+} // for
+
+//----------------------------- Effacement de la fenetre LOG-----------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+
+//---------------------------Graph section------------------------------------------------------------
+nb = 0;
+entete = newArray("N°","Area","Esd","Major","Minor","Elong","Feret","Circ.","Min","Max","Median","Mean","Areaexc","Fractal","%Area","Skelarea");
+test = 0;
+graph = 0;
+
+if (option !="3") {	print("PARAMETRE;EFFECTIF;MEAN;MIN;MAX;STD;HISTO(256)");	} // if
+else {		print("PARAMETRE;EFFECTIF;MEAN;MIN;MAX");			} // else
+
+while (test == 0) { //------------------------Boucle sur les graphes-----------------------------------------
+	nb++;
+	if (option=="2" && graph == 0 ) {//---------------------------SELECTION MANUELLE---------------------------------------
+		check = 1;
+		while (check==1) { 
+			Dialog.create("SELECT GRAPH AXES ");
+			Dialog.addMessage( "---------------------------------------------------------                 ");
+			Dialog.addChoice("         X field      ", entete);
+			Dialog.addChoice("         Y field      ", entete);
+			Dialog.addCheckbox("Manual scaling ?", false);
+			Dialog.addMessage( "---------------------------------------------------------                 ");
+			Dialog.show();
+			identx = Dialog.getChoice();
+			identy = Dialog.getChoice();
+			axesauto = Dialog.getCheckbox();
+			if (identx != identy) { check = 0;					} // if
+			else { showMessage("Do not select the same field for X and Y");	} // else
+		} // while
+		graph = 1;
+		// showMessage(identtxt);
+	} // if
+	else  { //------------------TOUS les graphes sont traces------------------------------------
+		//	print("Nb= ",nb);
+		if (nb == 16) { identx = "Major";
+			identy = "Minor";
+		} // if
+		else { identx = "N°";
+			identy = entete[nb];
+		} // else
+		//	print("Identx= ",identx," Identy= ",identy);
+	} // else
+	//----------------Trace-----------------------------------------     
+	maxx = 0;
+	maxy = 0;
+	sumx = 0;
+	sumy = 0;
+	minx = 10000000;
+	miny = 10000000;
+	plottitre = "Plot  "  +titrered+  "   "+  identy+   " = f("  +  identx  +")";
+
+	//---------------------------------No Area Mean Major Minor Circ.Feret ESD------------
+	if (identx=="Area") { x = surf;		axex = identx+" (pixel)";	} //if
+	else if  (identx=="Mean") { 	x = moy;		axex = identx+" grey level";	} //if
+	else if  (identx=="Major") {	 x = major;	axex = identx+" (mm)";	} //if
+	else if  (identx=="Minor") { 	x = minor;		axex = identx+" (mm)";	} //if
+	else if  (identx=="Circ.") {	x = circ;					} //if
+	else if  (identx=="Feret") {	 x = feret;		axex = identx+" (mm)";	} //if
+	else if  (identx=="Esd") { 	x = esd;		axex = identx+" (mm)";	} //if
+	else if (identx=="N°") {	 x = no;					} //if 
+	else if  (identx=="Min") { 	x = mini;		axex = identx+" grey level";	} //if
+	else if  (identx=="Max") { 	x = maxi;		axex = identx+" grey level";	} //if
+	else if  (identx=="Median") { 	x = median;	axex = identx+" grey level";	} //if
+	else if  (identx=="Areaexc") { 	x = areaexc;	axex = identx+" (pixel)";	} //if
+	else if (identx=="Elong") { 	x = elong;					} //if 
+	else if (identx=="Fractal") { 	x = fractal;					} //if 
+	else if (identx=="%Area") { 	x = parea;		axex = identx+" (%)";		} //if 
+	else if (identx=="Skelarea") { 	x = skelarea;	axex = identx+" (pixel)";	} //if 
+	else { x = no;				} //if PAR DEFAUT
+
+	if (identy=="N°") { y = no;			} //if
+	else if  (identy=="Area") { y = surf;	axey = identy+" (pixel)";	} //if
+	else if  (identy=="Mean") { y = moy;	axey = identy+" grey level";	} //if
+	else if  (identy=="Major") { y = major;	axey = identy+" (mm)";	} //if
+	else if  (identy=="Minor") { y = minor;	axey = identy+" (mm)";	} //if
+	else if  (identy=="Circ.") { y = circ;		} //if
+	else if  (identy=="Feret") { y = feret;	axey = identy+" (mm)";	} //if
+	else if (identy=="Esd") { y = esd;	axey = identy+" (mm)";	} //if 
+	else if  (identy=="Min") { y = mini;	axey = identy+" grey level";	} //if
+	else if  (identy=="Max") { y = maxi;	axey = identy+" grey level";	} //if
+	else if  (identy=="Median") { y = median;	axey = identy+" grey level";	} //if
+	else if  (identy=="Areaexc") { y = areaexc;	axey = identy+" (pixel)";	} //if
+	else if (identy=="Elong") { 	y = elong;				} //if 
+	else if (identy=="Fractal") { 	y = fractal;				} //if 
+	else if (identy=="%Area") { 	y = parea;		axey = identy+" (%)";		} //if 
+	else if (identy=="Skelarea") { 	y = skelarea;	axey = identy+" (pixel)";	} //if 
+	else   { y = esd;				} //if PAR DEFAUT
+
+	//--------------------STATISTIQUES----------------------------------------------------------
+	effec = x.length;
+	for (i=0; i<x.length ; i++) {
+		X1  = x[i];
+		maxx =  maxOf(maxx,X1);
+		minx = minOf(minx,X1);
+		sumx = sumx+X1;
+		Y1  = y[i];
+		maxy =  maxOf(maxy,Y1);
+		miny = minOf(miny,Y1);
+		sumy = sumy+Y1;
+	} // for
+	meanx = sumx/effec;
+	meany = sumy/effec;
+	//print("PARAMETRE;EFFECTIF;MEAN;MIN;MAX;STD;HISTO(256)");
+	// print("Area = ",area," Mean= ",mean," Meany= ",meany," Mini= ",min," Maxi= ",max);
+
+	//-----------------Impression des donnees dans le LOG-----------------------------
+	if (nb>=1 && identy != "N°" && option == "3" ) {
+		print(identy+";"+effec+";"+meany+";"+miny+";"+maxy);
+	} // if
+
+	//--------------------Maximum des valeurs pour les axes------------------------------
+	if (identx == "N°") { 	minix = 1;		maxix = maxx;		} // if
+	else {		minix = 0;		maxix = 1+floor(maxx*1.02);		} // else
+
+	if (identy == "N°") { 	miniy = 1;		maxiy = maxy;		} // if
+	else {		miniy = 0;		maxiy = 1+floor(maxy*1.02);		} // else
+	
+
+	if (option=="2" && graph == 1 && axesauto == true) {//--------------------------- AXES MANUELS ------------------------------------
+		minimx = 	minix;
+		maximx = maxix;
+		minimy = 	miniy;
+		maximy = maxiy;
+		checkl = 1;
+		while (checkl ==1) { message =" Error :         \n";
+			Dialog.create("SELECT GRAPH LIMITS ");
+			Dialog.addMessage( "---- "+identx+"  :  X axe limits ---------------                 ");
+			Dialog.addNumber("  X min   ", minimx);
+			Dialog.addNumber("  X max   ", maximx);
+			Dialog.addMessage( "---- "+identy+" :  Y axe limits ---------------                 ");
+			Dialog.addNumber("  Y min   ", minimy);
+			Dialog.addNumber("  Y max   ", maximy);
+			Dialog.show();
+			minix = Dialog.getNumber();
+			maxix = Dialog.getNumber();
+			miniy = Dialog.getNumber();
+			maxiy = Dialog.getNumber();
+			checkl = 0;
+			if (miniy == maxiy) { message = message + "Y min = Y max                         \n";	checkl = 1;	} // else
+			if (minix == maxix) { message = message + "X min = X max                         \n";	checkl = 1;	} // else
+			if (checkl == 1 ) { 	showMessage(message);			} // if
+		} // while
+	} // if
+	if (option != "3") {//--------------Trace des graphes--------------------
+		Plot.create(plottitre, identx,identy);
+  		Plot.setLimits(minix, maxix, miniy, maxiy);
+		Plot.setColor("red");
+		Plot.add("circles", x,y);
+		Plot.show();
+		
+		selectWindow(plottitre);
+		setColor(0, 0, 255);
+		setFont("SansSerif" , 10);
+		drawString("Zooprocess", 5, 249);
+		setFont("SansSerif" , 12);
+		drawString(titrered+"  Units= scientific   Res= "+resolution+" dpi", 60, 19);
+		setLocation(20+nb*30, 20+nb*30);
+
+		//------------------Sauvegarde--------------------------------------------------
+		sauvename =  titrered +"_"+identx+"_"+identy;
+		if (savefig =="1") {	//	print("Sauvegarde de "+plottitre);
+			name = chemresults+sauvename;
+			name = replace(name,"°","_");
+			saveAs("Jpeg",name);	
+		} // if
+
+		// -------------------Histogrammes-----------------------------------------------------------------------------
+		bins = 20;
+		if (nb <=15) { //----------------Histogramme---------------
+			nombre = x.length;
+			run("New...", "name=temp type=32-bit fill=Black height=1 slices=1 width="+nombre);
+			 for (i=0; i<x.length; i++) { VAL = y[i]; 
+				VAL = parseFloat(VAL);
+				//	VAL= VAL/maxy;	
+				setPixel(i, 0, VAL);	
+			} // for
+			
+			makeRectangle(0,0,nombre,1);
+			getStatistics(area, mean, min, max, std, histogram);
+			// print(identy+";"+effec+";"+meany+";"+miny+";"+maxy);
+			histo = histogram[0];
+			histo = toString(histo);
+			for (h=1;h<histogram.length;h++) { 
+				adj = histogram[h];
+				adj = toString(adj);
+				histo = histo+";"+adj;
+			} // for
+			print(identy+";"+area+";"+mean+";"+min+";"+max+";"+std+";"+histo);
+			histmethod = "bins=256"+" use x_min=0 x_max="+nombre+" y_max=Auto";
+			run("Histogram", histmethod);
+			setLocation(600+nb*30, 20+nb*30);
+			selectWindow("temp");
+			run("Close");
+			histoname = titrered+"_histo_"+identy; 
+			histotitle = "title="+titrered+"_histo_"+identy; 
+  			selectWindow("Histogram of temp");
+  			 run("Rename...",histotitle);
+			sauvename =  titrered +"_histo_"+identy;
+			setFont("SansSerif" , 12);
+			// Largeur hist = 300;
+			drawString("Zooprocess  "+titrered+"   "+identy, 5, 241);
+			
+			if (savehis =="1") {	//---------------Sauvegarde histogrammes-----------------------
+				name = chemresults+sauvename;
+				name = replace(name,"°","_");
+				saveAs("Jpeg",name);	
+			} // if
+		} // if histo		
+	} // if option !=3
+	if (option == "2" && graph==1) { //--------------Other graph ?------------------------------
+		ret = runMacro("Zooscan_dialog_other_graph");
+		out=toString(ret);
+		l= lengthOf(out);
+		if (l==1)  { 	// 	showMessage("NON");
+			test = 1;
+		} // if
+		else { graph = 0;	//	showMessage("OUI");	
+		} // else
+	} // if 
+	if (nb == 16 && option != "2" ) { test = 1;	} // if 
+	// 	showMessage("Test = "+test);
+} // while
+
+//---------------Informations-------------------------------------------------------------
+if (savehis =="1" && savefig =="1" ) { showMessage("All graphs and histograms saved in "+chemresults+"                   ");  }  // if
+if (savehis =="1" && savefig =="0" ) { showMessage("All histograms saved in "+chemresults+"                   ");  }  // if
+if (savehis =="0" && savefig =="1" ) { showMessage("All graphs saved in "+chemresults+"                   ");  }  // if
+
+//-----------------Sortie propre----------------------------------------------------------
+if (option =="3" || option =="1") {
+	selectWindow("Log");
+	sauve = "save=" +chemresults + titrered + "_stats.txt";	
+	runMacro("Zooscan_dialog_save_stats",sauve);
+} // if
+ret = titrered;
+} // if pidfile = 1
+return ret;
+
+

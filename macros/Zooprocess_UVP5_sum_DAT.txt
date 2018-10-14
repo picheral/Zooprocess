@@ -1,0 +1,272 @@
+// --------------------- Zooprocess_UVP5_sum_DAT ------------------------------
+version = "7.26";
+date = "2017/10/10";
+
+// 7.20
+// Retrait des lignes dans lesquelles il n'y a pas d'objet (pb de flash)
+// Nb maxi images / cast passé de 100000 à 500000
+// IMPORTANT : pour récupérer données FIGEES, modifier AUSSI les data capteurs !!
+// Gestion améliorée si toutes images sans particule
+
+args = 	getArgument();
+arg = 	split(args," ");
+path  = 		arg[0];
+profileraw  = 		arg[1];
+profileprocessed  = 	arg[2];
+option  = 		arg[3];
+uvp5type = 		arg[4];
+process_type = 		arg[5];
+
+pathraw = path+"\\raw\\"
+pathrawprofile = pathraw+profileraw+"\\";
+pathwork = path+"\\work\\"
+pathprocessedprofile = pathwork+profileprocessed+"\\";
+pathresults = path+"\\results\\"
+
+// ------------------------------- LISTE DAT  ------------------------------------
+filelist = getFileList(pathrawprofile);
+j = 0;
+pos = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	pos = endsWith(nomvig,".dat");
+	if (pos == true  )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+} // for
+if (j >= 1) {	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	} // for
+} // if
+
+// --------------------------------------------- Boucle sur les DAT ------------------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+
+final_data = newArray(500000);
+final_time = newArray(500000);
+final_img = newArray(500000);
+final_imgcomp = newArray(500000);
+final_depth = newArray(500000);
+final_depth_cor = newArray(500000);
+final_other_red = newArray(500000);
+final_other = newArray(500000);
+final_other_red[0] = "1";
+index_t = 1;
+//	depth_var = false;
+for (i=0; i<listaff.length ; i++) {
+	datfile = 	listaff[i];
+	datfile = 	substring(datfile,0,17);
+	if (i<10) 		file = datfile+"_00"+i+".dat";
+	if (i > 9) 		file = datfile+"_0"+i+".dat";
+	if (i > 99) 	file = datfile+"_"+i+".dat";
+	open(pathrawprofile+"\\"+file);
+	wait(100);
+	data = getInfo();
+	wait(100);
+	run("Close");
+	showStatus("Processing "+file+"  WAIT !");
+	ligne = split(data,"\n");
+	for (k=0; k<ligne.length ; k++) {
+		dat = ligne[k];
+//		if (k == ligne.length -1) aa = getBoolean(dat);
+		long = lengthOf(dat);
+		if (startsWith(ligne[k],"index;") != 1 && long >80) {	
+			data = ligne[k]; 	
+			data = 	replace(data,"*",";");	
+			z = 	substring(data,27,33);
+			if ( indexOf(z,"-") == 1) {
+				// ---------- negatif -----------
+				z_cor = 	substring(data,28,33);
+				z_cor = -0.1 * parseInt(z_cor);
+			} // if
+			else {		z_cor = parseInt(z)/10;			} // else		
+//			if (k == ligne.length -1) aa = getBoolean(z+" "+z_cor);
+			final_img[index_t] = substring(data,0,6);
+			final_other[index_t] =  substring(data,34,lengthOf(data));
+			final_other_red[index_t] =  substring(data,34,80);
+			time = substring(data,8,22);
+			hh = substring(data,16,18);
+			mm = substring(data,18,20);
+			ss = substring(data,20,22);
+			ms = substring(data,23,26);
+			final_imgcomp[index_t] = time+"_"+ms;
+			hh = 3600*( parseInt(hh)+24);
+			mm = 60 * parseInt(mm);
+			ss = parseInt(ss);
+			ms = parseInt(ms);
+			final_time[index_t] = hh+mm+ss+ms/1000;
+			final_depth[index_t] = z_cor;
+			final_depth_cor[index_t] = z_cor;
+//			if (index_t > 1 && final_depth[index_t] != final_depth[index_t - 1]) depth_var = true;
+			index_t++;
+		} //
+	} // 
+} //	for
+
+//aa = getBoolean(final_time[index_t-1]+" "+final_depth_cor[index_t-1]);
+
+//	aa = getBoolean(depth_var);
+
+//print("A purger");	selectWindow("Log");		run("Close");
+//for (k=0; k<index_t ; k++) {
+//	print(k+"  "+final_img[k]+"  "+final_time[k]+"  "+final_depth[k]+"  "+final_depth_cor[k]);
+//}
+//sauve = "save=" + pathresults + "initial.txt";
+//run("Text...",sauve);
+//print("A purger");	selectWindow("Log");		run("Close");
+
+// ----------------- Test de variation des données -----------
+//	if (depth_var == true) {
+k = 1;
+while (k < index_t) {
+	index_second = 0;
+	index_sum = k+index_second;
+	final_other_red_deb = final_other_red[k];
+	final_other_red_courant = final_other_red[k + index_second];
+//print("k= "+k+"  "+final_other_red_deb);	
+//print("k= "+k+"  "+final_other_red_courant);
+	z_cor = final_depth[k];
+//aa = getBoolean(z_cor);
+	final_depth_cor[k] =  parseFloat(z_cor);
+	while( final_other_red_courant == final_other_red_deb ){
+		// ------------ interpolation si valeurs égales ----------
+//getBoolean(final_img[k + index_second]+"------"+final_other_red[k + index_second]);
+		index_second++;
+		final_other_red_courant = final_other_red[k + index_second];
+//print("k= "+k+"  "+final_other_red_courant);
+		index_sum = k+index_second;
+	} // while
+//print("k+index= "+index_sum);
+	if (index_second > 1 ) {
+		t_deb = parseFloat(final_time[k]);
+		t_end = parseFloat(final_time[k+index_second]);	
+		z_deb = parseFloat(final_depth[k]);
+		z_end = parseFloat(final_depth[k+index_second]);	
+//print(index_second+"  "+t_deb+"  "+t_end+"  "+z_deb+"  "+z_end);
+		for (t = 0; t < index_second; t++) {
+			// ------------ INTERPOLATION (Z seulement, autres à faire ! ) ----------------------------
+			ratio = (parseFloat(final_time[k+t]) - t_deb)/(t_end - t_deb);
+			final_depth_cor[k+t] =  (z_deb + ratio * ( z_end - z_deb));
+//print("t= "+t+"  "+final_depth_cor[k+t]+" "+z_deb+"  "+z_end+"  "+ratio+"  "+t_deb+"  "+final_time[k+t]+"  "+k + "  "+index_second);
+			if (k >= 1220){
+				//	getBoolean(index_second+"--"+t_deb+"--"+t_end+"++"+z_deb+"++"+z_end+"__"+ratio);
+			//	getBoolean(final_imgcomp[k]+";"+final_depth_cor[k]+";"+final_other[k]);
+			}// if		
+		} // 
+//		print("--------------------------");
+	} // if
+	k = k+ index_second;
+}
+//	}
+//sauve = "save=" + pathresults + "en_cours.txt";
+//run("Text...",sauve);
+//print("A purger");	selectWindow("Log");		run("Close");
+
+if (option == "metadata") {
+	// --------------- Detection MIN et MAX -------------------------
+	plot_depth = 	newArray(index_t-1);
+	plot_img = 	newArray(index_t-1);
+	index_min  = 1;
+	index_max = index_t;
+	ret = "1 "+toString(index_max);
+	z_min = parseFloat(final_depth_cor[1]);
+	z_max = parseFloat(final_depth_cor[1]);
+	stop = false;
+	for (k = 1; k < index_t ; k++) {
+		depth = parseFloat(final_depth_cor[k]);
+		plot_depth[k-1] = -1*depth;
+		plot_img[k-1] = final_img[k];
+		if (depth >= 0) {	
+			if (depth <= z_min) {
+				z_min = depth;
+				index_min = parseFloat(final_img[k]);
+			}// if
+			if (depth >= z_max) {	
+				z_max = depth;
+				index_max = parseFloat(final_img[k]);
+			}			
+		}// if		
+	}// for
+	// ---------------- Graph QUE si dP > 10m -----------------------
+	if (abs(z_max - z_min) > 10) {
+		ret = toString(index_min)+" "+toString(index_max);
+		// ---------------- GRAPH ---------------------------------------
+		ecranw= screenWidth();
+		ecranh= screenHeight();
+		final_hauteur = 1000;
+		final_largeur = floor(final_hauteur*2/3);
+		dimlegende = 50;
+		talon_gauche = 60;
+		talon_droite = 16;
+		talon_haut = 16;	// par Imagej
+		vertical_dif = 170;
+		hauteur_plot = final_hauteur - dimlegende;
+		largeur_plot = final_largeur - talon_gauche - talon_droite;
+		//---------- Dimensions pour les données et le cadre -----------------------------
+		//	run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 vertical interpolate");
+		run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 fixed vertical");
+		hauteur_plot_cor = hauteur_plot - vertical_dif;
+		Plot.create(profileraw,"Image number","Immersion (m)");
+		maxiy = 0;
+		miniy = -100 + 100 * floor(-1 * z_max/100);
+		Plot.setLimits(0, index_t, miniy, maxiy);
+		Plot.setColor("red");
+		Plot.add("line", plot_img,plot_depth);
+		Plot.show();
+		setLineWidth(1);
+		// ---------- First Image -------------------
+		pos_x = talon_gauche + index_min * largeur_plot/index_t;
+		setColor(0,0,0);	
+		setFont("SansSerif" , 18);		
+		drawString(profileraw,pos_x,talon_haut+hauteur_plot_cor - 20 );		
+		setColor(0,0,255);
+		drawLine(pos_x,talon_haut+hauteur_plot_cor - 60,pos_x,talon_haut);
+		leg_x = pos_x;	
+		if (index_min > index_t / 2 ) leg_x = pos_x - 220 ;
+		drawString("  First image     : "+index_min,leg_x,talon_haut+hauteur_plot_cor - 100 );		
+		drawString("  Immersion (m) : "+z_min,leg_x,talon_haut+hauteur_plot_cor - 80 );	
+	                                          
+		// ---------- Last Image -------------------	
+		pos_x = talon_gauche + index_max * largeur_plot/index_t;
+		setColor(0,255,0);
+		drawLine(pos_x,talon_haut+hauteur_plot_cor,pos_x,talon_haut);
+		leg_x = pos_x;	
+		if (index_max > index_t / 2 ) leg_x = pos_x - 220 ;
+		drawString("  Deepest image : "+index_max,leg_x ,talon_haut+hauteur_plot_cor - 60 );		
+		drawString("  Immersion (m)  : "+z_max,leg_x,talon_haut+hauteur_plot_cor - 40 );	
+		// ----------- Sauvegarde --------------------
+		saveAs("jpg", pathresults+"UVP5_"+profileraw+".jpg"); 
+	}//
+}
+else {	// -------------- Impression ------------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	for (k = 1; k < index_t ; k++) {
+		// ------------------------ Reconstruction ligne ------------------
+		depth = round(10 *final_depth_cor[k]);
+		depth = toString(depth);
+		// -------- Correction format depth ------------------
+		if (lengthOf(depth) == 1) 	depth = "0000"+depth;
+		else if (lengthOf(depth) == 2) 	depth = "000"+depth;
+		else if (lengthOf(depth) == 3) 	depth = "00"+depth;
+		else if (lengthOf(depth) == 4) depth = "0"+depth;
+		data_print = final_img[k]+";\t"+final_imgcomp[k]+";\t"+depth+";"+final_other[k];
+		// ---------------- Ecriture QUE Si image contient au moins un objet (cas des images noires UVP5 après MAJ soft par Altidev --------------------
+		if (indexOf(data_print,"!;	0;	0;	0;	0;	0;") < 0 || process_type == "save_only") 		print(data_print);
+	} // for
+	// --------------------------- Enregistrement ----------------------------------
+	if (isOpen("Log")==true) { 
+		selectWindow("Log");
+		datfilename = profileprocessed+ "_datfile.txt";
+		sauve = "save=" + pathprocessedprofile + datfilename;
+		run("Text...",sauve);
+		datfilename = profileraw+".dat";
+		sauve = "save=" + pathprocessedprofile + datfilename;
+		run("Text...",sauve);
+		datfilename = profileprocessed+ "_datfile.txt";
+		sauve = "save=" + pathresults + datfilename;
+		run("Text...",sauve);
+		run("Close");
+	}
+	else {showMessage("All images were empty. \n \nThe resulting "+ profileprocessed+ "_datfile.txt could not be processed !");}
+	ret = "FIN DAT OK";
+} // if
+// ----------------------------- FIN ----------------------------------------------
+return ret;

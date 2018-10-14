@@ -1,0 +1,80 @@
+// --------------------- UVP5_read_DAT ------------------------------
+version = "1.03";
+date = "2009/07/20";
+
+
+args = 	getArgument();
+arg = 	split(args," ");
+dirprocessed = 	arg[0];
+profile = 		arg[2];
+firstimg = 	arg[3];
+firstimg = parseInt(firstimg);
+dirprofile = 	arg[4];
+dircruise = 	arg[5];
+
+dirmat = dircruise+"\\matlab\\";
+if (File.exists(dirmat) == 0) File.makeDirectory(dirmat);
+
+
+// ----------- Ouverture fichiers DAT successifs -------------------
+filelist = getFileList(dirprofile);
+j = 0;
+pos = 0;
+list = newArray(filelist.length);
+for (i = 0;i<filelist.length;i++) {
+	nomvig =filelist[i];
+	pos = endsWith(nomvig,".dat");
+	if (pos == true  )  {rr = filelist[i]; 	list[j] = rr; 	j++;	} // if
+} // for
+if (j >= 1) {
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	} // for
+} // if
+
+// ---------- Boucle sur les DAT ------------------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+
+for (i=0; i<listaff.length ; i++) {
+	datfile = 	listaff[i];
+	datfile = 	substring(datfile,0,17);
+	if (j <10) 		file = datfile+"_00"+i+".dat";
+	if (j > 9) 		file = datfile+"_0"+i+".dat";
+	if (j > 99) 	file = datfile+"_"+i+".dat";
+	open(dirprofile+"\\"+file);
+	wait(100);
+	data = getInfo();
+	wait(100);
+	run("Close");
+	showStatus("Processing "+file+"  WAIT !");
+	ligne = split(data,"\n");
+	for (k=0; k<ligne.length ; k++) {
+		dat = ligne[k];
+		long = lengthOf(dat);
+		if (startsWith(ligne[k],"index;") != 1 && long >80) {	data = ligne[k]; 	data = 	replace(data,"*",";");	print(data);	} // if
+	} // for
+} // for
+selectWindow("Log");
+datfilename = profile+ "_datfile.txt";
+sauve = "save=" + dirprocessed + datfilename;
+run("Text...",sauve);
+
+datfilename = profile+ "_datfile.txt";
+sauve = "save=" + dirmat + datfilename;
+run("Text...",sauve);
+
+
+datfilename = datfile+".dat";
+sauve = "save=" + dirprocessed + datfilename;
+run("Text...",sauve);
+
+datfilename = datfile+".dat";
+sauve = "save=" + dirmat + datfilename;
+run("Text...",sauve);
+
+run("Close");
+
+//	showMessage(datfile+" SAVED ! ");
+
+// ----------------------------- FIN ----------------------------------------------
+ret = "OK";
+return ret;

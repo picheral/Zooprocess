@@ -1,0 +1,9 @@
+//-------------------Zooscan_dialog_other_graph
+
+ret = "1";
+info = getBoolean("Do you want to plot another graphs for the same PID file ?              ");
+if (info == true) {
+	ret = "11111";
+}
+
+return ret;

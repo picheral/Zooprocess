@@ -1,0 +1,8 @@
+// --------Zooscan_tag_control
+Dialog.create("TAG CONTROL");
+Dialog.addMessage(" OK to END Tag edition     \n CANCEL to EDIT the TAG              ");
+
+Dialog.show();
+
+ret = "1";
+return ret;

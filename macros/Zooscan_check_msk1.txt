@@ -1,0 +1,142 @@
+// --------------------------- Zooscan check msk1 ---------------------------------------
+version = "7.20";
+date = "2015/08/12";
+arg = 		getArgument(); 
+array = 	split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+
+drive = 	substring(projfolder,0,2);
+lon = 		lengthOf(projfolder);
+zoosc = 	indexOf(projfolder,"Zooscan_");
+proj = 		substring(projfolder,zoosc+8,lon);
+
+chemscan = 	projfolder  + "\\Zooscan_scan\\";
+chemwork1 = 	chemscan + "_work\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemresults = 	projfolder  + "\\Zooscan_results\\";
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemraw = 	chemscan + "_raw\\";
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+chemzip = 	chemscan + "_zip\\";
+chemback = 	drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_back\\";
+chemcheck = 	projfolder + "\\Zooscan_check\\";
+File.makeDirectory(chemcheck);
+// --------------- Ouverture fichier check ------------------------
+if (File.exists(chemcheck+"checked_files.txt")) {
+	open(chemcheck+"checked_files.txt");
+	wait(100);
+	data = getInfo();
+	run("Close");
+}// if
+else {	data = "List_of_checked_files\n";	}// else
+data_check = split(data,"\n");
+dateheure =	runMacro("Zooscan_get_time_5");
+
+// -------------------- Liste des sous repertoires OK --------------------
+filelist  = getFileList(chemwork1);
+//-------------- Selection des fichiers ---------------------
+j = 0;	
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	identlong = 	lengthOf(rr);
+	rr = 		substring(rr,0,identlong-1);	
+	//--------------- Recherche du fichier image en ZIP ou en JPG ----------
+	imagezip  =  chemwork1+"\\"+rr+"\\"+rr+"_vis1.zip";
+	imagejpg = chemwork1+"\\"+rr+"\\"+rr+"_vis1.jpg";
+	imagelog = chemwork1+"\\"+rr+"\\"+rr+"_log.txt";
+	imagepid = chemwork1+"\\"+rr+"\\"+rr+"_dat1.pid";
+	imagemsk = chemwork1+"\\"+rr+"\\"+rr+"_msk1.gif";
+	imageout = chemwork1+"\\"+rr+"\\"+rr+"_out1.gif";
+	zipexist = File.exists(imagezip);
+	jpgexist = File.exists(imagejpg);
+	logexist = File.exists(imagelog);
+	pidexist = File.exists(imagepid);
+	mskexist = File.exists(imagemsk);
+	outexist = File.exists(imageout);
+	// ---------------- Recherche si verifie -------------------
+	check = false;
+	for (k = 0; k < data_check.length ; k++) {
+		if (startsWith(data_check[k],rr)) check = true;
+	} // for
+	if ((zipexist == 1 || jpgexist == 1)&&logexist == 1 && pidexist == 1 && mskexist == 1 && outexist == 1){ 
+		if (check == true) rr = rr + " checked";
+		list[j] = rr;  
+		j++;  	
+	} // if
+} // for
+if (j==0) { 
+	print("No valid ''sample'' folder in the "+projfolder);
+	getBoolean("No valid sample folder in "+projfolder+"             \nPress CANCEL to ABORT !                 ");
+} //
+else {	listaffind = newArray(j);
+	for (i=0; i<listaffind.length ; i++) {	rr = list[i]; 	listaffind[i] = rr;		} // for	
+} // else
+
+// ------------------------------ Boucle sur les images ----------------------------------------------------------------------------
+sortie = 0;
+print("==============================================================================");
+print("Press SPACE bar to close the opened image AND ends the checks !       ");
+print("CLOSE the image to open another image to be checked !         ");
+print("==============================================================================");
+while (sortie ==0) {
+	Dialog.create("Check segmented images  v : "+version);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project :  "+proj);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------");
+	Dialog.addMessage("SELECT IMAGE to check. ");
+	Dialog.addChoice("    ", listaffind);
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------");
+	Dialog.addMessage("Press SPACE bar to close the opened image AND ends the checks !            ");
+	Dialog.addMessage("CLOSE the image to open another image to be checked !           ");
+	Dialog.addMessage( "--------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	titrered = 	Dialog.getChoice();	
+	for (i=0; i<listaffind.length ; i++) {
+		if (titrered == listaffind[i]) listaffind[i] = titrered + " : just checked";
+	}
+	if (endsWith(titrered,"checked")) {
+		name = split(titrered," ");
+		titrered = name[0];
+	}
+	chemwork = chemwork1 + "\\"+titrered+"\\";
+	open(chemwork+titrered+"_msk1.gif");	
+	wait(100);
+	data = data + titrered+" "+ dateheure + "\n";
+	// ------------ Image ouverte -------------------
+	continue = 1;
+	while (continue == 1) {
+		keyd = isKeyDown("space");
+		if (keyd == 1) { 	
+			sortie = 1;	
+			// ------------ Fermeture -------------
+			selectImage(titrered+"_msk1.gif");
+			close();
+			continue = 0;		
+		} // if
+		if (isOpen(titrered+"_msk1.gif") == 0) {	continue = 0;		} // if
+		if (continue == 0) {
+			// --------------------- Enregistrement du fichier check ----------------------
+			if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+			print(data);
+			text =  "save=" + chemcheck+"checked_files.txt";
+			selectWindow("Log");
+			run("Text...",text);	
+			run("Close");
+			print("==============================================================================");
+			print("Press SPACE bar to close the opened image AND ends the checks !       ");
+			print("CLOSE the image to open another image to be checked !         ");
+			print("==============================================================================");
+			// ------------------- AJOUT Check dans le fichier scan CONTROL ---------------------------
+			
+			
+			
+			
+		}//
+	} // while
+}
+
+// --------------------- FIN --------------------
+ret = "Fin";
+return ret;

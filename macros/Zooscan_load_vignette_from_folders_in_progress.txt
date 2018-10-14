@@ -1,0 +1,1228 @@
+//---------------------------Zooscan_load_vignette_from_folders-----------------
+version =	 "7.20";
+date =	 "2015/03/29";
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+instrum = 	arg[2];
+chemtemp = 	arg[3];
+
+lon = lengthOf(projfolder);
+loninst = lengthOf(instrum);
+
+zoosc = indexOf(projfolder,instrum);
+proj = substring(projfolder,zoosc+loninst+1,lon);
+
+colbx = 0;	colby = 0;	colarea = 0;	colwidth = 0;	colheight = 0;	header =0;	learnnb =0;	colareai = 0;
+savedata = false;
+if (isOpen("Results")) { selectWindow("Results");		run('Close');	} // if
+
+// -------------- Repertoires -------------------------------------------------------------------
+chemsorted = 	projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+chemconfig = 		projfolder+"\\config\\";
+if (instrum == "zooscan") 	chemconfig = 		projfolder+"\\Zooscan_config\\";
+pathdat1validated = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+pathpidpredicted = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+if (File.exists(pathdat1validated) == false) {		File.makeDirectory(pathdat1validated); 		} // if
+first_name = 	" ";
+last_name = 	" ";
+saisie = "nok";
+// ---------------------- USER / ADVANCED -----------------------------------
+mode_user = 	chemconfig+"\\mode_file_user.txt";
+mode_advanced = chemconfig+"\\mode_file_advanced.txt";
+advanced_mode = false;
+if (File.exists(mode_advanced)) advanced_mode = true;
+while (saisie == "nok") {
+	// --------------------- Choix ------------------------------------------
+	Dialog.create("READ IDENTIFICATION from folder sorted vignettes            version "+version);
+	Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addMessage( "Project  :  "+proj);
+	Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	if (advanced_mode == true) {
+		Dialog.addCheckbox("          Use default project architecture ?       ",true);
+		Dialog.addCheckbox("          Load file list of categories ?       ",true);
+		Dialog.addCheckbox("          Keep only Area, Mean, Major, Minor, Feret, Area_exc and ThickR in loaded files ?   ",true);
+		Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	}
+	options_load = newArray("Load Ids from ALL folders except ''*from_dat1_validated'' ones","Load Ids from ''*from_dat1_validated'' folders only","Load Ids from ''*validated''  and ''*from_dat1_validated'' folders only","Load Ids from ''*validated'' folders only (exclude ''*from_dat1_validated'') ");
+	Dialog.addChoice("Select folders to process ",options_load);	
+	Dialog.addCheckbox("          Load Ids from all subfolders in "+chemsorted+" ? ",false);
+	Dialog.addCheckbox("          Skip already loaded dat1.txt files (used only if ''Load Ids from all subfolder'' option enabled) ?   ",true);
+	Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.addString("          Enter FIRST name of expert who validated the identifications ?       ",first_name);
+	Dialog.addString("          Enter LAST name of expert who validated the identifications ?       ",last_name);
+	Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+	Dialog.show();
+	sort = true;
+	filelist = true;
+	var_red = true;
+	if (advanced_mode == true) {
+		sort = 		Dialog.getCheckbox();
+		filelist = 	Dialog.getCheckbox();
+		var_red = 	Dialog.getCheckbox();
+	}
+	folder_to_load = Dialog.getChoice();
+	loadall = 	Dialog.getCheckbox();
+	skipdat1 = 	Dialog.getCheckbox();
+	first_name = 	Dialog.getString();
+	last_name = 	Dialog.getString();
+	first_name = 	toLowerCase(first_name);
+	last_name = 	toLowerCase(last_name);
+	if (loadall == true) sort = true;
+	saisie = "ok";
+	message = "Expert name is not OK \n \n";
+	if (lengthOf(first_name) < 2) {	message = message + "FIRST name is not OK \n";	saisie = "nok";	}
+	if (lengthOf(last_name) < 2) 	{message = message + "LAST name is not OK \n";	saisie = "nok";	}
+	if (saisie == "nok") showMessage(message+"PRESS YES and fill enter name again !");	
+} // while
+
+// --------------------- Liste CATEGORIES -----------------------------------------------------------------------------------------
+if (filelist == false) {
+	if (instrum != "flowcam") categories = newArray("app","clad","chaet","cop","crust","gel","moll","ostr","pte","rad","mult","det_","not_found");
+	else { categories = newArray("det_","agg","cop","crust","diat","dino","foram","radiol","tintin");		} // else
+} // if
+else {
+	//-------------- Choix du fichier Text -----------------------------------------------
+	filelist  = 	getFileList(chemconfig);
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = startsWith(filelist[i],instrum);
+		ctrl1 = endsWith(filelist[i],".txt");
+		if (ctrl == 1 && ctrl1==1 )		{
+			rr = filelist[i]; 
+			list[j] = rr;	
+			j = j + 1;	
+		} // if
+	} // for
+	if ( j  > 0 ) {		
+		// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for	
+	} // if
+	if ( j == 0) { getBoolean("No text file list for the instrument selected ! \n \nCreate a file in "+chemconfig+"\nfile name must start with the instrument name. \nPress Cancel to abort !");	} // if
+	else if ( j == 1) {	file = listaff[0];	}
+	else {
+		Dialog.create("SELECT liste of GROUPS ");
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.addMessage("Instrument :  "+instrum);
+		Dialog.addMessage("Project :        "+proj);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		message = "SELECT file containing the list of GROUPS             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+		Dialog.show();
+		file = 			Dialog.getChoice();
+	} // else
+
+	// ---------------------------- Lecture fichier existant -----------------------------------------------
+	openconfig = chemconfig +"\\"+file;
+	open(openconfig);
+	wait(100);
+	config = getInfo();
+	run("Close");
+	categories  = split(config,"\n");
+	
+} // else
+
+//--------------------------------- Lecture de l'heure---------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+// --------------------------------- Chemsorted ---------------------------------------------
+if (sort == false) {	
+	chemsorted = getDirectory("Select directory containing ''*dat1.txt'' files");		
+	listaffcomplet = newArray(1);
+	listaffcomplet[0] = chemsorted;
+} // if
+else {	sorted = getFileList(chemsorted);
+	if (sorted.length >=1) {		
+		filelist = newArray(sorted.length);
+		j = 0;
+		for (i=0; i<sorted.length ; i++) {	  
+			rr = sorted[i]; 
+			showStatus(rr);
+			showProgress(i/sorted.length);
+			to_skip = false;
+			// --------------------- CAS SKIP --------------------
+			if (skipdat1 == true) {
+				// ---------------- liste des dat1_validated ------------------
+				validated_list = getFileList(pathdat1validated);
+				for (tt = 0;tt < validated_list.length ; tt++) {
+					yy = validated_list[tt];
+					long = lengthOf(yy);
+					yy = substring(yy,0,long-9);			
+					if (indexOf(rr,yy) >= 0 ) 	to_skip = true;	
+				}// for
+			}// if
+			if (to_skip == false) {
+				
+				
+				
+zz = getBoolean(rr);
+
+
+				identlong = 	lengthOf(rr);
+				if (folder_to_load == "Load Ids from ''*from_dat1_validated'' folders only" ) {
+					if (indexOf(rr,"from_dat1_validated") > 1 &&  endsWith(rr,"\\"))	 {rr = 	substring(rr,0,identlong-1);	filelist[j] = rr;		j++;		} // if
+				} 
+				else if (folder_to_load == "Load Ids from ''*validated''  and ''*from_dat1_validated'' folders only")  {
+					if (indexOf(rr,"validated") > 1 &&  endsWith(rr,"\\"))	 {rr = 	substring(rr,0,identlong-1);	filelist[j] = rr;		j++;			} // if
+				}
+				else if ( folder_to_load == "Load Ids from ALL folders except ''*from_dat1_validated'' ones") {
+					if (indexOf(rr,"from_dat1_validated") == -1 && endsWith(rr,"\\"))	 {	rr = 	substring(rr,0,identlong-1);	filelist[j] = rr;		j++;		} // if
+				}
+				else if ( folder_to_load == "Load Ids from ''*validated'' folders only (exclude ''*from_dat1_validated'') ") {
+					if (indexOf(rr,"from_dat1_validated") == -1 && endsWith(rr,"\\") && indexOf(rr,"validated") > 1)	 {	rr = 	substring(rr,0,identlong-1);	filelist[j] = rr;		j++;		} // if
+				}
+			} // if to_skip
+		} // for
+		if (j == 1) { 
+			listaffcomplet  = newArray(1);
+			listaffcomplet[0] = projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\"+filelist[0]+"\\";
+		} // if 
+		else if ( j > 1 ){
+			listaff  = newArray(j); 						
+			for (k = 0;k<j;k++) { 		rr = filelist[k]; 		listaff[k] = rr;		} // for
+			if (loadall == true ) {				
+				listaffcomplet  = newArray(j); 						
+				for (k = 0;k<j;k++) { 
+					rr = filelist[k]; 	
+					listaffcomplet[k] =  projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\"+rr+"\\";
+				} // for
+			} // if 
+			else {	// ------------------ TRI pour affichage (ne fonctionne pas bien) ---------------------
+				// ------------------ Boucle sur les répertoires, attribution code --------------------
+				list_val = newArray(j);
+				list_aff_sorted = newArray(j);
+				longmax = 50;
+				for (k = 0;k<j;k++) { 		
+					texte_to_sort = listaff[k];
+					long = lengthOf(texte_to_sort);
+					// ------------- Complément même longueur -----------------
+					for (tt = long; tt < longmax ; tt++) {	texte_to_sort = texte_to_sort + "0";	}
+					hh = 0;
+					for (tt = 0; tt < longmax ; tt++) { 
+						index_text = tt;	// longmax-1-tt;	
+						letter_code = substring(texte_to_sort,index_text,index_text+1);
+						val = tt * (charCodeAt(letter_code,0) - 48);
+						hh = hh + val;	
+			//			print(texte_to_sort+" "+tt+"  "+letter_code+"  "+val+"  "+index_text+"  "+hh);
+					}// for
+					list_val[k] = hh;
+			//		print(hh+"  "+texte_to_sort);
+			//		getBoolean("k= "+k+"   hh= "+hh+"   "+listaff[k]);
+				}// for
+		//aa =	getBoolean("OK");
+				// ------------------------ Valeur MAX ---------------------------------------
+				max_val = 0;
+				for (k = 0;k<j;k++) {	 max_val = maxOf(list_val[k],max_val);	} // for
+		//		getBoolean("max_val= "+max_val);		
+				// --------------------------- Tri des répertoires ---------------------------------------
+				for (index_list = 0; index_list < j ;index_list++) {
+					mm = 0;
+					while (mm<j) { 
+						// --------------- Si valeur est max, on le met à zéro -------------------------
+						gg = list_val[mm];
+				//		getBoolean(gg+"  max_val="+max_val);
+						if (gg == max_val) {	hh = listaff[mm];	list_aff_sorted[index_list] = hh; 
+							list_val[mm] = 0; 
+							mm = j;	
+							print(hh+"  "+gg);
+				//			getBoolean("OK "+hh);
+						} // if
+						// ------------------------ Nouveau Valeur MAX ---------------------------------------
+						max_val = 0;
+						for (k = 0;k<j;k++) {	 max_val = maxOf(list_val[k],max_val);	} // for
+						mm++;
+					} // while
+				} // for				
+				listaffcomplet  = newArray(1);
+				Dialog.create("READ IDENTIFICATION from folder sorted vignettes            version "+version);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.addMessage( "Project  :  "+proj);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.addChoice("                  Select ''sorted vignettes'' folder       ",list_aff_sorted);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.show();
+				chemsort = 		Dialog.getChoice();
+				listaffcomplet[0] = projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\"+chemsort+"\\";
+			}//else
+		} // else if
+		else { 
+			aa = getBoolean("No validated folders according to option ''"+folder_to_load+"''\nin \n"+chemsorted+"\nand selected options. \n \nPress CANCEL to abort ! ");
+		} // else
+	} // else	
+} // else
+// ------------------------- BOUCLE SUR LES REPERTOIRES DE VIGNETTES TRIEES (sorted_vignettes) ----------------------
+for (hh = 0; hh < listaffcomplet.length ; hh ++ ) {
+	showStatus(chemsorted);
+	chemsorted = listaffcomplet[hh];
+	pathpidresults = chemsorted;
+	chemlearn = 	chemsorted;
+
+	//---------------------------Verification de l'existence du repertoire dans lequel ouvrir le fichier et lire les vignettes------------------
+	sizeidentlist = 0;
+	identlist  =  getFileList(chemsorted);	
+	sizeidentlist = identlist.length;		
+	fileresults = getFileList(pathpidresults);	
+	sizeresults = fileresults.length;	
+
+	//------------------------- La macro est executee----------------------------
+	//----------------------------Liste des fichiers TXT ou CSV du projet a completer----------------------------------------------
+	j = 0;	h = 0;	flag4 = 0;	
+	list = 		newArray(sizeresults);
+	listautres = 	newArray(sizeresults);
+	messageident = " ";
+	for (i=0; i<fileresults.length ; i++) {	
+		ctrl1 = endsWith(fileresults[i],".csv");
+		ctrl2 = endsWith(fileresults[i],".txt");
+		ctrl4 = endsWith(fileresults[i],"_dat1.txt");		
+		ctrl5 = startsWith(fileresults[i],"validation_summary");
+		if (ctrl4 == true) flag4 =1;
+		if ((ctrl1 == true || ctrl2== true || ctrl4 == true) && ctrl5 == false)	{	rr = fileresults[i]; 	list[j] = rr;	j = j + 1;		} // if
+		if ((ctrl1== true || ctrl2== true) && ctrl4 == false && ctrl5 == false )	{rr = fileresults[i]; 	listautres[h] = rr;	h++;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { print("No valid results file in "+pathpidresults);
+		configpres = 0;
+		getBoolean("No valid results file in "+pathpidresults+"                 ");
+	} //
+	else { 	//---------------- Purger les fichiers vides de la listautres !--------------------------------------------------
+		if (flag4 == 1) {	listaff = newArray(h+1);
+			for (i=0; i<h ; i++) {	rr = listautres[i];		listaff[i+1] = rr;	} // for
+			listaff[0] = "UPDATE all dat1.txt files in Pid_results folder  ";
+		} // if flag4
+		else{	listaff = newArray(h);
+			for (i=0; i<h ; i++) {	rr = listautres[i];	listaff[i] = rr;	} // for
+		} // else  flag4
+
+	//---------------Ouverture de fichiers jusqu a ce que le contenu soit OK-------------------------------------
+	test = 0;			
+	while (test == 0) { deb = 0;		collabel = 0;	colno = 1;		colpred = 0;
+		if (listaffcomplet.length > 1 && loadall == false ) {
+			Dialog.create("LOAD IDENTIFICATION from folder sorted vignettes            version "+version);
+			Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage( "Sorted vignettes folder = "+chemsorted);
+			Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage( "''Label'', ''!Item'' & ''pred_*'' fields must exist in the datafile (Label <=> Image name) (!Item <=> Organism N°)           \nFile header must include the column names                 ");
+			Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+			Dialog.addMessage( "Open a TEXT or CSV file or select dat1.txt option. Imagename must be inside the text file.            Only tabs, '';'' or ''space'' separators are allowed     \ntabs separated files can size up to 1500 rows, '' ; '' ones can size more than 60 000 rows !   ");
+			Dialog.addChoice("       ", listaff);
+			if (advanced_mode == true) {	
+				if(flag4 == true)	Dialog.addCheckbox("Save all data as a unique datafile named ''Id_from_sorted_vignettes_"+dateheure+".txt'' ?   (if ''UPDATE all dat1.txt files in Pid_results folder'' is selected.)   ", true);
+				Dialog.addCheckbox("Convert all Id to lowercase ?   ", true);
+				Dialog.addCheckbox("Process detailed statistics (slower process) ?   ", true);
+				Dialog.addCheckbox("Load log & data sections of files from PID files in the ''pid_predicted'' directory (if exists) ?   ", true);
+				Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				
+				if (instrum == "zooscan") {
+					Dialog.addCheckbox("Create ident files in the vis1 image folder (is possible) ?      ",false);
+//					Dialog.addMessage(messageident);
+					Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+					Dialog.addMessage( "THE OPENED FILES (*dat1.txt, *.csv or *.txt) WILL BE COMPLETED WITH VALIDATED IDENTIFICATIONS                      \nTABS or SPACE char will be replaced by SEMICOLUMN                   \nValid identifiaction column is added to the file");
+					Dialog.addMessage( "------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				} // if
+			} // if
+			Dialog.show();
+			maskident = false;
+			datafile = 		Dialog.getChoice();
+			savedata = true;
+			lowerconv = 	true;
+			stats = 			true;
+			reloadpid = 			true;
+			if (advanced_mode == true) {
+				if(flag4 == true)		savedata = Dialog.getCheckbox();
+				lowerconv = 			Dialog.getCheckbox();
+				stats = 			Dialog.getCheckbox();
+				reloadpid = 			Dialog.getCheckbox();
+				if (instrum == "zooscan") {		maskident = 		Dialog.getCheckbox();		} // if
+			} // if
+		} // if
+		else if (flag4 == 1) { // --------- Cas de la boucle sur plusieurs répertoires ----------------------
+			savedata = true;
+			datafile = listaff[0];
+			lowerconv = true;
+			stats = true;
+			reloadpid = true;
+			maskident = false;
+		}
+		else {
+			savedata = false;
+			datafile = listaff[h];	// -------- On traite le dernier qui est un fichier txt -------------
+			lowerconv = true;
+			stats = true;
+			reloadpid = true;
+			maskident = false;			
+		}
+		
+		
+		
+
+		
+
+		//------------------------CREATION des vecteurs des vignettes-----------------------------------------------------------------------------------------------
+		//----------------------------Lecture des noms de folders (identifications) et calcul du nombre total de vignettes-------------------------------
+		// creation du vecteur de la liste des repertoires et calcul du nombre de vignettes dans chacun
+		print("Existing identification folders");
+		nbtotvignettes = 0;
+		for (p=0;p<sizeidentlist;p++) { 
+			//----------------Suppression des "/" a la fin des noms
+			identlong = 	lengthOf(identlist[p]);
+			foldername = 	substring(identlist[p],0,identlong-1);
+			identlist[p] = 	foldername;
+			chemident = 	chemlearn+ "\\"+ foldername +"\\";
+			vignettelist  =  	getFileList(chemident);	
+			// ---------------------- On ne prend que les fichiers ".jpg" et pas les copies ---------------
+			gg = 0;
+			for (b = 0;b<vignettelist.length;b++) {
+				nomvig = vignettelist[b];
+				pos = lastIndexOf(nomvig,".jpg");
+				pos_ = lastIndexOf(nomvig,"_");
+				cop = startsWith(nomvig,"copie");
+				copeng = startsWith(nomvig,"copy");
+				if (pos >= 0 && pos_>=0 && cop == false && copeng == false) { gg++;	} // if
+			} // for
+			nbtotvignettes = 	nbtotvignettes +gg;
+			print(identlist[p], " nbvignettes= ",gg);	
+		} // for
+		vignettesname = 	newArray(nbtotvignettes);
+
+		//----------------------------Ajout de la liste des vignettes dans chaque folder------------------------
+		// Vecteur des N° d'images existantes
+		// Vecteur des N° de vignettes pour chaque image
+		// Tri par ordre decroissant comme pour le fichier TXT pour accelerer la recherche
+		//-----------Boucle sur les folder afin d'etablir la liste pour chacun d'eux---------------------
+		indvig = 0;
+		for (p=0;p<sizeidentlist;p++) {	//------------------Boucle sur les folders----------------------
+			foldername = identlist[p];
+			chemident = chemsorted+ "\\"+ foldername +"\\";
+			vignettelist  =  getFileList(chemident);	
+			sizevignettelist = vignettelist.length;
+			if (sizevignettelist>0) { //-------------Il y a des vignettes dans le repertoire
+				for (k=0;k<sizevignettelist;k++) { // ---------------------Boucle sur les vignettes du folder--------------------
+					nomvig = vignettelist[k];
+					pos_ = lastIndexOf(nomvig,"_");
+					pos = lastIndexOf(nomvig,".jpg");
+					if (pos >= 0 && pos_>=0 ){
+						imagename = substring(nomvig,0,pos_);
+						vigno = substring(nomvig,pos_+1,pos);
+						rep = foldername;
+						if (lowerconv == true) {
+							rep = toLowerCase(rep);
+							rep = replace(rep," ","_");
+							rep = replace(rep,"-","_");
+							rep = replace(rep,"/","_");
+							rep = replace(rep,"*","_");
+							rep = replace(rep,"+","_");
+							rep = replace(rep,".","_");
+						} // if
+						vignettesname[indvig] = 	imagename+" "+vigno+" "+rep;
+						indvig++;
+					} // if
+				} // for
+			} // if		
+		} // for
+
+		//------------------------------TRI des vignettes image par image pour accelerer l'identification par la suite--------------------------------------------------------
+		index = 0;
+		col = 0;	
+		sortedvignettes = 	newArray(nbtotvignettes);
+		while (index < nbtotvignettes) {
+			showStatus("SORTING VIGNETTES by IMAGE, index = "+index+ "/" + nbtotvignettes +",  WAIT !");
+			maxval = 0;
+			for (k=deb; k<nbtotvignettes ; k++) {
+				ligneval = vignettesname[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				maxval = maxOf(a1,maxval);
+			} // for
+			for (k=deb; k<nbtotvignettes ; k++) {//---------------Trouvons tous les champs de cette valeur----------------
+				ligneval = vignettesname[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				if (a1 == maxval ) {
+					sorted = vignettesname[k];
+					sortedvignettes[index] = sorted;
+					index++;
+					vignettesname[k] = "0 10000000000 0";
+				} // if
+			} // for
+		} // while
+		// ---------------------- Sauvegarde ----------------------------------------------
+		//	if (isOpen("Log")) {	selectWindow("Log");		run("Close");	} // if
+		//	for (k=deb; k<nbtotvignettes ; k++) {	print(k+"   "+sortedvignettes[k]);		} // for
+		//	if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "Image_list.txt";	run("Text...",sauve);		run("Close");	} // if
+		//	if (isOpen("Log")) {	selectWindow("Log");		run("Close");	} // if
+
+		showStatus("Vignettes sorted, please WAIT !............");
+		//-------------------Creation de la table des images pour accelerer la recherche--------------------------------------------------
+		listimages = 	newArray(300000);
+		debimage =	newArray(300000);
+		//------------Premiere image----------------------------
+		vigligne = 		split(sortedvignettes[0]," ");
+		vigimage =	vigligne[0];
+		image = 		vigimage;		
+		listimages[0] = 	vigimage;	
+		indimg = 1;
+		for (k=1; k<nbtotvignettes ; k++) {
+			vigligne = 		split(sortedvignettes[k]," ");
+			vigimage =	vigligne[0];
+			if (vigimage != image) { 	//----------------On change d'image-----------------------------------------------------
+				image = 			vigimage;		
+				listimages[indimg] = 	vigimage;	
+				debimage[indimg] = 	k;
+				indimg++;	
+			} // if
+		} // for
+		//-------------------------On ne conserve que la vraie liste des images-------------------------
+		listimagesred = 	newArray(indimg);
+		debimagered =	newArray(indimg);
+		print("----------------------------------------------------------------");
+		for (r=0;r<indimg;r++) { 	
+			image = 	listimages[r]; 	listimagesred[r] = image;
+			debut =	debimage[r];	debimagered[r] = debut;
+			print("Image= ",image," deb= ",debut);
+		} // for
+		print("----------------------------------------------------------------");
+		// ------------------ lecture des fichiers dat1.txt -------------------------------------------------------
+		if (datafile =="UPDATE all dat1.txt files in Pid_results folder  " ) {
+			// ---------------------- liste des fichiers ---------------------------
+			j = 0;	
+			list = newArray(sizeresults);
+			messageident = " ";
+			validateddat1 = getFileList(pathdat1validated);
+			for (i=0; i<fileresults.length ; i++) {	
+				ctrl1 = endsWith(fileresults[i],"_dat1.txt");
+				dat1process = 1;
+				if (skipdat1 == true && ctrl1 == 1 ) {
+					// ----------------- Vérifier si dat1 existe dans pathdat1validated ------------------
+					foundfile = 0;	mm = 0 ;	dat1process = 1;
+					while (mm < validateddat1.length) {
+						//getBoolean(fileresults[i]+"----------"+validateddat1[mm]);
+						if (endsWith(fileresults[i],validateddat1[mm])) { 
+							foundfile = 1;	
+							mm = validateddat1.length;	
+							dat1process = 0;	
+					//	getBoolean("OK");
+						} // if
+						mm++;
+					}
+				}
+				ctrl3 = endsWith(fileresults[i],"_ident.txt");
+				//	print(i+"   "+fileresults[i]+"   "+ctrl1+"  "+ctrl3);
+				if (ctrl3 == true)	{ messageident = "!!!!   Some ident files already exist and would be replaced            ";	} // if
+				if ( ctrl1==true  && ctrl3 == false && dat1process == 1 )	{rr = fileresults[i]; 	list[j] = rr;	j = j + 1;	} // if
+			} // for	
+			//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+			if (j==0 && skipdat1 == 0 ) { print("No valid results file in "+pathpidresults);
+				configpres = 0;
+				getBoolean("No valid ''*dat1.txt'' file in "+pathpidresults+"            \nPress CANCEL to ABORT !     ");
+			} //
+			else { 	//---------------- Purger les fichiers vides de la liste !
+				listpidlearn= newArray(j);
+				for (i=0; i<j ; i++) {	rr = list[i];		listpidlearn[i] = rr;	} // for
+				// ----------------------- test si vide ---------------------------------
+			} // else
+			
+			// ----------------------- Chargement des données et création de la matrice ---------------
+			if (isOpen("Log")) {	selectWindow("Log");		run("Close");		} // if
+			// --------------------- BOUCLE sur les fichiers DAT1.txt --------------------------------------------
+			header = 0;
+			for (k=0;k<listpidlearn.length;k++) { 
+				pidfile = listpidlearn[k];
+				openpid = pathpidresults +pidfile;
+				open(openpid);
+				wait(500);
+				config = getInfo();
+				pid = split(config,"\n");
+				run("Close");
+				//-----------------Recherche DATA section--------------------------
+				for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+					if (ctrl1>=0) deb=i+1;
+				} // for
+				//------------------Detection des N° de colonnes pour les champs-------------
+				coltag = 0;
+				//-----------------Recherche Type de separateur ( tabs, ; ou space)--------------------------
+				sep = "tabs";
+				ctrl1 = indexOf(pid[deb],";");
+				if (ctrl1>=0) { 		sep = "dotcoma";	} // if
+				ctrl1 = indexOf(pid[deb]," ");
+				if (ctrl1>=0) { 		sep = "space";	} // if
+				if (sep == "dotcoma") {	a= replace(pid[deb],";"," ");	entete = split(a,"\ ");		} // if
+				if (sep == "tabs") {	a = pid[deb];			entete = split(a,"\t");		} // if
+				if (sep == "space") {	a = pid[deb];			entete = split(a,"\ ");		} // if
+				colDepth = 0;
+				for (i=0; i<entete.length ; i++) {	v = entete[i];
+					if (v=="Tag") 	coltag = i;
+					if (v=="!Item") colitem = i;
+					if (v=="Label")	collabel = i;
+					if (v=="Area") 	colarea = i;
+					if (v=="Areai") colareai = i;
+					if (v=="Mean") 	colMean = i;
+					if (v=="Major") 	colMajor = i;
+					if (v=="Minor") 	colMinor = i;
+					if (v=="Feret") 	colFeret = i;
+					if (v=="Area_exc") 	colArea_exc = i;
+					if (v=="ThickR") 	colThickR = i;
+					if (v=="Depth") 	colDepth = i;
+					if (v=="BX") { 		colbx = i;		} //if
+					if (v=="BY") { 		colby = i;		} //if
+					if (v=="Width") { 	colwidth = i;		} //if
+					if (v=="Height") { 	colheight = i;		} //if
+					if ( startsWith(v,"pred_") ||  startsWith(v,"Pred_")) colpred = i;	
+				} // for
+				
+				// ---------------- RELECTURE DES DONNEES A PARTIR DU PID (si var_red == false)  -------------	
+				
+zz = getBoolean(var_red+"   "+reloadpid);
+				
+				
+				if (var_red == false && reloadpid == true) {	
+					
+					
+zz = getBoolean(pathpidpredicted+pid_source);
+
+
+					
+					long = lengthOf(pidfile);
+					pid_source = substring(pidfile,0,long-4) + ".txt";
+					if (File.exists(pathpidpredicted+pid_source)) { 
+						open(pathpidpredicted+pid_source);
+						wait(200);
+						config = getInfo();
+						pid_source_data = split(config,"\n");
+						run("Close");
+						//-----------------Recherche DATA section--------------------------
+						for (i=0; i<pid_source_data.length ; i++) {	ctrl1 = indexOf(pid_source_data[i],"[Data]");
+							if (ctrl1>=0) deb_source_data = i+1;
+						} // for						
+					} // if
+				}//
+				// ------------------------ Boucle sur les lignes---------------------------------
+				start = deb+1;
+				if (header == 0 && var_red == false ) { 	start = deb;	header =1;				} // if
+				else if (header == 0 && var_red == true && colDepth == 0) { 			print("!Item;Label;Bx;By;Width;Height;Area;Mean;Major;Minor;Feret;Area_exc;ThickR;Pred");		header =1;	} // if			
+				else if (header == 0 && var_red == true && colDepth != 0 && colareai == 0) { 	print("!Item;Label;Depth;Bx;By;Width;Height;Area;Mean;Major;Minor;Feret;Area_exc;ThickR;Pred");		header =1;	} // if			
+				else if (header == 0 && var_red == true && colDepth != 0 && colareai != 0) { 	print("!Item;Label;Depth;Bx;By;Width;Height;Area;Areai;Mean;Major;Minor;Feret;Area_exc;ThickR;Pred");		header =1;	} // if			
+				showStatus("Loading "+pidfile);
+				// ----------------- Vérification longueur DATA section -----------------
+				if (var_red == false && reloadpid == true && File.exists(pathpidpredicted+pid_source)) {
+					dat1_long = pid.length - deb;
+					pid1_long = pid_source_data.length - deb_source_data;
+					if (dat1_long != pid1_long ) pp = getBoolean(pid_source + " & " + pidfile +" data sections do not have the same lengh ! \n \nPRESS CANCEL to abort !");
+				} // if
+				// ----------------- BOUCLE sur les DATA --------------------------------
+				for (i=start; i<pid.length; i++)	{
+					// -------------- pid --------------------
+					if (var_red == false && reloadpid == true && File.exists(pathpidpredicted+pid_source)) {
+						a= replace(pid_source_data[i],";"," ");	item_source = split(a,"\ ");
+					}
+					
+					// --------------- txt --------------------
+					if (sep == "dotcoma") 	{	a= replace(pid[i],";"," ");	item = split(a,"\ ");		} // if
+					if (sep == "tabs") 	{	a = pid[i];			item = split(a,"\t");		} // if
+					if (sep == "space") 	{	a = pid[i];			item = split(a,"\ ");		} // if						
+					
+					// ----------- Ajout Prediction si DATA à partir du PID ----------------
+					if ( var_red == false && reloadpid == true && File.exists(pathpidpredicted+pid_source)){
+						// --------------- Toutes variables ------------------------------------
+						valeur = item_source[0];
+						pligne = valeur;
+						long = item_source.length;
+						for (j=1; j<long; j++) {	valeur =  item_source[j];	pligne = pligne + ";"+ valeur;		} // if						
+						
+						// ---------- AJOUT PRED -------------------------
+						pligne = pligne + ";" + item[colpred];
+					}
+					else if (var_red == false) {
+						// --------------- Toutes variables ------------------------------------
+						valeur = item[0];
+						pligne = valeur;
+						long = item.length;
+						for (j=1; j<long; j++) {	valeur =  item[j];	pligne = pligne + ";"+ valeur;		} // if
+
+					} // if
+					else {
+						// --------------- Selection -------------------------------------------
+						if (colDepth == 0) {
+							pligne = item[colitem]+ ";"+item[collabel]+ ";"+item[colbx]+ ";"+item[colby]+ ";"+item[colwidth]+ ";"+item[colheight]+ ";"+item[colarea]+ ";"+item[colMean]+ ";"+item[colMajor]+ ";"+item[colMinor]+ ";"+item[colFeret]+ ";"+item[colArea_exc]+ ";"+item[colThickR]+ ";"+item[colpred];
+						}
+						else if (colDepth != 0 && colareai == 0) {			
+							pligne = item[colitem]+ ";"+item[collabel]+ ";"+item[colDepth]+ ";"+item[colbx]+ ";"+item[colby]+ ";"+item[colwidth]+ ";"+item[colheight]+ ";"+item[colarea]+ ";"+item[colMean]+ ";"+item[colMajor]+ ";"+item[colMinor]+ ";"+item[colFeret]+ ";"+item[colArea_exc]+ ";"+item[colThickR]+ ";"+item[colpred];
+						} // else
+						else if (colDepth != 0 && colareai != 0) {	
+							pligne = item[colitem]+ ";"+item[collabel]+ ";"+item[colDepth]+ ";"+item[colbx]+ ";"+item[colby]+ ";"+item[colwidth]+ ";"+item[colheight]+ ";"+item[colarea]+ ";"+item[colareai]+ ";"+item[colMean]+ ";"+item[colMajor]+ ";"+item[colMinor]+ ";"+item[colFeret]+ ";"+item[colArea_exc]+ ";"+item[colThickR]+ ";"+item[colpred];
+						}// else
+					} // else
+					// ---------- On n'imprime que les donnees tag = 1. On supprime donc les doublons du PID ainsi que les Tag = 0 ---------------
+					if (coltag == 0 || (item[coltag] != "2" && item[coltag] != "0") ) {	print(pligne);	learnnb++;	} // if
+				} // for
+			} // for FIN de boucle sur les DAT1.txt 
+			//--------------------------------Sauvegarde d'un fichier "Learning" dans le "temp"-----------------------------------------
+			if (isOpen("Log")) {	
+				selectWindow("Log");	
+				sauve = "save=" + chemtemp + "ResPID.txt";	
+				run("Text...",sauve);	
+zz = getBoolean("RESPID");
+
+
+
+
+
+
+			
+			} // if
+		} // if datafile txt (chargement sur les fichiers DAT1.txt)
+
+		// ------------------- Lecture du fichier des donnees, soit source, soit composite a partir des dat1.txt -------------------------------
+		deb = 0;
+		openfile = pathpidresults +datafile;
+		if (datafile == "UPDATE all dat1.txt files in Pid_results folder  " ) openfile = chemtemp + "ResPID.txt";
+
+
+
+
+
+
+zz = getBoolean(openfile);
+		
+		
+		
+		
+		
+		
+		open(openfile);
+		wait(1000);
+		config = getInfo();
+		dataline = split(config,"\n");
+		run("Close");
+		//-----------------Recherche DATA section--------------------------
+		if (datafile != "UPDATE all dat1.txt files in Pid_results folder  " ) {	
+			for (i=0; i<.length ; i++) {	
+				if startsWith(dataline[i],"[Data]") deb=i+1;
+			} // for	
+		} // if			
+			
+		//-----------------Recherche Type de separateur ( tabs, ; ou space)--------------------------
+		sep = "tabs";
+		ctrl1 = indexOf(dataline[deb],";");
+		if (ctrl1>=0) { 	sep = "dotcoma";	} // if
+		ctrl1 = indexOf(dataline[deb]," ");
+		if (ctrl1>=0) { 	sep = "space";	} // if
+		//------------------Creation des vecteurs---------------------------------
+		long = dataline.length;
+		nbval = long-deb-1;
+		identligne = 	newArray(nbval);		// source, pas de ligne d'entete dans IDENTLIGNE
+		//------------------Detection des N° de colonnes pour les champs-------------
+		if (sep == "dotcoma") {	a= replace(dataline[deb],";"," ");	ligne = split(a,"\ ");		} // if
+		else if (sep == "tabs") {	a = dataline[deb];			ligne = split(a,"\t");		} // if
+		else if (sep == "space") {	a = dataline[deb];			ligne = split(a,"\ ");		} // if
+		nbcol = ligne.length;
+		collabel = 0;	colno = 0;
+		for (i=0; i<ligne.length ; i++) {	
+			v = ligne[i];	
+			if (v=="Label") { 	collabel = i;		} //if	Nom de l image source
+			if (v=="!Item") { 	colno = i;		} //if
+			if ( startsWith(v,"pred") ||  startsWith(v,"Pred")) colpred = i;
+			if (v=="BX") { 		colbx = i;		} //if
+			if (v=="BY") { 		colby = i;		} //if
+			if (v=="Area") { 	colarea = i;		} //if
+			if (v=="Width") { 	colwidth = i;		} //if
+			if (v=="Height") { 	colheight = i;		} //if
+		} // for
+		if (colpred== 0 ) { 	showMessage("NO PREDICTION DATA (''pred_*'' column )      ");		} // if
+		if (collabel ==0 ) { 	showMessage("NO LABEL DATA (''Label'' column)               ") ;		} // if
+		if (colno !=0 ) { 	showMessage("NO Vignette N° DATA (''!Item'' column)                       ") ;		} // if
+		
+		else  { 	test = 1;		} // else
+	} // while
+	if (maskident == true && (colbx ==0 || colby == 0 || colwidth == 0 || colheight ==0)) {		showMessage("Impossible to create Ident files, column missing in source file                   ");	} // if
+	//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+	for (i=deb+1; i<long ; i++) {
+		if (sep == "dotcoma") {		a= replace(dataline[i],";"," ");	ligne = split(a,"\ ");		} // if
+		else if (sep != "tabs") {	a= replace(dataline[i],";"," ");	ligne = split(a,"\ ");		} // if
+		else if (sep == "tabs") {	a= dataline[i];				ligne = split(a,"\t");		} // if
+		ind = i-deb-1;
+		No = 		ligne[colno];
+		Label = 	ligne[collabel];
+		Pred = 		ligne[colpred];
+		b = No+" "+Label+" "+Pred;	
+		identligne[ind] = b;
+	} // for
+	colno = 	0;	colimg = 	1;	colpred = 	2;
+
+	//---------------------------------------Pas de classement des images---------------------------------------------------------
+	sortedligne = identligne;			// Une ligne de moins que DATALIGNE (pas d'entete)
+
+	//--------------------------------Sauvegarde d'un fichier -----------------------------------------
+	//	if (isOpen("Log")) selectWindow("Log");	run("Close");
+	//	for (k=deb; k<identligne.length ; k++) {	print(sortedligne[k]);		} // for
+	//	if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "Testfile.txt";	run("Text...",sauve);		} // if
+
+	//----------------------------Boucle principale sur les lignes du fichier TXT---------------------------------
+	// On sort des que la vignette est trouvee
+	// On recherche si l'image existe folders par folder, 
+	//	Si NON, on passe a la ligne suivante apres avoir ecrit "not_found"
+	//	Si OUI, on cherche dans le folder si la vignette existe 
+	//		si NON, on passe au folder suivant
+	//		si OUI, on ecrit l'identification dans le vecteur 
+	newident = 	newArray(identligne.length);
+	vigdif = 0;
+	notfound = 0;		found = 	0;
+
+	// ----------------------- Vectors -----------------------------------------------------------------------------------------------------
+	if (stats == true) {
+		catnb = categories.length;
+		valid = 	newArray(catnb);
+		tp = 	newArray(catnb);
+		fp = 	newArray(catnb);
+		d =	newArray(catnb);
+		predic = 	newArray(catnb);
+		Pred = 0;		Tp = 0;		Fp = 0;		D = 0;		Valid = 0;
+	} // if stats
+
+	for (k=deb; k<sortedligne.length ; k++) {
+//		showStatus("Processing file, index = "+k+ "/" + sortedligne.length +",  WAIT !");
+		newident[k] = "not_found";	
+		ligne = 	split(sortedligne[k]," ");
+		no =	ligne[0];
+		image = 	ligne[1];
+		//------------------Recherche s'il y a au moins une vignette pour cette image---------------------
+		for (r=0;r<indimg;r++) { 
+			vigimage = 	listimagesred[r]; 
+			if (lengthOf(image) == 1) image = "00"+image;
+			if (lengthOf(image) == 2) image = "0"+image;
+//			getBoolean("vigimage="+vigimage+"   image="+image);
+	
+			if (vigimage == image ) {
+//				showMessage("OK");
+				//--------------Il existe une image representee dans les vignettes-----------------
+				if (r== indimg-1) { 	fin = nbtotvignettes;		} // if
+				else { 		fin = debimagered[r+1];	} // else
+				// -------------Recherche du N° de vignette correspondant dans l'intervalle--------------------
+				pos = debimagered[r];
+				//	print("Image= ",image, " deb= ",pos," fin= ",fin);
+				while (pos < fin) {
+					lignevig = 	sortedvignettes[pos];
+					lignevig = 	split(lignevig," ");
+					novig = 		lignevig[1];
+					//	print("no =",no," novig= ",novig);
+					if (no == novig) { //--------------- Vignette existe avec le meme N° pour l'image---------------
+						//	print(sortedligne[k]," ",lignevig[2]);
+						Newident = 	lignevig[2];
+						newident[k] = 	Newident;
+						pos = 		fin;
+						found++;
+						pred= ligne[2];
+						ident= newident[k];
+						predlc = toLowerCase(pred);
+						identlc = toLowerCase(ident);
+						if (stats == true) {
+							// ---------------- STATISTIQUES ------------------------------------------------------------------------------
+							for (m=0;m<catnb;m++) {
+								Tp = 	tp[m];	Fp = 	fp[m];	D = 	d[m];	Pred = 	predic[m];	Valid = 	valid[m];
+								cat = categories[m];
+								// ------------- Predicted ------------------
+//								if (startsWith(predlc,cat) == true )	Pred++;
+								if (predlc == cat) 			Pred++;
+								// ------------- nb validated ---------------
+//								if (startsWith(identlc,cat) == true )	Valid++;
+								if (identlc == cat)			Valid++;
+								// ------------- true positive ---------------
+//								if (startsWith(predlc,cat) == true && startsWith(identlc,cat) == true ) 	Tp++;
+								if (predlc == cat && identlc == cat ) 					Tp++;
+								// ------------- detailled --------------
+//								if (startsWith(predlc,cat) == true && startsWith(identlc,cat)  == true && predlc != identlc ) 	D++;
+								if (predlc == cat && identlc == cat && predlc != identlc ) 					D++;
+								// ------------- false positive --------------
+//								if (startsWith(predlc,cat) == true && startsWith(identlc,cat) == false ) 		Fp++;
+								if (predlc == cat && identlc != cat ) 						Fp++;
+								tp[m] = 	Tp;	fp[m] = 	Fp;	d[m] = 	D;	predic[m] = 	Pred;	valid[m] = 	Valid;
+							} // for mS
+						} // if stats
+						
+						if (pred != ident) { vigdif++;	} // if
+					} // if
+					pos++;
+				} // while		
+			} // if
+		} // for
+		//	print("ligne= ",k," image= ",image," no= ",no," pred= ",ligne[2]," ident= ",newident[k]);
+	} // if
+	
+	// --------------------- BILAN global --------------------------------------------------------------------------------------------------
+	if (isOpen("Results")) 	{	selectWindow("Results");		run("Close");	} // if
+	vigdifpc = vigdif/sortedligne.length;
+	vigdifpc = 0.1 * floor(vigdifpc*1000);
+	totvig = sortedligne.length;
+	notfound = totvig - found;
+	if (stats == true  && listaffcomplet.length == 1 ) {
+		//---------------------------- Ecriture du fichier bilan detaille ---------------------------------------------------------------------
+		for (m=0;m<catnb;m++) {
+			cat = categories[m];
+			Tp = 	tp[m];	Fp = 	fp[m];	D = 	d[m];	Pred = 	predic[m];	Valid = 	valid[m];
+			r = 100*D/Valid;	
+			recall = Tp/Valid;	
+			contam = 1 - (Tp/(Tp+Fp));
+			recall = 100 * recall;	
+			contam = 100 * contam;
+			setResult("Label",m, cat);
+			setResult("tp",m,Tp);
+			setResult("fp",m,Fp);
+			setResult("d",m,D);
+			setResult("total_predicted",m,Pred);
+			setResult("total_validated",m,Valid);
+			perc = 100*Valid/totvig;
+			setResult("total_validated/total_vig (%)",m,perc);
+//			setResult("moved (%)",m,r);
+			setResult("recall (%)",m,recall);
+			setResult("contamination (%)",m,contam);
+		} // for m
+
+		//----------------------------Enregistrement du fichier resultant---------------------------------------------------------------------
+		updateResults();
+		nbblobs = 	nResults;
+		if (isOpen("Results") ) {	
+			saveAs("measurements",pathpidresults +"\\validation_summary_"+dateheure+".txt"); 		
+			saveAs("measurements",pathdat1validated +"\\validation_summary_"+dateheure+".txt"); 
+		} // if
+
+	} // if stats 
+
+	if (datafile != "UPDATE all dat1.txt files in Pid_results folder  ") {
+		//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+		showStatus("Writting datafile, WAIT !   ");
+		for (k=deb; k<sortedligne.length +1; k++) {
+			a = dataline[k];
+			if (sep == "space") {	a= replace(dataline[k]," ",";");			} // if
+			if (sep == "tabs") {	a= dataline[k];					ligne = 	split(a,"\t");	a = 	ligne[0];		
+				for (g= 1;g<ligne.length;g++) {	a = a+";"+ligne[g];					} // for
+			} // if
+			if (k == deb) { 	a = a+";pred_valid_Id_"+dateheure;		} // if
+			else {	newId = newident[k-1]; 	a = a+";"+newId;	} // else
+			print(a);
+		} // for
+		selectWindow("Log");
+		openfile = "save="+pathpidresults +"\\"+datafile;
+		run("Text...",openfile);
+		print(openfile);
+		openfile = "save="+pathdat1validated +"\\"+datafile;
+		run("Text...",openfile);
+		if (listaffcomplet.length == 1 ) {
+			showMessage(datafile+"    completed.    \nMore statistics in the "+pathpidresults+" directory.      \n "+notfound+" vignettes were not found. \n"+vigdif+" vignettes were not in their predicted folders ("+vigdifpc+"%)  ");
+		} // if
+	} // if datafile
+
+	else {	// ----------------- Fichier dat1.txt un par un --------------------------------------
+		if (savedata == true && listaffcomplet.length == 1 ) {
+			print("A purger");	selectWindow("Log");	run("Close");
+			//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+			showStatus("Writting datafile, WAIT !   ");
+			for (k=deb; k<sortedligne.length +1; k++) {
+				a = dataline[k];
+				if (sep == "space") {	a= replace(dataline[k]," ",";");			} // if
+				if (sep == "tabs") {	a= dataline[k];	ligne = 	split(a,"\t");	a = 	ligne[0];		
+					for (g= 1;g<ligne.length;g++) {	a = a+";"+ligne[g];					} // for
+				} // if
+				if (k == deb) { 	a = a+";pred_valid_Id_"+dateheure;		} // if
+				else {		newId = newident[k-1]; 	a = a+";"+newId;	} // else
+				print(a);
+			} // for
+			selectWindow("Log");
+			openfile = "save="+pathdat1validated +"\\Id_from_sorted_vignettes_"+dateheure+".txt";
+			run("Text...",openfile);
+			openfile = "save="+pathpidresults +"\\Id_from_sorted_vignettes_"+dateheure+".txt";
+//			run("Text...",openfile);
+			print(openfile);
+			selectWindow("Log");	run("Close");
+		} // if savedata
+		deb = 0;		k = 1;		u = 0;		message = " ";
+		//------------------Lecture des valeurs et ecriture des vecteurs------------------------------------
+		entete = dataline[0]+";pred_valid_Id_"+dateheure;	
+		imageprec = " ";
+		while (u<listpidlearn.length) { 
+			dat1file = listpidlearn[u];
+			opendat = pathpidresults +dat1file;
+			u++;
+			recover = false;
+			if (reloadpid == true) {
+				// ------------ Vérification --------------
+				if (k >= dataline.length ) { aaa = getBoolean(opendat+" is faulty. \nThere might be TWO dat1.txt files in the same folder. \n\nPRESS Cancel to abort and check file !");	}
+				a = dataline[k];
+				a = a+";"+newident[k-1];					
+				toto = 	replace(a,";"," ");
+				toto = 	split(toto,"\ ");
+				image =	toto[1];
+				pidfile = image+"_dat1.pid";
+				if (File.exists(pathpidpredicted+pidfile)) { opendat =pathpidpredicted+pidfile;	recover = true;	} // if
+			} // if
+//			getBoolean("opendat= "+opendat);
+			open(opendat);
+			wait(500);
+			config = getInfo();
+			pid = split(config,"\n");
+			run("Close");			
+			
+			//----------------- Impression entete a l'identique --------------------------
+			print("A purger");	selectWindow("Log");	run("Close");
+			print("PID");
+			i = 0;	validation = 0; ligvol = 0; 	ligsubpart = 0;
+			while( i<pid.length) {	
+				if (startsWith(pid[i],"Vol="))  {		ligvol = i;				}
+				if (startsWith(pid[i],"SubPart="))  {		ligsubpart = i;				}
+				if (startsWith(pid[i],"[Validation]"))  {	validation = i;				}
+				else if (startsWith(pid[i],"[Data]"))  	{	data = i;	i = pid.length+1;	} // if	
+				i++;	
+			} // while
+			end_print = data-1;
+			
+			// ---------------- RELECTURE DES DONNEES A PARTIR DU PID (si recover = true)  ----------------
+//			if (recover == true && var_red == false) {			}//
+							
+			// --------------- Récupération des informations de volume (Zooscan / UVP5) ---------
+			vol_norm = 1;
+			if (instrum == "zooscan" ) {
+				// ------- Boucle dans les metadata -----------
+				VOL= split(pid[ligvol],"\ ");
+				vol = parseFloat(VOL[1]);
+				SUBPART = split(pid[ligsubpart],"\ ");
+				if (lengthOf(SUBPART) == 1) {
+					aaa = pid[ligsubpart];
+					aaa = replace(aaa,"=","= ");
+					SUBPART = split(aaa,"\ ");
+				}//
+				subpart = parseFloat(SUBPART[1]);
+				vol_norm = vol/subpart;
+			}//
+			
+			// ------------ Si déja validé, on remplace le nom et la date -------------------------
+			if (validation > 0) end_print = data - 6;
+			for (n = 0; n<end_print ;n++) { 
+				if (pid[n] == "Image_Process" ) 	{	pid[n] = "[Image_Process]";	}
+				else if (pid[n] == "Particules_Process" ) {	pid[n] = "[Particules_Process]";	}
+				if (startsWith(pid[n],"PID") == false) print(pid[n]);			
+			} // for
+			print(" ");
+			print("[Validation]");
+			print("First_name= "+first_name);
+			print("Last_name= "+last_name);		
+			//--------------------------------- Lecture de l'heure---------------------------------------
+			dateheure =	runMacro("Zooscan_get_time_5");
+			print("Validation_upload_time= "+dateheure);			
+			if (recover == true) 	print("logdata= recover_from_dat1.pid");
+			else 			print("logdata= recover_from_dat1.txt");
+			print("Error_rate= "+vigdifpc);	print(" ");
+			print("[Data]");
+			print(entete);	// ligne d'entête complétée avec dateheure du "load" 		
+			check = 0;
+			// -------------- CALCUL des concentrations pour chaque groupe -----------------
+			group_list_text = "start";
+			group_nb = newArray(500);
+			
+			while (check == 0) {
+				showStatus("Writting datafile, WAIT !   ");
+				a = dataline[k];
+				new_ident = newident[k-1];
+				// ------------- AJOUT IDENTIFICATION en FIN de LIGNE --------------
+				a = a+";"+new_ident;					
+				toto = 	replace(a,";"," ");
+				toto = 	split(toto,"\ ");
+				image =	toto[1];
+				// --------------- CALCUL -----------
+				group_test = 0;
+				group_list = split(group_list_text,"\ ");
+				for (ff = 0; ff < group_list.length; ff++) {
+					if (new_ident == group_list[ff]) {
+						// ---------- On augmente son nombre ---------
+						group_nb[ff+1] = group_nb[ff+1] + 1;
+						group_test = 1;
+					} // if
+				}// for			
+				// --------------- AJOUT CATEGORIE -------------
+				if (group_test == 0) {
+					// ----------- On l'ajoute à la liste ---------
+					group_list_text = group_list_text + " "+ new_ident;
+					// ----------- nombre = 1 ----------------------
+					group_nb[ff+1] = 1;
+				}//
+				// ======================= IMPRESSION LIGNE DONNEES + IDENT =============================
+				if (endsWith(dat1file,image+"_dat1.txt")) {	print(a);	k++;		} // if
+				// ======================================================================================
+				
+				
+
+				
+				else { // ------------- Ecriture du fichier --------------------
+					selectWindow("Log");
+					openfile = "save="+pathpidresults +"\\"+imageprec+"_dat1.txt";
+	//				run("Text...",openfile);
+					selectWindow("Log");
+					openfile = "save="+pathdat1validated +"\\"+imageprec+"_dat1.txt";
+					run("Text...",openfile);
+					check = 1;
+					message = message + imageprec+ "_dat1.txt       ";					
+					gg = u/5;
+					if (gg == floor(u/5)) message = message +"\n";
+				} // else
+				if (k == sortedligne.length+1) {
+					selectWindow("Log");
+					openfile = "save="+pathpidresults +"\\"+imageprec+"_dat1.txt";
+	//				run("Text...",openfile);
+					selectWindow("Log");
+					openfile = "save="+pathdat1validated +"\\"+imageprec+"_dat1.txt";
+					run("Text...",openfile);
+					check = 1;
+					message = message + imageprec+ "_dat1.txt       ";					
+					// --------------------- ENREGISTREMENT des CONCENTRATIONS ----------
+					if (isOpen("Log")) {selectWindow("Log");		run("Close");	}
+					if (instrum == "zooscan") { 	print("group_name;tot_counted_in_scan;concentration(#/m3)");	}
+					else {				print("group_name;tot_counted");			}
+					group_list = split(group_list_text,"\ ");
+					for (ff = 1; ff < group_list.length; ff++) {
+						number = group_nb[ff+1];
+						if (instrum == "zooscan") {number = parseInt(number);
+							concentration = number/vol_norm;
+							print_texte = group_list[ff]+";"+toString(number)+";"+concentration;							
+						}
+						else { print_texte = group_list[ff]+";"+toString(number);	} // 
+						print(print_texte);
+					} // for
+					selectWindow("Log");
+					openfile = "save="+pathdat1validated +"\\"+imageprec+"_concentrations.txt";
+					run("Text...",openfile);				
+					gg = u/5;
+					if (gg == floor(u/7)) message = message +"\n";
+				} // if
+				imageprec = image;
+			} // while check
+		} // while u		
+		if (listaffcomplet.length == 1 ) {
+			message = message+"\n completed.  \n  \nMore statistics in the "+pathdat1validated+" directory.";
+			message = message+"\nConcentrations computed in the ''*_concentration.txt'' file. \n";
+			showMessage(message+"           \n"+notfound+" vignettes were not found (lost during validation).    \n"+vigdif+" vignettes have been corrected (moved). \nError rate = "+vigdifpc+"%  ");
+		} // if
+			//	
+	} // else datafile
+//	showMessage("Sample concentrations/groups available in ''*_concentration.txt'' files in "+pathdat1validated+" directory.");
+
+	//-----------------------------Creation des fichiers Ident (ZOOSCAN, ancien) -----------------------------------------------------
+	if (maskident == true && colbx !=0 && colby != 0 && colwidth != 0 && colheight !=0) {
+		//---------------------Creation de la matrice contenant les identifications validees----------------
+		for (i=deb+1; i<long ; i++) {
+			a= replace(dataline[i],";"," ");	ligne = split(a,"\ ");	
+			ind = i-deb-1;
+			No = 	ligne[colno];
+			Label = 	ligne[collabel];
+			Bx = 	ligne[colbx];
+			By = 	ligne[colby];
+			Width = 	ligne[colwidth];
+			Height = 	ligne[colheight];
+			Valid = 	newident[i-1];
+			b = No+" "+ Label + " "+Bx+ " "+ By + " "+Width + " "+Height+ " "+Valid;	
+			identligne[ind] = b;
+				print("b= ",b);
+		} // for
+		colimg = 	1;	
+
+		//---------------------- Tri des données par image--------------------------------------------
+		index = 0;
+		col = colimg;
+		sortedligne = 	newArray(identligne.length);	
+		while (index < identligne.length) {
+			showStatus("SORTING FILE by image, index = "+index+ "/" + long +",  WAIT !");
+			maxval = 0;
+			for (k=deb; k<identligne.length ; k++) {
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				maxval = maxOf(a1,maxval);
+			} // for
+			//	print(maxval);
+
+			for (k=deb; k<identligne.length ; k++) {//---------------Trouvons tous les champs de cette valeur----------------
+				ligneval = identligne[k];
+				val = split(ligneval,"\ ");
+				data = val[col];
+				//	print("data= ",data);
+				a1 = 0;
+				for (t=0;t <lengthOf(data);t++) {				a1 = a1 + charCodeAt(data,t);			} // for
+				//	print("k= ",k," ind = ",ind,"  a1= ",a1);
+
+				if (a1 == maxval ) {
+					sorted = 	identligne[k];
+					sortedligne[index] = sorted;
+					//	print("index= ",index,"   ",sorted);
+					index++;
+					identligne[k] = "10000000000 0 10000000000 10000000000 10000000000 10000000000 0";
+				} // if
+			} // for
+		} // while
+		
+		//	for (k=deb; k<sortedligne.length ; k++) { print(sortedligne[k]);		} // if
+		//	selectWindow("Log");
+		//		openfile = "save="+pathpidresults +"\\"+"essai"+"_ident.txt";
+		//		run("Text...",openfile);
+
+		//-------------------------Boucle sur les lignes--------------------------------------------------------
+		imageprec = " ";
+		print("A purger");		selectWindow("Log");		run("Close");
+		print("!Item Bx By Width Height Tag Ident");		// premiere ligne du premier fichier
+		message = " \n";
+		ctrlmess = 0;
+		for (k=deb; k<sortedligne.length ; k++) {
+			ligne = split(sortedligne[k],"\ ");
+			No = 	ligne[0];
+			Image = 	ligne[1];
+			Bx = 	ligne[2];
+			By = 	ligne[3];
+			Width = 	ligne[4];
+			Height = 	ligne[5];
+			Valid =	ligne[6];
+			//	print("k= ",k," ligne= ",sortedligne[k]," Image= ",Image);
+			if (Image != imageprec && imageprec !=" " ) { //----------------------------Creation d'un nouveau Ident---------------------
+				//------------------Sauvegarde du fichier qui vient d'etre ecrit----------------------
+				selectWindow("Log");
+				chemident = chemwork+"\\"+imageprec;
+				if (File.exists(chemident)) 	{ 
+					openfile = "save="+chemident +"\\"+imageprec+"_ident.txt";	
+					run("Text...",openfile);	
+					message = message + imageprec+"_ident.txt  \n ";
+					ctrlmess = 1;
+				} // if
+				print("A purger");		selectWindow("Log");	run("Close");
+				print("!Item Bx By Width Height Tag Ident");
+			} // if
+			print(No +" "+Bx+" "+ By +" "+Width+" "+Height+" 1 "+Valid);
+			imageprec = Image;
+		} // for
+		selectWindow("Log");
+		chemident = chemwork+"\\"+imageprec;
+		if (File.exists(chemident)) 	{ 
+			openfile = "save="+chemident +"\\"+imageprec+"_ident.txt";	
+			run("Text...",openfile);	
+			message = message + imageprec+"_ident.txt  \n ";
+			ctrlmess = 1;
+		} // if
+		if (ctrlmess == 1 ) showMessage(message+"created in their vis1.* image folder.       ");
+		if (ctrlmess == 0 ) showMessage("No identfile created because their vis1.* image folders did not exist !..   ");
+	} // if
+
+} // else sur l'exitence du repertoire des vignettes dans le projet
+}// for chemsorted
+
+//-------------------------- FIN ---------------------------------------------------------
+if (isOpen("Results")) { selectWindow("Results");		run('Close');	} // if
+ret = "OK";
+return ret;
+
+

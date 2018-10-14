@@ -1,0 +1,155 @@
+//--------------------------Zooscan_main_tag-----------------------------------
+
+// RESULTS est OUVERTE.... mais pas sauvegardee sous le nom du fichier en cours
+nbblobs = nResults;
+version = "3.10";
+date = "2007/05/17";
+
+//-------------------INITIALISATION-----------------------------------------
+//arg = chemconfig +" "+chem+" "+configfile +" "+ param + " " + titre + " " + sep +" "+ tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ 
+//maskpar +" "+chemscan+" "+chemwork1 +" "+savevig+" "+savezip+" "+maskod +" "+ident +" "+maskident +" "+vis+" "+maskvis+" "+scan+" "+resolution+" "+savetag;
+
+arg = getArgument(); 
+array = split(arg," ");
+//for (i=0;i<array.length;i++) {print("i= ",i," val= ",array[i]); } // for
+chemconfig= array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];		scan= array[21];	resolution=array[22];	savetag= array[23];
+
+TAG = 0;
+
+//-------------------------------- Ouverture et chargement des configurations---------------------------------
+openconfig = chemconfig +configfile;
+open(openconfig);
+config = getInfo();
+selectWindow(configfile);
+run("Close");
+array = split(config,"\n");
+for (i=0; i<array.length; i++)	{	texte = array[i];		ssarray = split(texte," ");		array[i] = ssarray[1];	} // for
+vuescanrep = array[2]; 	jpeg = array[3];
+zip = array[4];		greycor = array[5];		// resolution = array[6];	xminref = array[7];	yminref = array[8];	doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	lower = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+doubloonxy = array[33];	doubloonarea= array[34];
+
+// ----------------------Suppression des info de type de fichier-------------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+
+chemwork = chemwork1+titrered+"\\";
+chemtemp = chem + "Zooscan_temp\\";
+text= "jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+doubloonxy = 	parseFloat(doubloonxy);
+doubloonarea= 	parseFloat(doubloonarea);
+resolution=	parseFloat(resolution);
+
+//-------------------FIN INITIALISATION-------------------------------------
+//----------------------------- TAG routine----------------------------------------------------------------
+//	showMessage("tag="+tag+" masktag="+masktag+" "+chemwork+titrered +"_dat1.pid");
+
+if((param==2 && tag!=0) || (param==1 && tag!=0 && masktag==0) || (param==1 && tag!=0 && masktag==1)) {
+	if (File.exists(chemwork+titrered +"_dat1.pid")) {	// -------------------------- Ouverture et lecture du pid issu d'un traitement precedent et qui contient des TAGs----------------------
+		open(chemwork+titrered+"_dat1.pid");
+		wait(500);
+		data = getInfo();
+		selectWindow(titrered+"_dat1.pid");
+		run("Close");
+		pid = split(data,"\n");
+		//-----------------Recherche DATA section--------------------------
+		for (i=0; i<pid.length ; i++) {	ctrl1 = indexOf(pid[i],"[Data]");
+			if (ctrl1>=0) deb=i+1;
+		} // for
+		//------------------Detection de la colonne pour le champ tag -------------
+		coltag = 0;
+		a= replace(pid[deb],";"," ");
+		entete = split(a,"\ ");
+		for (i=0; i<entete.length ; i++) {	v = entete[i];
+			if (v=="Tag") { 	coltag = i;		} //if
+		} // for
+		// 	Comparaison objet par objet. On indiquera le nb de correspondances valides
+		// 	On teste chaque objet du meas ayant un tag à 0 pour recopier sa valeur dans le results
+		// 	Si l'objet correspond, alors on reprend la valeur de son Tag et on la met dans le RESULTS, sinon les objets sont tagges 1 (à conserver) 
+		// ----------------------------Mise a 1 de tous les tags par defaut dans la fenetre RESULTS------------------------
+		if (tag == "1" ) { print("TAG= RECOVER");
+			for (i=0; i<nbblobs; i++) {   setResult("Tag",i,1);   } // for	
+		} // if
+		//	showMessage("tag="+tag+" masktag="+masktag+" coltag="+coltag);
+	
+		updateResults();
+		selectWindow("Results");  	
+		saveAs("measurements",chemtemp+"measurementsF.txt");
+		nbtag = 0;
+		// ----------------- Boucle de la premiere a la derniere ligne du fichier ----------------------------------------------------------------
+		start = deb+1;
+		for (i=start; i<pid.length; i++)	{
+			mat = pid[i];
+			mat = replace(mat,";"," ");
+			item = split(mat,"\ ");
+			long = item.length;
+			last = long-1;
+			if (item[coltag] == 0 || item[coltag] == 2 ) {//------------- On teste POSITION (BX, BY) et l'aire (AREA) ----------------------------------
+				for (j=0;j<nbblobs;j++) {
+					Area= 		getResult("Area", j);
+					areamin = 	Area*(1-doubloonarea);
+					areamax= 	Area*(1+doubloonarea);
+					BX= 		getResult("BX", j);
+					bxmin= 		BX - resolution*doubloonxy; 			
+					bxmax= 		BX + resolution*doubloonxy; 	
+					BY= 		getResult("BY", j);
+					bymin= 		BY- resolution*doubloonxy; 			// (0.02 = 0.5 mm  a 2400 dpi)
+					bymax= 		BY + resolution*doubloonxy; 	
+					areaold = 	parseInt(item[2]);
+					bxold =     	parseInt(item[13]);
+					byold =     	parseInt(item[14]);
+					if ( byold<bymax &&  byold >bymin && bxold<bxmax && bxold>bxmin && areaold <areamax && areaold >areamin  ){
+						// ------------------------- Les objets correspondent, enregistrement du tag dans Results------------------------
+						val = item[coltag];
+						setResult("Tag",j,val);
+						nbtag++;
+					} // if
+				} // for j
+			} // if
+		} // for i
+		TAG = 1;
+		if (tag == 1 ) {	print("TAG_Incorporated= ",nbtag);	} // if
+		updateResults();
+		if (param==1 && tag==1 && masktag==1) { print("TAG= EDIT");
+			ret = runMacro("Zooscan_tag1",arg + " "+ nbblobs);
+			flag = parseInt(ret);
+			if (flag==0) { showMessage("Error message : Zooscan_tag1 Process aborted"); } // if
+		} // if
+	} // if file exists
+	else { TAG = 1;		} // else
+} // if param
+
+if (param==1  && tag==0 && masktag==1) { // ----------------creation puis edition---------------------
+	tag=1;
+	// --------------------------Ajout d'une colonne TAG au fichier RESULTS qui est ouvert, remplie de 1-------------------
+	print("TAG= CREATE");
+	// ---------------------------------Mise a 1 de tous les tags par defaut----------------------
+	for (i=0; i<nbblobs; i++) {   setResult("Tag",i,1);   }
+	updateResults();
+	print("TAG= EDIT");
+		ret = runMacro("Zooscan_tag1",arg + " "+ nbblobs);
+	flag = parseInt(ret);
+	if (flag==0) { showMessage("Error message : Zooscan_tag1 Process aborted"); } // if
+	else { TAG = 1;	} // else
+} // if
+
+if ((param==1 && tag==0 && masktag==0) || ( param==2 && tag==0)) {	print("TAG= NO");		} // if
+
+// La fenetre RESULTS completee du Tag est toujours ouverte.
+
+//-------------------------------- Sauvegarde du LOG...------------------------------------------------
+selectWindow("Log");
+sauve = "save=" + chemwork + titrered + "_log.txt";
+run("Text...",sauve);
+
+TAG = toString(TAG);
+ret = TAG+" "+arg;
+return ret;
+

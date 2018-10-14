@@ -1,0 +1,168 @@
+// ----------------------- Zooscan_symetrie --------------------------
+version = "5.03";
+date = "2008/03/19";
+image = "vignettesym";
+if (isOpen("Results")) { selectWindow("Results");		run('Close');	}
+
+arg = getArgument(); 
+array = split(arg," ");
+type = 	array[0];
+pixel = 	array[1];
+
+// --------------- Agrandissement de l'image -------------------------
+HH = 	getHeight();
+WW = 	getWidth();
+newImage("vignetteag", "8-bit White",WW*1.2, HH*1.2, 1);
+selectImage(image);
+run("Copy");
+close();
+selectImage("vignetteag");
+makeRectangle(WW*0.1,HH*0.1,WW,HH);
+run("Paste");
+rename(image);
+run("Set Measurements...", "area centroid bounding fit redirect=["+image+"] decimal=2");
+run("Analyze Particles...", "size=0-Infinity circularity=0.00-1.00 show=Nothing include record");
+// ------------------ Symetrie du plus gros objet de la vignette ---------------------------
+updateResults();
+nbblobs = nResults;
+ligne = 0;
+areainit = getResult("Area", ligne);
+i = 0;
+Ratio = 0;
+while (i<nbblobs) {
+	area = getResult("Area", i);
+	if (area > areainit) ligne = i;
+	areainit = maxOf(area,areainit);
+	i++;
+} // for
+
+bx = getResult("BX", ligne);
+by = getResult("BY", ligne);
+w = getResult("Width", ligne);
+h = getResult("Height", ligne);
+x = getResult("X", ligne);
+y = getResult("Y", ligne);
+
+area = getResult("Area", ligne);
+major = getResult("Major", ligne);
+angle = getResult("Angle", ligne);
+xstart = getResult("XStart", ligne);
+ystart = getResult("YStart", ligne);
+angle = angle +180;
+angle = toString(angle);
+
+// --------------- nettoyage autour du plus gros objet -------------
+selectImage(image);
+DEBX = xstart;
+DEBY= ystart;
+doWand(DEBX,DEBY);
+run("Clear Outside");
+
+// ---------------- centrage ----------------------
+sum = w*w + h*h;
+diag = pow(sum, 0.5);
+diag = diag * 1.2;
+makeRectangle(bx,by,w,h);
+run("Copy");
+newImage("vignetteA", "8-bit White",diag, diag, 1);
+x = x-bx;
+y = y-by;
+posx = (diag/2)-x;
+posy = (diag/2)-y;
+makeRectangle(posx,posy,w,h);
+run("Paste");
+selectImage("vignetteA");
+run("Make Binary");
+run("Select None");
+run("Arbitrarily...", "angle="+angle+" interpolate");
+//---------------- Vignette A est horizontale sur son grand axe -------------------
+if (type == "ratio") {
+ 	W = diag;
+ 	H = diag;
+	getHistogram(0, hist, 256);
+	S = newArray(250);
+	F = 0;
+	pa = 0;
+	pb = 0;
+	pd = 0;
+	flag = 0;
+	ratio = 0;
+	max = 0;
+	min = 1000;
+	// ---------  Normalisation de l'intervalle par la taille pixel --------------
+	pixel = parseFloat(pixel);
+	step = floor(0.1/pixel);
+	pointA = newArray(1+W/step);
+	pointB = newArray(1+W/step);
+	dif = newArray(1+W/step);
+	c = 0;
+	count = 1;
+	//-------- start--vertical search---------------
+	for(x=0;x<W;x=x+step)	{
+		for(y=0;y<H-1;y=y+1) {
+			pa = getPixel(x,y);
+                      	  	pb = getPixel(x,y+1);
+			pd = abs(pa-pb);
+			if(pd > 100 && flag == 0) { 	flag = 1;	pd = 0;		pointA[c]=y;     			} // if
+                                 	if(pd > 100 && flag == 1) {	pointB[c]=y;	flag = 3;	c++;				} // if
+		}
+		flag = 0;
+		pd = 0;
+	}  // for
+	//-------- end -- vertical search -----------------
+	for(k=0;k<c;k=k+1) {	dif[k]= pointB[k]-pointA[k];	}
+	// ---------- max et moyenne de la difference -----------
+	meandif = 0;
+	for(k=0;k<c-1;k=k+1) {	meandf = meandf + dif[k];	
+		if(dif[k]> max) 	max = dif[k];	
+	} // for
+	meandf = meandf/c;
+
+	Ratio = max/meandf;
+//	getBoolean(c+"    "+Ratio+"    "+meandf+"   "+step+"   "+pixel);
+wait(1000);
+
+
+} // if type
+Ratio = toString(Ratio);
+run("Duplicate...", "title=vignetteB");
+selectImage(image);
+close();
+
+// ------------- axe 1 ----------------------------
+run("Flip Horizontally");
+run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+selectImage("Result of vignetteA");
+getHistogram(0, hist, 256);
+areasym = hist[0];
+ratio1 = (areasym/2)/area;
+selectImage("Result of vignetteA");
+close();
+// ------------- axe 2 ----------------------------
+selectImage("vignetteB");
+run("Make Binary");
+run("Flip Horizontally");
+selectImage("vignetteB");
+run("Flip Vertically");
+run("Image Calculator...", "image1=vignetteA operation=Difference image2=vignetteB create");
+selectImage("Result of vignetteA");
+run("Make Binary");
+getHistogram(0, hist, 256);
+areasym2 = hist[0];
+ratio2 = (areasym2/2)/area;
+
+ratioh = toString(ratio1);
+ratiov = toString(ratio2);
+// ------------------ Fermeture des vignettes -------------------------------------
+selectImage("Result of vignetteA");
+close();
+selectImage("vignetteA");
+close();
+selectImage("vignetteB");
+close();
+if (isOpen("Results")) { selectWindow("Results");		run('Close');	}
+
+// ------------------- FIN -------------------
+ret = ratioh+" "+ratiov+" "+Ratio;
+return ret;
+

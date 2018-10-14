@@ -1,0 +1,3 @@
+getCursorLoc(x, y, z, flags);
+ret = toString(flags);
+return ret;

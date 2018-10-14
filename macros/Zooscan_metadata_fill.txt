@@ -1,0 +1,150 @@
+// ------------------------- Zooscan_metadata_fill -----------------------------
+version = "7.20";
+date = "2015/08/03";
+requires("1.41o");
+
+// CPP
+
+arg = 		getArgument(); 
+array = 	split(arg," ");
+chem= 		array[0];
+projfolder = 	array[1];
+process_type = 	array[2];
+barcode_in = 	array[3];
+
+chemraw = projfolder + "\\Zooscan_scan\\_raw\\";
+chemmeta = projfolder + "\\Zooscan_meta\\";
+lon = lengthOf(projfolder);
+zoosc = indexOf(projfolder,"Zooscan_");
+proj = substring(projfolder,zoosc+8,lon);
+czz = false;
+
+print("A purger");	selectWindow("Log");		run("Close");
+
+// ------------- Lecture de l'heure -----------------
+dateheuremmss =	runMacro("uvp5_get_time");
+
+// --------------------- lecture du fichier HEADER SAMPLE ----------------------------
+metafile = chemmeta+"zooscan_sample_header_table.csv";
+open(metafile);  
+wait(100);
+metadata = getInfo();
+data = split(metadata,"\n");
+j = data.length;
+run("Close");
+// ---------------- Création vecteurs -------------------------------------------------------------------------------------
+sampleId = newArray(j+1000); 				 		ship = newArray(j+1000); 		scientificprog = newArray(j+1000);
+stationId = newArray(j+1000); 	date = newArray(j+1000); 		latitude = newArray(j+1000); 		longitude = newArray(j+1000);
+depth = newArray(j+1000); 	ctdref = newArray(j+1000); 		otherref = newArray(j+1000); 		townb = newArray(j+1000);
+towtype = newArray(j+1000); 	nettype = newArray(j+1000); 		netmesh = newArray(j+1000); 		netsurf = newArray(j+1000);
+zmax = newArray(j+1000); 	zmin = newArray(j+1000); 		vol = newArray(j+1000); 		sample_comment = newArray(j+1000); 
+vol_qc = newArray(j+1000);	depth_qc = newArray(j+1000);		sample_qc = newArray(j+1000);	 	barcode = newArray(j+1000);
+// ---------------- 2e fenêtre -------------------------------------------
+latitude_end = newArray(j+1000); 		longitude_end = newArray(j+1000);	net_duration = newArray(j+1000); 		ship_speed_knots = newArray(j+1000);
+cable_length = newArray(j+1000); 		cable_angle = newArray(j+1000);		cable_speed = newArray(j+1000);			nb_jar = newArray(j+1000);
+flag = false;
+for (i=0; i< j; i++) {
+	texte = data[i];
+	texte = replace(texte,";"," ");
+	array = split(texte," ");
+	sampleId[i]= array[0]; 		ship[i]= array[1]; 		scientificprog[i]= array[2];
+	stationId[i]= array[3]; 	date[i]= array[4]; 		latitude[i]= array[5]; 		longitude[i]= array[6];
+	depth[i]= array[7]; 		ctdref[i]= array[8]; 		otherref[i]= array[9]; 		townb[i]= array[10];
+	towtype[i]= array[11]; 		nettype[i]=array[12]; 		netmesh[i]= array[13]; 		netsurf[i]= array[14];
+	zmax[i]= array[15]; 		zmin[i]= array[16]; 		vol[i]= array[17];		sample_comment[i] = array[18];
+	if (array.length > 21 ) { // ----------------- Nouveaux paramètres -------------------
+		vol_qc[i] = array[19];			depth_qc[i] = array[20];		sample_qc[i] = array[21]; 		barcode[i] = array[22];
+		latitude_end[i] = array[23];		longitude_end[i] = array[24];		net_duration[i] = array[25];		ship_speed_knots[i] = array[26];
+		cable_length[i] = array[27];		cable_angle[i] = array[28];		cable_speed[i] = array[29];		nb_jar[i] = array[30];
+	}//
+	else {	vol_qc[i] = "0";		depth_qc[i] = "0";		sample_qc[i] = "0000";	 barcode[i] = "NaN";	
+		latitude_end[i] = "NaN";	longitude_end[i] = "NaN";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
+		cable_length[i] = 9999;		cable_angle[i] = 9999;		cable_speed[i] = 9999;		nb_jar[i] = 9999;
+		flag = true;
+	}
+	for (r=0; r< array.length;r++) {	print(r+"   "+array[r]);	}
+} // for
+if (flag == true) {
+	aaa = getBoolean("WARNING !!!!!!!!!!!!!!! \n \nThe ''zooscan_sample_header_table.csv'' table will be updated. \nAdditionnal default values will be addded to all former samples metadata. \n \nEdit METADATA of the different samples to fill the fields if necessary !\nRUN ''UPDATE ALL SAMPLE & FRACTION metadata from CSV file'' in ''Edit & MModify Metadata'' (ADVANCED mode) to update all sample files using the default values.");
+} // if
+// ----------------------- BOUCLE de SAISIE --------------------------------------------
+otherprofile = true;
+index_profile = j;
+while (otherprofile == true) {
+	// ----------------------- Saisie du nom de l'échantillon ----------------------------------------
+	u = 0;
+	prevtitre = "sampleId";
+	message = " ";
+	while (u == 0) {
+		Dialog.create("METADATA          version = "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage("Project  :  "+proj);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage(message);
+		Dialog.addMessage("ENTER Sample ID, (no extension or space character allowed)");
+		Dialog.addString("   ",prevtitre);	
+		Dialog.show();
+		sample = Dialog.getString();
+		//----------Tester la presence d'espace ---------------------
+		sample = toLowerCase(sample);
+		sample = 	replace(sample,".","_");
+		sample = 	replace(sample," ","_");
+		sample = 	replace(sample,";","_");
+		sample = 	replace(sample,":","_");
+		sample = 	replace(sample,"+","_");
+		sample = 	replace(sample,"/","_");
+		if (File.exists(chem+"\\noaa.txt") == 0) {		sample = 	replace(sample,"-","_");		}// if
+		if (File.exists(chem+"\\oov.txt") == true) {		czz = true;		}// if
+		sortie = 1;
+		for (i=0; i< index_profile; i++) {
+			sample_test = sampleId[i];
+			if (sample_test == sample) {	message = sample +" already exist in the data base. Enter another name !";	sortie = 0;	} // if
+		}// for	
+		if (sortie == 1) u = 1;
+	} // while
+	display_index = index_profile-1;                                             
+	// ---------------- Routine de saisie -------------------------------
+	texte = sampleId[display_index]+" to_fill "+ship[display_index]+" "+scientificprog[display_index]+" "+stationId[display_index]+" "+date[display_index]+" "+latitude[display_index]+" "+longitude[display_index]+" "+depth[display_index]+" "+ctdref[display_index]+" "+otherref[display_index]+" "+townb[display_index]+" "+towtype[display_index]+" "+nettype[display_index]+" "+netmesh[display_index]+" "+netsurf[display_index]+" "+zmax[display_index]+" "+zmin[display_index]+" "+vol[display_index]+" "+sample_comment[display_index]+" "+proj+" "+sample+" "+vol_qc[display_index]+" "+depth_qc[display_index]+" "+sample_qc[display_index]+" "+barcode[display_index]+" "+latitude_end[display_index]+" "+longitude_end[display_index]+" "+net_duration[display_index]+" "+ship_speed_knots[display_index]+" "+cable_length[display_index]+" "+cable_angle[display_index]+" "+cable_speed[display_index]+" "+nb_jar[display_index];
+	if (display_index == 0) {
+		texte = sample+" to_fill NaN NaN NaN NaN NaN NaN 99999 NaN NaN 99999 0 NaN 99999 99999 99999 99999 99999 NaN "+proj+" "+sample+" NaN NaN NaN NaN NaN NaN 99999 99999 99999 99999 99999 99999";
+	}// if		
+	if (process_type == "fill_one")	{
+		texte = sample+" to_fill NaN NaN NaN 19000909-1909 90.0 180.0 99999 NaN NaN 99999 0 NaN 99999 99999 99999 99999 99999 NaN "+proj+" "+sample+" 0 0 NaN "+barcode_in+" NaN NaN 99999 99999 99999 99999 99999 99999";
+	}// if
+	texte = runMacro("Zooscan_metadata_fill_window",texte+" "+sample+" "+proj+" "+czz);
+	texte = toString(texte);
+	l= lengthOf(texte);
+	if (l > 1)  {
+		array = split(texte," ");
+		sampleId[index_profile]= array[0]; 						 		ship[index_profile]= array[2]; 		scientificprog[index_profile]= array[3];
+		stationId[index_profile]= array[4]; 		date[index_profile]= array[5]; 			latitude[index_profile]= array[6]; 	longitude[index_profile]= array[7];
+		depth[index_profile]= array[8]; 		ctdref[index_profile]= array[9]; 		otherref[index_profile]= array[10]; 	townb[index_profile]= array[11];
+		towtype[index_profile]= array[12]; 		nettype[index_profile]=array[13]; 		netmesh[index_profile]= array[14]; 	netsurf[index_profile]= array[15];
+		zmax[index_profile]= array[16]; 		zmin[index_profile]= array[17]; 		vol[index_profile]= array[18];		sample_comment[index_profile] = array[19];
+		vol_qc[index_profile]= array[20]; 		depth_qc[index_profile]= array[21]; 		sample_qc[index_profile]= array[22]; 	barcode[index_profile]= array[23]; 
+		latitude_end[index_profile]= array[24];		longitude_end[index_profile]= array[25];	net_duration[index_profile]= array[26];	ship_speed_knots[index_profile]= array[27];
+		cable_length[index_profile]= array[28];		cable_angle[index_profile]= array[29];		cable_speed[index_profile]= array[30];	nb_jar[index_profile]= array[31];	
+	} // if
+	// -------------------- Ecriture du fichier final SAMPLE ------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	texte = "sampleId;ship;scientificprog;stationId;date;latitude;longitude;depth;ctdref;otherref;townb;towtype;nettype;netmesh;netsurf;zmax;zmin;vol;sample_comment;vol_qc;depth_qc;sample_qc;barcode;latitude_end;longitude_end;net_duration;ship_speed_knots;cable_length;cable_angle;cable_speed;nb_jar";
+	texte = toLowerCase(texte);
+	print(texte);
+	for (i=1; i< index_profile+1 ; i++) {
+		texte = sampleId[i]+";"+ship[i]+";"+scientificprog[i]+";"+stationId[i]+";"+date[i]+";"+latitude[i]+";"+longitude[i]+";"+depth[i]+";"+ctdref[i]+";"+otherref[i]+";"+townb[i]+";"+towtype[i]+";"+nettype[i]+";"+netmesh[i]+";"+netsurf[i]+";"+zmax[i]+";"+zmin[i]+";"+vol[i]+";"+sample_comment[i]+";"+vol_qc[i]+";"+depth_qc[i]+";"+sample_qc[i]+";"+barcode[i]+";"+latitude_end[i]+";"+longitude_end[i]+";"+net_duration[i]+";"+ship_speed_knots[i]+";"+cable_length[i]+";"+cable_angle[i]+";"+cable_speed[i]+";"+nb_jar[i];
+		print(texte);
+	} // for
+	text = "save="+chemmeta+"zooscan_sample_header_table.csv";
+	selectWindow("Log");
+	run("Text...",text);
+	text = "save="+chem+"\\Zooscan_temp\\"+dateheuremmss+"_zooscan_sample_header_table.csv";
+	run("Text...",text);
+	index_profile++;
+	// ---------------- AUTRE échantillon ? -----------------------------
+	if (process_type != "fill_one")	{	otherprofile = getBoolean("Enter another SAMPLE ?   ");		}
+	else {					otherprofile = false;						}		
+} // while
+
+//----------------------- FIN --------------------------------------
+ret = arg;
+return ret;

@@ -1,0 +1,130 @@
+// ---------------------------------Zooscan_1d -------------------------------
+// LECTURE des entetes
+version= "7.27";
+date = "2018/08/26";
+
+// Correction pour ajout "nouveaux" metadata
+
+args = getArgument();
+arg = 	split(args," ");
+chemtemp = 	arg[0];
+projfolder = 	arg[1];
+
+chemmeta = 	projfolder + "\\Zooscan_meta\\";
+lon = 	lengthOf(projfolder);
+zoosc = 	indexOf(projfolder,"Zooscan_");
+proj = 	substring(projfolder,zoosc+8,lon);
+filelist  = getFileList(chemtemp);
+metafile = File.exists(chemmeta+"metadata.txt");
+
+if (metafile==1) {
+	open(chemmeta+"metadata.txt");
+	metadata = getInfo();
+	array = split(metadata,"\n");
+	for (i=0; i<array.length; i++)	{
+		texte = array[i];
+		ssarray = split(texte," ");
+		array[i] = ssarray[1];
+	} // for
+	SampleId = array[0]; 		Scanop = array[1]; 		Ship = array[2]; 		Scientificprog = array[3];
+	StationId = array[4]; 		Date = array[5]; 		Latitude = array[6]; 		Longitude = array[7];
+	Depth = array[8]; 		CTDref = array[9]; 		Otherref = array[10]; 		Townb = array[11];
+	Towtype = array[12]; 		Nettype =array[13]; 		Netmesh = array[14]; 		Netsurf = array[15];
+	Zmax = array[16]; 		Zmin = array[17]; 		Vol = array[18]; 		FracId = array[19];
+	Fracmin = array[20]; 		Fracsup = array[21]; 		Fracnb = array[22]; 		Observation = array[23];
+	Code= array[24];		SubMethod= array[25]; 		CellPart= array[26];		Replicates= array[27]; 
+	VolIni= array[28]; 		VolPrec= array[29]; 		
+	if (array.length > 29 ) { 	
+		sample_comment = array[30];
+		vol_qc = array[31];			depth_qc = array[32];		sample_qc = array[33]; 			barcode = array[34];
+		latitude_end = array[35];		longitude_end = array[36];	net_duration = array[37];		ship_speed_knots = array[38];
+		cable_length = array[39];		cable_angle = array[40];	cable_speed = array[41];		nb_jar = array[42];
+		czz = array[24];
+	}//
+	else {	sample_comment = "no";
+		vol_qc = "0";			depth_qc = "0";			sample_qc = "0000";	 	barcode = "NaN";
+		latitude_end = "NaN";		longitude_end = "NaN";		net_duration = 9999;		ship_speed_knots = 9999;
+		cable_length = 9999;		cable_angle = 9999;		cable_speed = 9999;		nb_jar = 9999;
+		czz = array[24];
+	}	
+
+} // if
+else {		// print ("Metadata.txt introuvable");
+		// Le metadata generique n'existe pas, utilisation de valeurs generiques
+		SampleId = "metadatafile_not_found" ;	Scanop = "GG";		Ship = "999";
+		Scientificprog = "Zooscan";		StationId = 999;		Date = "99999999-9999";
+		Latitude = 99.99;			Longitude = -999.99;	Depth = 999;
+		CTDref = "CTDfilename";		Otherref = "Other reference name";
+		Townb = 999;			Towtype = 999;		Nettype = "999";
+		Netmesh = 999;			Netsurf = 999;		Zmax = 999;
+		Zmin = 999;			Vol = 999;			FracId = "FractionId";	Fracmin = 999;
+		Fracsup = 999;			Fracnb = 999;		Observation = "NaN";	Code= "A";
+		SubMethod= "motoda"; 		CellPart= 1;		Replicates= 1; 		VolIni= 1; 			
+		VolPrec= 1; 			
+		sample_comment= "no";
+		vol_qc = "0";			depth_qc = "0";			sample_qc = "0000";	 	barcode = "NaN";
+		latitude_end = "NaN";		longitude_end = "NaN";		net_duration = 9999;		ship_speed_knots = 9999;
+		cable_length = 9999;		cable_angle = 9999;		cable_speed = 9999;		nb_jar = 9999;
+		czz = "A";
+					
+} // else
+
+print("Author= ",Scanop);
+print(" ");
+print("[Sample]");
+print("Project= "+proj);
+print("SampleId=",SampleId);
+print("Scanop=",Scanop);
+print("Ship=",Ship);
+print("Scientificprog=",Scientificprog);
+print("StationId=",StationId);
+print("Date=",Date);
+print("Latitude=",Latitude);
+print("Longitude=",Longitude);
+print("Depth=",Depth);
+print("CTDref=",CTDref);
+print("Otherref=",Otherref);
+print("Townb=",Townb);
+print("Towtype=",Towtype);
+print("Nettype=",Nettype);
+print("Netmesh=",Netmesh);
+print("Netsurf=",Netsurf);
+print("Zmax=",Zmax);
+print("Zmin=",Zmin);
+print("Vol=",Vol);
+print("Sample_comment=",sample_comment);
+print("vol_qc= "+vol_qc);
+print("depth_qc= "+depth_qc);
+print("sample_qc= "+sample_qc);
+print("barcode= "+barcode);
+print("latitude_end= "+latitude_end);
+print("longitude_end= "+longitude_end);
+print("net_duration= "+net_duration);
+print("ship_speed_knots= "+ship_speed_knots);
+print("cable_length= "+cable_length);
+print("cable_angle= "+cable_angle);
+print("cable_speed= "+cable_speed);
+print("nb_jar= "+nb_jar);
+// print("czz= "+czz);
+print(" ");
+
+print("[Fraction]");
+print("Code= ",Code);
+print("FracId=",FracId);
+print("Min=",Fracmin);
+print("Max=",Fracsup);
+print(" ");
+
+print("[Subsample]");
+print("SubPart=",Fracnb);
+print("SubMethod= ",SubMethod);
+print("CellPart= ",CellPart);
+print("Replicates= ",Replicates);
+print("VolIni= ",VolIni);
+print("VolPrec= ",VolPrec);
+print("Observation=",Observation);
+print(" ");
+
+// -------------------- FIN ------------------------
+ret = args;
+return ret;

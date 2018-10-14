@@ -1,0 +1,190 @@
+// ----------- Zooscan_UVP_vignettes_ellipse.txt -------------------
+test = isOpen("Results");
+if (test==1) { selectWindow("Results");	run('Close'); 	} // if
+while (nImages()>0) {	selectImage(nImages());  		run("Close");	} // while	
+print("A purger");	selectWindow("Log");		run("Close");
+
+//--------------------------------- Affichage de l'heure---------------------------------------
+dateheure =	runMacro("Zooscan_get_time_5");
+
+print("-------- TEST --------------------");	
+
+// -------------- Selection du repertoire source des vignettes ----------------------------------
+inputdir  = getDirectory("Select vignette folder ");
+
+// -------------- Creation du repertoire fille pour les vignettes modifiees ---------------------
+savedir = inputdir+"\\modified_vignettes\\";
+File.makeDirectory(savedir);
+
+// -------------- Liste des vignettes JPG dans inputdir -------------------------------------------
+vignettelist  =  	getFileList(inputdir);	
+j = 0;
+list = newArray(vignettelist.length);
+for (i=0; i<vignettelist.length ; i++) {	
+	nomvig = vignettelist[b];
+	pos = lastIndexOf(nomvig,".jpg");
+	pos_ = lastIndexOf(nomvig,"_");
+	if (pos >= 0 && pos_>=0 )		{rr = vignettelist[i]; 		list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { print("No valid vignette in "+inputdir);
+	configpres = 0;
+	getBoolean("No valid vignette in "+inputdir);
+} //
+else { print(j+" vignettes in the "+inputdir);
+	configpres = 1;
+	// ------------------------ Purger les fichiers vides de la liste ! -----------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+} // else
+
+// -------------- Boucle sur les vignettes de inputdir ----------------------------------------------
+for (i=0; i<listaff.length ; i++) {
+	nomvig = listaff[i];
+	// ------------------ Ouverture vignette ------------------------------
+	open(inputfile+"\\"+nomvig);
+
+	// ------------------- Copie de travail ---------------------------------
+	run("Duplicate...", "title=vignette_msk");
+
+	// ------------------- Threshold ----------------------------------------
+	setThreshold(0, 243);
+	run("Threshold", "thresholded remaining black");
+
+	// ------------------- Nettoyage autour du plus gros objet --------
+	run("Set Measurements...", "area centroid bounding fit redirect=[vignette_msk] decimal=2");
+	run("Analyze Particles...", "size=0-Infinity circularity=0.00-1.00 show=Nothing include record");
+	updateResults();
+		nbobj = nResults;
+		ligne = 0;		g = 0;		Ratio = 0;
+		// ---------------------- Si probleme de vignette blanche -----------------------------------
+		if (nbobj == 0) {
+			print(titrered+"  "+i+" " +Histcum3[i]);
+			selectImage(titrered);
+			saveAs("Tif",chemwork+titrered+"_"+i+"_sympb");			
+			rename(titrered);
+			showMessage(titrered+"  "+i+" " +Histcum3[i]);
+		} //
+		areainit = getResult("Area", ligne);
+		while (g<nbobj) {		area = getResult("Area", g);
+			if (area > areainit) ligne = g;
+			areainit = maxOf(area,areainit);
+			g++;
+		} // for
+		bx = 	getResult("BX", ligne);
+		by = 	getResult("BY", ligne);
+		w = 	getResult("Width", ligne);
+		h = 	getResult("Height", ligne);
+		x = 	getResult("X", ligne);
+		y = 	getResult("Y", ligne);
+		area = 	getResult("Area", ligne);
+		major = 	getResult("Major", ligne);
+		angle = 	getResult("Angle", ligne);
+		xstart = 	getResult("XStart", ligne);
+		ystart =	getResult("YStart", ligne);
+		angle = 	angle +180;
+		angle = 	toString(angle);
+
+		// --------------- nettoyage autour du plus gros objet -------------
+		selectImage(image);
+		DEBX = xstart;
+		DEBY= ystart;
+		doWand(DEBX,DEBY);
+		run("Clear Outside");
+
+
+
+
+} // for
+
+
+
+
+//Draw axes on objects elipses
+run("Blobs (25K)");
+run("Make Binary");
+run("Set Measurements...", "  min centroid bounding fit shape area_fraction limit redirect=None decimal=3");
+run("Analyze Particles...", "size=0-Infinity circularity=0.00-1.00 show=Ellipses display exclude clear add");
+run("RGB Color");
+for(i=0; i<nResults; i++) {
+    x=getResult('X',i);
+    y=getResult('Y',i);
+    d=getResult('Major',i);
+    a = getResult('Angle',i)*PI/180;
+    setColor(0,0,255);
+    drawLine(x+(d/2)*cos(a),y-(d/2)*sin(a),x-(d/2)*cos(a),y+(d/2)*sin(a));
+    d=getResult('Minor',i);
+    a=a+PI/2;
+    setColor(255,0,0);
+    drawLine(x+(d/2)*cos(a),y-(d/2)*sin(a),x-(d/2)*cos(a),y+(d/2)*sin(a));
+}
+// end
+	
+
+for (i =1;i<26;i++) {
+
+run("Set Measurements...", "area area_fraction limit display redirect=None decimal=3");
+
+img = "area_exe_"+i+".TIF";
+
+open("E:\\Doc_LTER_mettre a jour au retour\\Zooscan_clips\\"+img);
+L = getWidth();		H = getHeight();
+
+run("8-bit");
+run("Properties...", "width="+L+" height="+H+" channels=1 slices=1 frames=1 unit=pixel pixel_width=1 pixel_height=1 voxel_depth=1.00000 frame=[0 sec] origin=0,0");
+
+run("Subtract Background...", "rolling=50 white");
+
+
+setThreshold(0, 246);
+run("Convert to Mask");
+run("8-bit");
+run("Make Binary");
+saveAs("Jpeg","E:\\Doc_LTER_mettre a jour au retour\\Zooscan_clips\\area_exe_"+i+"b_tehresholded");
+rename("Image");
+
+run("Analyze Particles...", "size=100-Infinity circularity=0.00-1.00 show=Outlines display exclude record");
+saveAs("Jpeg","E:\\Doc_LTER_mettre a jour au retour\\Zooscan_clips\\area_exe_"+i+"b_Outlines");
+close();
+selectImage("Image");
+
+
+run("Analyze Particles...", "size=100-Infinity circularity=0.00-1.00 show=Outlines display exclude include record");
+close();
+selectImage("Image");
+//	run("8-bit");
+//	setThreshold(0, 246);
+//	run("Convert to Mask");
+run("Fill Holes");
+
+rename("Image");
+saveAs("Jpeg","E:\\Doc_LTER_mettre a jour au retour\\Zooscan_clips\\area_exe_"+i+"b_Filled");
+rename("Image");
+
+run("Analyze Particles...", "size=100-Infinity circularity=0.00-1.00 show=Outlines display exclude include record");
+close();
+selectImage("Image");
+close();
+
+areawithout = getResult("Area",0);
+areawith= getResult("Area",2 );
+arearatio = getResult("%Area", 1);
+
+print(i  +"   areawithout= "+areawithout);
+print(i + "   areawith=      "+areawith);
+print(i+  "   arearatio=     "+arearatio);
+print("--------------------------------------");	
+
+} // for
+
+test = isOpen("Results");
+if (test==1) { selectWindow("Results");	run('Close'); 	} // if
+
+
+selectWindow("Log");
+text = "E:\\Doc_LTER_mettre a jour au retour\\Zooscan_clips\\test.txt";
+run("Text...",text);
+
+
+
+showMessage("END");

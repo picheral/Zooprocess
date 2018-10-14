@@ -1,0 +1,79 @@
+// ----------------- Zooprocess_change_instrum.txt ---------------------------------------	
+version =	 "7.21";
+date =	 "2015/09/21";
+
+args = 	getArgument();
+arg = 	split(args," ");
+chem = 	arg[0];
+dateheure = 	arg[1];
+//	showMessage("toto");
+// ------------------ lecture du fichier instrument -------------------------------------
+open(chem+"instrument.txt");
+wait(100);
+info = getInfo();
+run("Close");
+data = split(info,"\n");
+dat = split(data[0]," ");
+instrum	 = dat[1];
+dat = split(data[1]," ");
+path	 = dat[1];
+instrument = newArray("zooscan","uvp5","flowcam","generic");
+Dialog.create("ZOOPROCESS                           version "+version+"                   "+date);
+Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage("Previous instrument : "+instrum);
+Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage("SELECT NEW INSTRUMENT");
+Dialog.addChoice("                                 ",instrument);
+Dialog.addMessage("----------------------------------------------------------------------------------------------------------------------");
+Dialog.show();
+instrum = Dialog.getChoice();
+// ---------------------- Creation fichier instrument -----------------------------------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+print("Instrument= "+instrum);
+print("path= "+path);
+print("created= "+dateheure);
+text =  "save=" + chem+"\\instrument.txt";
+selectWindow("Log");
+run("Text...",text);	
+run("Close");
+if (instrum == "uvp5" && File.exists(chem+"\\uvp5_configuration_file.txt") == false) {
+	// --------------- N° de série --------------------------------------------------------------
+	uvp_sn_input = 0;
+	uvp_sn ="999";
+	// ------------------- N° SERIE UVP5 -----------------------------------------------------------------
+	while(uvp_sn_input == 0) {				
+		uvp_sn = getNumber("Input UVP5 serial number (3 numbers)",uvp_sn);
+		uvp_sn_txt = toString(uvp_sn);
+		uvp_sn_input = 1;
+		if 	(lengthOf(uvp_sn_txt) == 1) 	{	uvp_sn_txt = "00"+uvp_sn_txt;		}
+		else if (lengthOf(uvp_sn_txt) == 2) 	{	uvp_sn_txt = "0"+uvp_sn_txt;		}
+		else if (lengthOf(uvp_sn_txt) == 3) 	{	uvp_sn_txt = uvp_sn_txt;		}
+		else { showMessage("Serial number is not correct, enter again !");	uvp_sn_input  = 0;	}
+	} // while
+	uvp_type = "std";
+	if (parseInt(uvp_sn_txt) >= 200) uvp_type = "hd";
+		
+	// --------------- Fichier de configuration (PILOT BOARD) ---------------------------
+//	ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true "+uvp_sn);
+//	ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true");
+	ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true "+uvp_sn_txt);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	com = "passed";
+	if (l==1)  { 	showMessage("Error message ''uvp5_edit_configuration'' process aborted.                       "); 	} // if
+	// --------------- Création du fichier de PARAMETRAGE ---------------------------------------
+//	ret = runMacro("uvp5_edit_parameter",chem+" create "+chem);
+	ret = runMacro("uvp5_edit_parameter",chem+" create "+chem+" "+uvp_type+" "+uvp_sn_txt);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	com = "passed";
+	if (l==1)  { 	showMessage("Error message ''uvp5_edit_parameter'' process aborted.                       "); 	} // if		
+} // uvp5
+
+// ---------------- FIN ---------------------------------------------
+ret = instrum;
+return ret;	
+
+
+
+

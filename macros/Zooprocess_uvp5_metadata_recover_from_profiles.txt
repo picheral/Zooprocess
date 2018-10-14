@@ -1,0 +1,49 @@
+// ------------------------- Zooprocess_uvp5_metadata_recover_from_profiles --------------------
+version = "7.240";
+date = "2017/03/22";
+
+arg = getArgument(); 
+//arg = "uvp Y:\uvp5_sn009_sewardline_f2014";
+array = split(arg," ");
+instrum = 	array[0];
+path= 	array[1];
+//chem= 		array[2]; 	
+
+maxgg = 100000;
+
+// ---------------- Fermeture LOG --------------------
+if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+paramlist = "cruise;ship;filename;profileid;bottomdepth;ctdrosettefilename;latitude;longitude;firstimage;volimage;aa;exp;dn;winddir;windspeed;seastate;nebuloussness;comment;endimg;yoyo;stationid";
+print(paramlist);
+
+// --------------- Boucle sur les répertoires du WORK -----------------------
+pathwork = path+"\\work\\";
+filelist  = 	getFileList(pathwork);
+
+for (i=0; i < filelist.length ; i++) {
+	// ------------------- Si repertoire ---------------
+//	aa = getBoolean(filelist[i]);
+	if (endsWith(filelist[i],"/")) {
+		profiledir = substring(filelist[i],0,lengthOf(filelist[i])-1);
+//		print(profiledir);
+		// ------------- Ouverture meta --------------
+		metafile = pathwork+"\\"+profiledir+"\\"+profiledir+"_meta.txt";
+//		print(metafile);
+		if (File.exists(metafile)) {
+			metadata = File.openAsString(metafile);
+			array = split(metadata,"\n");	
+			print(array[1]);
+		}
+	}
+	
+}
+// ---------------- Sauvegarde fichier individuel dans repertoire profil ---------------
+			sauve = "save=" + path+"\\meta\\"+"recover_meta.txt";
+//			getBoolean(sauve);
+			selectWindow("Log");
+			run("Text...",sauve);
+			run('Close');
+
+// ---------------- FIN --------------------------------------------
+ret = "OK";
+return ret;

@@ -1,0 +1,196 @@
+// -------------------------------- Zooscan_print_pid_5 -------------------------------------------------------------
+version = 	"7.24";
+date = 		"2017/05/17";
+
+//	argpid = option+" "+nbblobs+" "+TAG+" "+titrered;
+arg = 		getArgument(); 
+array = 	split(arg," ");
+option = 	array[0];
+nbblobs = 	array[1];
+TAG = 		array[2];
+titrered =	array[3];
+
+nbblobs= 	parseInt(nbblobs);
+TAG = 		parseInt(TAG);
+
+//----------------------------------Sauvegarde du fichier en PID (ajout des donnees du Results au log)---------------------------------
+// Cette OPERATION est realisee AVANT l'identification car on doit conserver le LOG 
+print(" ");
+print("[Data]");
+if (option != "B") { pligne = "!Item;Label;Area;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Slope;Histcum1;Histcum2;Histcum3;XMg5;YMg5;Nb1;Nb2;Nb3;Compentropy;Compmean;Compslope;CompM1;CompM2;CompM3;Symetrieh;Symetriev;Symetriehc;Symetrievc;Convperim;Convarea;Fcons;ThickR;Tag";	} // if
+else { pligne = "!Item;Label;Area;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Tag";		} // else
+if (option == "UVP5") {	pligne = "!Item;Label;Depth;Area;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Slope;Histcum1;Histcum2;Histcum3;XMg5;YMg5;Nb1;Nb2;Nb3;Compentropy;Compmean;Compslope;CompM1;CompM2;CompM3;Symetrieh;Symetriev;Symetriehc;Symetrievc;Convperim;Convarea;Fcons;ThickR;Rawvig;Tag";	} // if
+if (option == "UVP5i") {	pligne = "!Item;Label;Depth;Area;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Slope;Histcum1;Histcum2;Histcum3;XMg5;YMg5;Nb1;Nb2;Nb3;Compentropy;Compmean;Compslope;CompM1;CompM2;CompM3;Symetrieh;Symetriev;Symetriehc;Symetrievc;Convperim;Convarea;Fcons;ThickR;Areai;Rawvig;Tag";	} // if
+if (option == "flowcam") {	pligne = "!Item;Label;Area;Meanimagegrey;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Slope;Histcum1;Histcum2;Histcum3;XMg5;YMg5;Nb1;Nb2;Nb3;Compentropy;Compmean;Compslope;CompM1;CompM2;CompM3;Symetrieh;Symetriev;Symetriehc;Symetrievc;Convperim;Convarea;Fcons;ThickR;Tag";	} // if
+if (option == "generic") {	pligne = "!Item;Label;Indexrawimg;Imageindex;Area;Meanimagegrey;Mean;StdDev;Mode;Min;Max;X;Y;XM;YM;Perim.;BX;BY;Width;Height;Major;Minor;Angle;Circ.;Feret;IntDen;Median;Skew;Kurt;%Area;XStart;YStart;Area_exc;Fractal;Skelarea;Slope;Histcum1;Histcum2;Histcum3;XMg5;YMg5;Nb1;Nb2;Nb3;Compentropy;Compmean;Compslope;CompM1;CompM2;CompM3;Symetrieh;Symetriev;Symetriehc;Symetrievc;Convperim;Convarea;Fcons;ThickR;Tag";	} // if
+
+print(pligne);
+// ------------------------ Boucle sur les lignes---------------------------------
+for (i=0; i<nbblobs; i++) {
+	if (option == "UVP5" || option == "UVP5i") {	titrered = getResultLabel(i);		
+		titrered = 	toString(titrered);	
+		Depth = 	getResult("Z",i);
+		Depth = round(Depth*100)/100;
+		Depth = 	toString(Depth);
+		if (option == "UVP5i") {		
+			Areai = 	getResult("Areai", i);
+			Areai = 	toString(Areai);
+		} // if
+		Raw_img_year = 			toString(getResult("Raw_img_year", i));
+		Raw_img_mmdd = 			toString(getResult("Raw_img_mmdd", i));
+		if (lengthOf(Raw_img_mmdd)== 3)	Raw_img_mmdd = "0"+ Raw_img_mmdd;
+		
+		Raw_img_hhmmss = 		toString(getResult("Raw_img_hhmmss", i));
+		if (lengthOf(Raw_img_hhmmss)== 1)	Raw_img_hhmmss = "00000"+ Raw_img_hhmmss;
+		else if (lengthOf(Raw_img_hhmmss)== 2)	Raw_img_hhmmss = "0000"+ Raw_img_hhmmss;
+		else if (lengthOf(Raw_img_hhmmss)== 3)	Raw_img_hhmmss = "000"+ Raw_img_hhmmss;
+		else if (lengthOf(Raw_img_hhmmss)== 4)	Raw_img_hhmmss = "00"+ Raw_img_hhmmss;
+		else if (lengthOf(Raw_img_hhmmss)== 5)	Raw_img_hhmmss = "0"+ Raw_img_hhmmss;		
+		
+		Raw_img_ms = 			toString(getResult("Raw_img_ms", i));
+		if (lengthOf(Raw_img_ms)== 1)		Raw_img_ms = "00"+ Raw_img_ms;
+		else if (lengthOf(Raw_img_ms)== 2)	Raw_img_ms = "0"+ Raw_img_ms;		
+		
+		Rawimgindex = 			toString(getResult("Raw_img_index", i));
+		if (lengthOf(Rawimgindex)== 1)		Rawimgindex = "000"+ Rawimgindex;
+		else if (lengthOf(Rawimgindex)== 2)	Rawimgindex = "00"+ Rawimgindex;
+		else if (lengthOf(Rawimgindex)== 3)	Rawimgindex = "0"+ Rawimgindex;
+		Rawimg = Raw_img_year+Raw_img_mmdd+Raw_img_hhmmss +"_"+Raw_img_ms+ "_"+Rawimgindex;		
+	} // if UVP5
+
+	Area = 		getResult("Area", i);
+	if (option == "flowcam" )	Meanimagegrey= 	getResult("Meanimagegrey",i);
+	if (option == "generic"  ) 	Meanimagegrey= 	getResult("Meanimagegrey",i); 	Imageindex = 		getResult("Imageindex",i); Indexrawimg = getResult("Indexrawimg",i);
+	Meanimagegrey = round(Meanimagegrey*100)/100;
+	Mean = 	getResult("Mean", i); Mean = round(Mean*100)/100;
+	StdDev = 	getResult("StdDev", i);StdDev = round(StdDev*1000)/1000;
+	Mode = 	getResult("Mode", i);
+	Min = 		round(getResult("Min", i));
+	Max = 		round(getResult("Max", i));
+	X = 		getResult("X", i); X = round(X*100)/100;
+	Y = 		getResult("Y", i); Y = round(Y*100)/100;
+	XM = 		getResult("XM", i);XM = round(XM*100)/100;
+	YM = 		getResult("YM",i);YM = round(YM*100)/100;
+	Perim = 	getResult("Perim.",i);Perim = round(Perim*100)/100;
+	BX = 		round(getResult("BX", i));
+	BY = 		round(getResult("BY", i));
+	Width = 	round(getResult("Width", i));
+	Height = 	round(getResult("Height", i));
+	Major = 	getResult("Major",i);Major = round(Major*10)/10;
+	Minor = 	getResult("Minor", i);Minor= round(Minor*10)/10;
+	Angle = 	getResult("Angle",i);Angle = round(Angle*10)/10;
+	Circ = 		getResult("Circ.", i);Circ = round(Circ*1000)/1000;
+	Feret = 	getResult("Feret", i);Feret = round(Feret*10)/10;
+	IntDen = 	round(getResult("IntDen", i));
+	Median = 	round(getResult("Median",i));
+	Skew = 	getResult("Skew", i);Skew = round(Skew*1000)/1000;
+	Kurt = 		getResult("Kurt", i);Kurt = round(Kurt*1000)/1000;
+	Parea = 	getResult("%Area", i);Parea = round(Parea*100)/100;
+	XStart = 	round(getResult("XStart", i));
+	YStart = 	round(getResult("YStart", i));
+	Area_exc = 	round(getResult("Area_exc", i));
+	Fractal =	getResult("Fractal",i);Fractal = round(Fractal*1000)/1000;
+	Skelarea = 	round(getResult("Skelarea",i));
+	if (option != "B") {
+		Slope = 		getResult("Slope",i);Slope = round(Slope*1000)/1000;
+		Histcum1 = 	getResult("Histcum1",i);
+		Histcum2 = 	getResult("Histcum2",i);
+		Histcum3 = 	getResult("Histcum3",i);	
+		XMg5 = 		getResult("XMg5",i);
+		YMg5 =		getResult("YMg5",i);
+		Nb1 = 			getResult("Nb1",i);
+		Nb2 = 			getResult("Nb2",i);
+		Nb3 =			getResult("Nb3",i);
+		Compentropy =	getResult("Compentropy",i);
+		Compmean =		getResult("Compmean",i);
+		Compslope =		getResult("Compslope",i);
+		CompM1 =		getResult("CompM1",i);
+		CompM2 =		getResult("CompM2",i);
+		CompM3 =		getResult("CompM3",i);
+		Symetrieh =		getResult("Symetrieh",i); Symetrieh = round(Symetrieh*1000)/1000;
+		Symetriev = 		getResult("Symetriev",i); Symetriev = round(Symetriev*1000)/1000;
+		Symetriehc = 		round(getResult("Symetriehc",i));
+		Symetrievc = 		round(getResult("Symetrievc",i));
+		Convperim = 		round(getResult("Convperim",i));
+		Convarea = 		round(getResult("Convarea",i));
+		Fcons = 		getResult("Fcons",i);Fcons = round(Fcons*1000)/1000;
+		ThickR =		getResult("ThickR",i);ThickR = round(ThickR*1000)/1000;
+	} // if option
+	if (option == "generic"  ) 	Imageindex = 	toString(Imageindex);	
+	Area = 		toString(Area);
+	if (option == "flowcam" )	Meanimagegrey = toString(Meanimagegrey);
+	Mean = 	toString(Mean);
+	StdDev = 	toString(StdDev);
+	Mode = 	toString(Mode);
+	Min = 		toString(Min);
+	Max = 		toString(Max);
+	X = 		toString(X);
+	Y = 		toString(Y);
+	XM = 		toString(XM);
+	YM = 		toString(YM);
+	Perim = 	toString(Perim);
+	BX = 		toString(BX);
+	BY = 		toString(BY);
+	Width = 	toString(Width);
+	Height = 	toString(Height);
+	Major = 	toString(Major);
+	Minor = 	toString(Minor);
+	Angle = 	toString(Angle);
+	Circ = 		toString(Circ);
+	Feret = 	toString(Feret);
+	IntDen = 	toString(IntDen);
+	Median = 	toString(Median);
+	Skew = 	toString(Skew);
+	Kurt = 		toString(Kurt);
+	Parea = 	toString(Parea);
+	XStart = 	toString(XStart);
+	YStart = 	toString(YStart);
+	Area_exc = 	toString(Area_exc);
+	Fractal =	toString(Fractal);
+	Skelarea = 	toString(Skelarea);
+	ind = 		toString(i+1);
+
+	if (option != "B") {
+		Slope = 		toString(Slope);
+		Histcum1 = 	toString(Histcum1);
+		Histcum2 = 	toString(Histcum2);
+		Histcum3 = 	toString(Histcum3);	
+		XMg5 = 		toString(XMg5);
+		YMg5 =		toString(YMg5);
+		Nb1 = 			toString(Nb1);
+		Nb2 = 			toString(Nb2);
+		Nb3 =			toString(Nb3);
+		Compentropy =	toString(Compentropy);
+		Compmean =		toString(Compmean);
+		Compslope =		toString(Compslope);
+		CompM1 =		toString(CompM1);
+		CompM2 =		toString(CompM2);
+		CompM3 =		toString(CompM3);
+		Symetrieh =		toString(Symetrieh); 
+		Symetriev = 		toString(Symetriev); 
+		Symetriehc = 		toString(Symetriehc);
+		Symetrievc = 		toString(Symetrievc);
+		Convperim = 		toString(Convperim);
+		Convarea = 		toString(Convarea);
+		Fcons =		toString(Fcons);
+		ThickR =		toString(ThickR);
+	} // if option
+
+	if (TAG == 0) Tag = 1;
+	if (TAG == 1) {	Tag = 	getResult("Tag",i);	Tag = 	toString(Tag);			} // if
+	// ----------------- Filtrage des objets de type "ligne horizontales" ------------------------------------------------------------------------------------
+	width = parseInt(Width);	height = parseInt(Height);
+	ratiobxby = width/height;
+	if (option != "B"  && ratiobxby >= 40) Tag = "3";
+	if (option == "flowcam" ) pligne = ind+";"+titrered+";"+Area+";"+Meanimagegrey+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Slope+";"+Histcum1+";"+Histcum2+";"+Histcum3+";"+XMg5+";"+YMg5+";"+Nb1+";"+Nb2+";"+Nb3+";"+Compentropy+";"+Compmean+";"+Compslope+";"+CompM1+";"+CompM2+";"+CompM3+";"+Symetrieh+";"+Symetriev+";"+Symetriehc+";"+Symetrievc+";"+Convperim+";"+Convarea+";"+Fcons+";"+ThickR+";"+Tag;
+	else if (option == "generic" ) pligne = ind+";"+titrered+";"+Indexrawimg+";"+Imageindex+";"+Area+";"+Meanimagegrey+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Slope+";"+Histcum1+";"+Histcum2+";"+Histcum3+";"+XMg5+";"+YMg5+";"+Nb1+";"+Nb2+";"+Nb3+";"+Compentropy+";"+Compmean+";"+Compslope+";"+CompM1+";"+CompM2+";"+CompM3+";"+Symetrieh+";"+Symetriev+";"+Symetriehc+";"+Symetrievc+";"+Convperim+";"+Convarea+";"+Fcons+";"+ThickR+";"+Tag;
+	else if (option == "UVP5" ) pligne = ind+";"+titrered+";"+Depth+";"+Area+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Slope+";"+Histcum1+";"+Histcum2+";"+Histcum3+";"+XMg5+";"+YMg5+";"+Nb1+";"+Nb2+";"+Nb3+";"+Compentropy+";"+Compmean+";"+Compslope+";"+CompM1+";"+CompM2+";"+CompM3+";"+Symetrieh+";"+Symetriev+";"+Symetriehc+";"+Symetrievc+";"+Convperim+";"+Convarea+";"+Fcons+";"+ThickR+";"+Rawimg+";"+Tag;
+	else if (option == "UVP5i" ) pligne = ind+";"+titrered+";"+Depth+";"+Area+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Slope+";"+Histcum1+";"+Histcum2+";"+Histcum3+";"+XMg5+";"+YMg5+";"+Nb1+";"+Nb2+";"+Nb3+";"+Compentropy+";"+Compmean+";"+Compslope+";"+CompM1+";"+CompM2+";"+CompM3+";"+Symetrieh+";"+Symetriev+";"+Symetriehc+";"+Symetrievc+";"+Convperim+";"+Convarea+";"+Fcons+";"+ThickR+";"+Areai+";"+Rawimg+";"+Tag;
+	else if (option != "B" ) pligne = ind+";"+titrered+";"+Area+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Slope+";"+Histcum1+";"+Histcum2+";"+Histcum3+";"+XMg5+";"+YMg5+";"+Nb1+";"+Nb2+";"+Nb3+";"+Compentropy+";"+Compmean+";"+Compslope+";"+CompM1+";"+CompM2+";"+CompM3+";"+Symetrieh+";"+Symetriev+";"+Symetriehc+";"+Symetrievc+";"+Convperim+";"+Convarea+";"+Fcons+";"+ThickR+";"+Tag;
+	else {	pligne = ind+";"+titrered+";"+Area+";"+Mean+";"+StdDev+";"+Mode+";"+Min+";"+Max+";"+X+";"+Y+";"+XM+";"+YM+";"+Perim+";"+BX+";"+BY+";"+Width+";"+Height+";"+Major+";"+Minor+";"+Angle+";"+Circ+";"+Feret+";"+IntDen+";"+Median+";"+Skew+";"+Kurt+";"+Parea+";"+XStart+";"+YStart+";"+Area_exc+";"+Fractal+";"+Skelarea+";"+Tag;		} // else
+	print(pligne);
+} // for
+
+// --------------------------------- FIN --------------------------------------
+ret = date;
+return ret;

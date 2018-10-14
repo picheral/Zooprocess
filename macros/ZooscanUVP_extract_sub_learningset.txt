@@ -1,0 +1,342 @@
+// ------------------------ ZooscanUVP_extract_sub_learningset.txt ----------------------
+version = "7.17";
+date = "2014/02/24";
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+projfolder = 	arg[1];
+instrum = 	arg[2];
+lon = lengthOf(projfolder);
+loninst = lengthOf(instrum);
+
+zoosc = indexOf(projfolder,instrum);
+proj = substring(projfolder,zoosc+loninst+1,lon);
+pathlearn = projfolder+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+if (instrum == "zooscan") {
+	chemwork = projfolder+"\\Zooscan_scan\\_work\\";
+}//
+else {
+	chemwork = projfolder+"\\work\\";
+} //else
+chempredicted = projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\Pid_predicted\\";
+chempidrsults = projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+
+requires("1.41o");
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+setBatchMode(1);
+VIG_nok = 0;
+
+rep_list = newArray(100000);
+rep_index = 0;
+
+if (isOpen("Results")) { selectWindow("Results");		run('Close');	} // if
+
+// -------------- Repertoires -------------------------------------------------------------------
+chemsorted = 	projfolder+"\\"+"\\PID_process\\"+"\\Sorted_vignettes\\";
+chemlearn = 	projfolder+"\\"+"\\PID_process\\"+"\\Learning_set\\";
+pathpidresults = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\";
+chemconfig = 		projfolder+"\\config\\";
+if (instrum == "zooscan") 	chemconfig = 		projfolder+"\\Zooscan_config\\";
+pathdat1validated = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Dat1_validated\\";
+pathpidpredicted = 	projfolder+"\\"+"\\PID_process\\"+"\\Pid_results\\"+"\\Pid_predicted\\";
+if (File.exists(pathdat1validated) == false) {		File.makeDirectory(pathdat1validated); 		} // if
+
+if (isOpen("Log")) {	selectWindow("Log"); run("Close");	}
+print("-- Learning_Set_random_selection.txt --");
+
+dateheure =	runMacro("Zooscan_get_time_5");
+// getBoolean("PROCESS INFORMATION \n \nCreate a sub learnigset from sorted vignettes. \nA user defined number of vignettes from each id folder is randomly copied into the new Learningset folders. \nThe ''source'' folder must contain the PID files of all vignettes. \n \n \nPress YES to continue !");
+method_list_pc = newArray(2);
+method_list_pc[0] = "Extract a given PERCENTAGE of vignettes from each folder (for Quality Check)";
+method_list_pc[1] = "Extract a given NUMBER of vignettes from each folder (for Learning Set)";
+
+Dialog.create("SUBSET OPTION")
+Dialog.addMessage( "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage( "Project     :  "+proj);
+Dialog.addMessage( "Instrument  :  "+instrum);
+Dialog.addMessage( "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addChoice("           SELECT OPTION ",method_list_pc);
+Dialog.show();
+per_num_opt = 		Dialog.getChoice();
+
+// --------------------- Choix ------------------------------------------
+method_list = newArray(3);
+method_list[0] = "Extract vignettes from ONE source folder selected manually";
+method_list[1] = "Extract vignettes from ONE or more source folders selected in "+chemsorted;
+method_list[2] = "Extract vignettes from ALL folders in "+chemsorted;
+Dialog.create("Create a Sub Learning Set from folder sorted vignettes            version "+version);
+Dialog.addMessage("PROCESS INFORMATION \n \nCreate a sub learnigset from sorted vignettes. \nA vignettes from each id folder are randomly selected and copied into the new Learningset folders with their pid files. \n ");
+Dialog.addMessage( "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.addMessage( "Vignettes from folders containing ''validated'' will be considered. DO NOT forget to change ''to_validate'' into ''validated'' !");
+Dialog.addMessage("   1) Extract vignettes from ONE source folder manually selected anywhere in your computer");
+Dialog.addMessage("   2) Extract vignettes from ONE or more validated folders manually selected in "+chemsorted);
+Dialog.addMessage("   3) Extract vignettes from ALL validated folders in "+chemsorted);
+Dialog.addNumber(" SELECT OPTION NUMBER",3);
+Dialog.addMessage( "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+if (per_num_opt == method_list_pc[1]) {
+	Dialog.addNumber("      Number of vignettes to randomly extract from EACH vignette source folder ? ",20);
+}
+else {
+	Dialog.addNumber("     Ratio (%) of vignettes to randomly extract from EACH vignette source folder ? ",5);
+}
+
+Dialog.addMessage( "----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
+Dialog.show();
+ind = 		Dialog.getNumber();
+sort = 		method_list[ind-1];
+nbvig1 = 	Dialog.getNumber();
+//	nbvig = nbvig1+1;
+if (sort == method_list[1] || sort == method_list[2] ) {
+	// ------------ CATALOGUE -----------------------
+	sorted = getFileList(chemsorted);
+	if (sorted.length >=1) {		
+		filelist = newArray(sorted.length);
+		vig_rep_nb = 0;
+		for (i=0; i<sorted.length ; i++) {	  
+			rr = sorted[i]; 
+			identlong = 	lengthOf(rr);
+			if (endsWith(rr,"/") && indexOf(rr,"validated")>0 )	 {	rr = 	substring(rr,0,identlong-1);	filelist[vig_rep_nb] = rr;		vig_rep_nb++;		} // if
+		} // for
+		if (vig_rep_nb>=1) { listaff  = newArray(vig_rep_nb); 
+			for (k = 0;k<vig_rep_nb;k++) { rr = filelist[k]; 	listaff[k] = rr;	  } // for
+		} // if
+		else { 
+			getBoolean("No ''Source'' folder in "+chemsorted+" Press Cancel to abort ! ");
+		} // else
+	} // if
+	else { 
+		getBoolean("No ''Source'' folder in "+chemsorted+" Press Cancel to abort ! ");
+	} // else
+} // if catalogue
+	
+continue = 1;
+validated_data_index = 0;
+
+while(continue == 1) {
+	// --------------------------------- Chemsorted ---------------------------------------------
+	if (sort == method_list[0] ) {	
+		dirprediction = getDirectory("Select ''Source'' directory ");
+		continue = 0;
+	} // if
+	else {	
+		if (sort == method_list[1]) {
+			// ------------- Si plusieurs répertoires --------------------
+			if (vig_rep_nb>= 1) {
+				Dialog.create("Create a Sub Learning Set from folder sorted vignettes            version "+version);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.addMessage( "Project  :  "+proj);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.addChoice("                  Select ''Source'' folder       ",listaff);
+				Dialog.addMessage( "--------------------------------------------------------------------------------------------------------------------------------------------------------------");
+				Dialog.show();
+				chemsort = 		Dialog.getChoice();
+			} // if
+			else {		chemsort = listaff[0];		} // else
+		} // 
+		if (sort == method_list[2]) {
+			chemsort = listaff[validated_data_index];
+			validated_data_index++;
+			if (validated_data_index == vig_rep_nb ) continue = 0;
+		//	showMessage(vig_rep_nb+"  "+validated_data_index+"  "+continue);
+		}//
+		dirprediction = chemsorted+"\\"+chemsort+"\\";
+	} // else
+	// ------------- Choix du repertoire ------------------------------------
+	//	dirroot = getDirectory("Select DESTINATION folder to save the new Learningset ");
+	dirroot = chemlearn;
+
+
+// ------------- Liste des sous repertoires des Id et des PID --------------------------
+
+print("====== Id FOLDERS ====================");
+j= 0;
+filelist  = getFileList(dirprediction);
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	  
+	rr = filelist[i]; 
+	if (endsWith(rr,"/")) { list[j] = rr;  j++;  	print(rr);	} // if
+} // for
+if (j==0) { getBoolean("No Id folder in "+dirprediction+" !\nPress Cancel and start again with another folder.");	} // if
+// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+listid = newArray(j);
+for (i=0; i<listid.length ; i++) {	rr = list[i];		listid[i] = rr;	} // for
+
+// ---------------------- SSI Id et PID ! ---------------------------------------------
+if (j > 0 ) {
+	// -------------------- Creation du repertoire de destination -----------------------------------
+	if (per_num_opt == method_list_pc[1]) {
+		newdir = 		dirroot+"\\"+dateheure+"_random_number_"+nbvig1+"\\";
+	}
+	else {
+		newdir = 		dirroot+"\\"+dateheure+"_random_percent_"+nbvig1+"\\";
+	}
+			
+	File.makeDirectory(newdir);
+	
+	// -------------------- Boucle sur les repertoires des Id -----------------------------------------
+	nbvigid = newArray(j);
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");		}
+	print("-- UVP5_random_selection.txt --");
+	print(dirprediction);
+	rep_list[rep_index] = dirprediction;
+	rep_index++;
+	for (m=0; m<j ; m++)	{
+		vigfolder = dirprediction+"\\"+listid[m]+"\\";
+		//	print(vigfolder);
+		
+		// ---------------- Existence du repertoire de destination ---------------------
+		savefolder =newdir+"\\"+listid[m]+"\\";
+		if (File.exists(savefolder) == false )	File.makeDirectory(savefolder);
+
+		// ---------------- Que les fichiers ".jpg" -----------------------------------------------
+		h= 0;
+		filelist  = getFileList(vigfolder);
+		list = newArray(filelist.length);
+		for (i=0; i<filelist.length ; i++) {	  
+			rr = filelist[i]; 
+			if (endsWith(rr,".jpg")) { list[h] = rr;  h++;  	} // if
+		} // if
+		// ---------------------Purger les fichiers vides de la liste et RANDOM -------------------------------------
+		listvig = newArray(h);
+		for (i=0; i<listvig.length ; i++) {	rr = list[i];		listvig[i] = rr+";"+random;	} // for
+		nbvigid[m] = h;
+		ident = listid[m];
+		rep_list[rep_index] = ident+" = "+h;
+		rep_index++;
+		
+		if (per_num_opt == method_list_pc[0]) {
+			nbvig = round(0.01 * nbvig1 * h);
+		}
+		else {
+			nbvig = nbvig1+1;
+		}
+
+		if (nbvig <= h) {
+			// ----------------- TRI --------------------------------------------------------
+			sortedligne = 	newArray(h);
+			listp = 		minOf(nbvig,h); 
+			aff = 		newArray(listp);
+			index = 0;
+			while (index < h) {
+				showStatus("SORTING thumbs randomly,   index = "+index+" / "+h+",  WAIT !");
+				minval = 100000000000;
+				for (u=0; u<h ; u++) {
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					minval = minOf(data,minval);
+				} // for
+				for (u=0; u<h ; u++) {
+					//---------------Trouvons tous les champs de cette valeur----------------
+					ligneval = listvig[u];
+					mat = replace(ligneval,";"," ");
+					val = split(mat,"\ ");
+					long = val.length;
+					data = val[long-1];
+					data = parseFloat(data);
+					if (data == minval ) {
+						sorted = listvig[u];
+						sortedligne[index] = sorted;
+						//	print(sorted);
+						index++;
+						ligne = "10000000000";
+						for (t=0;t<long-2;t++) {ligne = ligne + " 10000000000";	} // for
+						ligne = ligne + " 10";
+						listvig[u] = 	ligne;			
+					} // if
+				} // for
+			} // while
+			//-------------Inversement de l'ordre---------------------
+			for (u=0; u<listp; u++) { 
+				ind = h-u-1;
+				Aff = sortedligne[ind];	
+				aff[u] = Aff;		
+			} // for
+			debut = 1;
+			fin = listp;
+		}//
+		else {	// ----------- TOUTES les vignettes -----------------------
+			debut = 0;
+			fin = h;
+		}//
+		// --------------- Boucle sur les vignettes ------------------------------------------------
+		for (g=debut; g < fin ; g++) {
+			// -------------- Creation du nom de la vignette a lire ---------------------
+			if (nbvig <= h) {	ligne = split(aff[g],"\;");	nomvig = ligne[0]; 	}
+			else {							nomvig = list[g];	}
+			openvig = vigfolder+"\\"+nomvig;
+			pos = lastIndexOf(nomvig,"_");
+			pid_file_short = substring(nomvig,0,pos);
+			pid_file = pid_file_short+"_dat1.pid";
+			// ----------------- COPIE du PID si existe -------------------------------
+			pid_file_src = 		dirprediction+pid_file;
+			pid_file_pred =		chempredicted+pid_file;
+			pid_file_work =		chemwork+pid_file_short+"\\"+pid_file;
+			pid_file_pid_res = 	chempidrsults+pid_file;
+			pid_file_open = "nok";
+		
+	// aa = getBoolean(openvig);			
+	// aa = getBoolean(pid_file_pred);
+//	// aa = getBoolean(pid_file_work);
+//	// aa = getBoolean(pid_file_pid_res);
+	
+			if (File.exists(pid_file_work)) {		pid_file_open =	pid_file_work;				}	
+			else if (File.exists(pid_file_pred)) {		pid_file_open =	pid_file_pred;				}			
+			else if (File.exists(pid_file_pid_res)) {	pid_file_open =	pid_file_pid_res;			}			
+			else if (File.exists(pid_file_src)) {	pid_file_open =	pid_file_src;			}
+			if (pid_file_open != "nok" ){
+				if (File.exists(newdir+"\\"+pid_file) == false){
+					//-------------------Impression dans le LOG---------------------------
+					if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+					//	showMessage(dirprediction+"\\"+pidfile);
+					open(pid_file_open);
+					wait(500);
+					data = getInfo();
+					wait(100);
+					run("Close");
+					data = split(data,"\n");
+					for (b=0; b<data.length;b++) {		print(data[b]);		} // for
+					selectWindow("Log");
+					// --------------- Sauvegarde ------------------------
+					textsave = "save=" + newdir+"\\"+pid_file;
+					run("Text...",textsave);	
+					run("Close");
+				} // if
+				// ----------- Copie vignette -------------------					
+				if (File.exists(openvig)) {	
+					open(openvig);	
+					textsave = newdir+"\\"+listid[m]+"\\"+nomvig;
+					saveAs("Jpeg",textsave);
+					close();
+				} // if					
+			}//
+			else { VIG_nok++;	} //
+			// ---------------- Traitement vignette ----------------------------------				
+		} // for vignette
+	} // for
+	} // if j k
+	if (sort == method_list[1]) {
+		continue = getBoolean("PRESS YES to add vignettes from another folder   \n \nPRESS NO to end !");
+	}// if
+	// showMessage(validated_data_index+"  "+continue);
+} //while
+// ----------------- Resume -------------------------
+if (isOpen("Log")) {	selectWindow("Log"); run("Close");	}
+for (t = 0; t < rep_index; t++) { 	print(rep_list[t]);	} // for
+textsave = "save=" + newdir+"\\list_rep.txt";
+selectWindow("Log");
+run("Text...",textsave);
+
+if (VIG_nok != 0) showMessage("WARNING",VIG_nok+" vignettes could not be utilized because PID file could not be found !");
+showMessage("NORMAL END","DO NOT FORGET TO USE PLANKTON IDENTIFIER TO FINALIZE the created LEARNING SET !");
+
+// ----------------- END -------------------------------
+setBatchMode(0);
+ret = "OK";
+return ret;

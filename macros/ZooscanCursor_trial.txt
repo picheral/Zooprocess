@@ -1,0 +1,22 @@
+// -------------- ZooscanCursor_trial --------------
+version= "6.10";
+date = "2009/03/30";
+
+timeout = 8; 
+startTime = getTime();
+while (getTime()<startTime+timeout*1000) {
+	showStatus("Delay to exit");
+	progress = (getTime()-startTime)/(timeout*1000);
+	showProgress(progress);
+          	getCursorLoc(x, y, z, flags);
+         	if (flags > 0 ) {
+              		print("flags= ",flags);
+             		startTime = getTime();
+         	 } // if
+      	wait(100);
+}
+print("Exiting after "+timeout+" seconds of inactivity");
+
+// ----------------------- FIN -------------------------
+ret = "OK";
+return ret;

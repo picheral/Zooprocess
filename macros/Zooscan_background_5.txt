@@ -1,0 +1,575 @@
+//-----------------------Zooscan_background_5----------------------------
+version = "7.22";
+date = "2016/09/05";
+
+// Choisir le fichier de config qui sera utilise pour traiter les donnees. On prend ce fichier dans le PROJET selectionne
+
+// De cette façon, on garantit que la position est la meme...
+// args = chem+" "+chemvue+" "+proc+" "+proj +" "+projfolder;
+
+// v800
+// v800 pb 4800 dpi Narrow
+// bug background 4490
+
+args = getArgument();
+arg = split(args," ");
+chem = 		arg[0];
+chemvue = 	arg[1];
+proc = 		arg[2];
+proj = 		arg[3];
+projfolder =	arg[4];
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemback =	 projfolder + "\\Zooscan_back\\";
+chemtemp = 		chem + "Zooscan_temp\\";
+drive =		substring(projfolder,0,2);
+scanner = "Biotom";
+
+//---------------------Lecture fichier "Zooscan" ---------------------------------
+if (File.exists(chem+"\\Zooscan.txt") == 0) {
+	args = chem+" "+chem+" "+"Biotom";
+	ret = runMacro("Zooscan_select_system",args);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	showMessage("Warning message : ''Zooscan_select_system'' process aborted                       "); 	} // if
+} // if
+open(chem+"\\Zooscan.txt");
+data = getInfo();
+run('Close');
+ligne = split(data,"\n");
+scanner = ligne[0];
+
+// --------------------- Test de l'existence du logiciel vuescan------------------------------------------
+ret = runMacro("Zooscan_find_vuescan");
+flag=toString(ret);
+l= lengthOf(flag);
+if (l==1)  { getBoolean("Zooscan_find_vuescan macro aborted.  \n \nPress Cancel to abort !    ");	} // if
+else {	argret = split(flag," ");	vuescan = argret[0];	flag = 	argret[1];		chemvue = argret[2];	vuescanexist = argret[3];	} // else
+
+//-----------------Test sur l'existence du repertoire du blanc dans le projet et creation -------------------------------------------------------------------------------------
+confrep = File.exists(chemback);
+if (confrep==0) { 	showMessage("Warning : "+chemback+" folder doesn't exist,             \n          \n"+chemback+" created now for the project "+proj);  
+	File.makeDirectory(chemback); 
+} // if
+nbframe = 2;
+ratio = 0.6;	time = 40;		ecranw= screenWidth();	ecranh= screenHeight();
+vuescanofsetx = 10;	vuescanofsety = 10;	resolution = 300;		
+Hardware= "none";	Unit= 0;		reduction=1;		AutoOffset=0;
+PreviewXOffset= 0;	XOffset= 0;	XSize= 0;			XSpacing= 0;
+YOffset= 0;	YSize=0;
+operation = "background";
+bitperpixel = 	8;	bitperpixelligne =	0;	tifiletype=		8;
+tifileligne =	0;	colorbalance = 	"neutral";	colballigne = 	0;
+save16 = 		0;
+tiffile = 0;		rawfile = 0;
+titrefinal = " ";
+
+//---------------------------- Test sur l'existence du repertoire des fichiers de config -------------------------------
+confrep = File.exists(chemconfig);
+if (confrep==0) {	showMessage("Error message : "+chemconfig+" folder doesn't exist, automatic CONFIG update aborted  ");  	}
+else { 	print("CONFIG exits");
+	// ---------------------- USER / ADVANCED -----------------------------------
+	mode_user = chemconfig+"mode_file_user.txt";
+	mode_advanced = chemconfig+"mode_file_advanced.txt";
+	//-------------- Choix du fichier SCAN dans _config ----------------------------------------------------------------
+	filelist  = getFileList(chemconfig);
+	//-------------- Selection des fichiers dont le nom comporte le mot "vuescan_zooscan"---------------------
+	j = 0;	flagframe = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	  ctrl = indexOf(filelist[i],"vuescan_zooscan");
+		ctrl1 = indexOf(filelist[i],"narrow");
+		ctrl2 = indexOf(filelist[i],"large");
+		if (ctrl1>=0 || ctrl2>=0) { 	flagframe =1; 				} // if
+		if (ctrl==0 && flagframe==1)	{rr = filelist[i]; list[j] = rr;  j++;  	flagframe = 0; 	} // if
+	} // for
+	if (j==0) { print("No valid configuration file in the "+projfolder);
+		configpres = 0;
+		getBoolean("No valid config file in "+projfolder+"                   \n \nCopy a valid file from another project.    \n     \nPress CANCEL to abort !             ");
+	} //
+	// --------------------------- Purger les fichiers vides de la liste !
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i]; 	listaff[i] = rr;	}
+	scanfile = "ERROR";
+	test =0;
+	syst = scanner;
+	nbframe = 2;
+	scanfile = listaff[0];
+	if (File.exists(mode_advanced) == true) {
+		Dialog.create("SCAN BACKGROUND CONFIG MENU");
+		Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+		Dialog.addMessage("Project  :  "+proj);
+		Dialog.addMessage("ZOOSCAN installed model is : "+syst);
+		if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN installed version is : "+vuescan);
+		else {	Dialog.addMessage("VUESCAN is not installed. ");	} // else
+		Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+		Dialog.addNumber("              Number of frames in background  ",nbframe);
+		Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------         ");
+		if (j > 1) {
+			message = "The SCAN file is the same that you will use to later scan images.                       " ;
+			Dialog.addMessage(message);
+			message = "Select the right size of frame (narrow / large) according to the file name.                       " ;
+			Dialog.addMessage(message);
+			message = "Your configuration filename contains 'vuescan' and either 'narrow' or 'large'  words.            " ;
+			Dialog.addMessage(message);
+			message = "SELECT SCAN CONFIG FILE in " + chemconfig+"                       " ;
+			Dialog.addMessage(message);
+			Dialog.addChoice("    ", listaff);
+		}
+		Dialog.show();
+		nbframe = 	Dialog.getNumber();
+		nbframe = maxOf(1,nbframe);
+		nbframe = minOf(10,nbframe);
+		if (j > 1) {
+			scanfile = Dialog.getChoice();
+		}
+		else {
+			scanfile = listaff[0];
+		}
+	} // if advanced
+		
+	//-----------------------Rechercher le type de frame dans le nom du fichier config---------------
+	framesize="narrow";
+	posr = indexOf(scanfile,"narrow");
+	if (posr>=0 ) { framesize = "narrow";	} // if
+	posr = indexOf(scanfile,"large");
+	if (posr>=0 ) { framesize = "large";	} // if
+	//--------------------Le nom du fichier est AUTOMATIQUE-----------------------------------------------
+	dateheure =	runMacro("Zooscan_get_time_5");
+	titre = 		dateheure+"_back_"+framesize+"_1+.tif";
+	titrered = 		dateheure+"_background_"+framesize;
+	//print("chem= ",chem," chemvue= ",chemvue," scanfile= ",scanfile," chemconfig= ",chemconfig," op= ",op," prevtitre= ",prevtitre);
+	//------------------Preparation et copie du fichier INI dans chemvue sous le nom "VUESCAN.INI"-------------------
+	print("A purger");	selectWindow("Log");	run("Close");
+	//---------------------- test sur l'existence du fichier de config vuescan pour la calibration---------------------
+	calfile = File.exists(chemconfig+scanfile);
+	if (calfile!=1) { showMessage(scanfile+" file not found in " +chemconfig +"folder         \nOpen vuescan calibration INI file by yourself... or CANCEL      ");
+		open()
+	} // if
+	else {  open(chemconfig+scanfile); 	} // else
+	vueinfo = getInfo();
+	run('Close');
+	ligne = split(vueinfo,"\n");
+	//-------------------------------Type Hardware----------------
+	for (k=0;k<ligne.length;k++) {
+		champ= ligne[k];		texte= champ;	pos = indexOf(champ,"[Crop-");
+		if (pos>=0) { fin = lastIndexOf(champ,"]");		Hardware= substring(champ,pos+6,fin);			} // if
+		posreduc = indexOf(champ,"TIFFSizeReduction");		
+	} // for
+	// ------------------------------ Test coherence Scanner ----------------------------------
+	if (startsWith(Hardware, "Perfection4990") && (scanner == "Hydroptic v2" || scanner == "Hydroptic v3 WindowXp" || scanner == "Hydroptic v3 Window7")) { getBoolean("You have installed an "+scanner+" Zooscan. \n \nThe project defined system is different. \n \nPress Cancel to abort and check configuration !   ");	} // if
+	if (startsWith(Hardware, "Perfection4490") && (scanner == "Hydroptic v1" || scanner == "Hydroptic v3 WindowXp" || scanner == "Hydroptic v3 Window7" || scanner == "Biotom")) { getBoolean("You have installed an "+scanner+" Zooscan. \n \nThe project defined system is different. \n \nPress Cancel to abort and check configuration !   ");	} // if
+	if (startsWith(Hardware, "Perfectionv700") && (scanner == "Hydroptic v1" || scanner == "Hydroptic v2" || scanner == "Biotom")) { getBoolean("You have installed an "+scanner+" Zooscan. \n \nThe project defined system is different. \n \nPress Cancel to abort and check configuration !   ");	} // if
+
+	// showMessage(Hardware);
+	if (Hardware !="Perfection4990-Flatbed" && Hardware !="Perfection4490-Flatbed" &&  Hardware !="Perfectionv700-Flatbed" &&  Hardware !="Perfectionv800-Flatbed") {	showMessage("WARNING","Your device is not a referenced Zooscan ! ");	} // if
+	//---------------------Autres parametres------------------------
+	matrice = newArray(ligne.length);
+	for (k=0;k<ligne.length;k++) {
+		champ= ligne[k];
+		texte= champ;
+		// ----------------------------------------- CROP -----------------------------------------------------
+		//----------------- XOffset
+		pos1 = indexOf(champ,"XOffset");
+		if (pos1>=0 ) { // remplacer par l'info 
+			deb= indexOf(champ,"=");
+			if (deb < 10) {	long= lengthOf(champ);	val = substring(champ,deb+1,long);	XOffset=parseInt(val);
+				texte = "XOffset="+XOffset;	texteXO = texte;
+			} // if
+		} // if
+		//----------------- YOffset
+		pos1 = indexOf(champ,"YOffset");
+		if (pos1>=0 ) { 	deb= indexOf(champ,"=");
+			if (deb < 10) {	long= lengthOf(champ);	val = substring(champ,deb+1,long);	YOffset=parseInt(val);
+				texte = "YOffset="+YOffset;	texteYO = texte;
+			} // if
+		} // if
+		// ---------------------------------------INPUT -----------------------------------------------------
+		// -------------------------------INPUT DEPTH-------------------------------
+		pos = indexOf(champ,"BitsPerPixel=3");
+		if (pos>=0) {	bitperpixel = 16;		bitperpixelligne = k;		} // if
+		pos = indexOf(champ,"BitsPerPixel=2");
+		if (pos>=0) {	bitperpixel = 8;		bitperpixelligne = k;		} // if
+		// -------------------- Scan resolution --------------------------------------------------------
+		pos = indexOf(champ,"ScanResolution");
+		if (pos>=0 && framesize == "narrow" && Hardware=="Perfectionv800-Flatbed") { texte = "ScanResolution=2";			} // if SCAN BckGround at 4800 dpi for NARROW frame
+		else if (pos>=0 && (Hardware=="Perfection4990-Flatbed" || Hardware=="Perfection4490-Flatbed" || Hardware=="Perfectionv700-Flatbed" || Hardware=="Perfectionv800-Flatbed")) { texte = "ScanResolution=4";			} // if
+		
+		// ----------------------------------------- CROP -----------------------------------------------------
+		//---------------------------------COLOR-------------------------------------------------
+		// -------------------------------COLOR BALANCE-------------------------------
+		pos = indexOf(champ,"ColorBalance=0");
+		if (pos>=0) {	colorbalance = "none";	colballigne = k;		} // if
+		pos = indexOf(champ,"ColorBalance=2");
+		if (pos>=0) {	colorbalance = "neutral";	colballigne = k;		} // if
+		// ------------------------------Brightness----------------------------------------------
+		pos = indexOf(champ,"Brightness");
+		if (pos>=0) {	deb= indexOf(champ,"=");	
+				long= lengthOf(champ); 	
+				val = substring(champ,deb+1,long);	
+				bright=parseInt(val);		
+		} // if
+		//----------------------------------- OUTPUT -----------------------------------------------
+		pos = indexOf(champ,"[Output]");
+		if (pos>=0) { 	coloutput = k;		} // if
+		//-------------------------------Repertoire de sauvegarde BACK----------------
+		pos = indexOf(champ,"DefaultFolder");
+		if (pos>=0) { 	texte = "DefaultFolder="+drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_back";	colfolder = k;	} // if
+		// -------------------------------Nom du fichier-------------------------------
+		//-------------------------------Nombre de frames----------------
+		pos = indexOf(champ,"XImages");
+		if (pos>=0) { texte = "XImages="+nbframe; 	} // if
+		// ---------------------------- Enregistrement du fichier TIF ---------------------------
+		pos = indexOf(champ,"TIFFFile=");
+		if (pos>=0) { 	deb= indexOf(champ,"=");	tiffile= substring(champ,deb+1,deb+2);		coltiffile = k;	} // if	
+		//-------------------------------- TIF Reduction ------------------------------------------------- 
+		//--------------- On scanne a 1200 dpi et on stocke a 300 apres reduction-------------
+		posr = indexOf(champ,"TIFFSizeReduction");
+		if (posr>=0 && framesize == "narrow" && Hardware=="Perfectionv800-Flatbed") { 	texte = "TIFFSizeReduction=8";	reduction = 8;	colred = k;	} // if
+		else if (posr>=0) {								texte = "TIFFSizeReduction=4";	reduction = 4;	colred = k;	} // if
+		// ---------------------------- Nom du fichier TIF ---------------------------
+		pos = indexOf(champ,"TIFFFileName");
+		if (pos>=0) { 	coltiffile = k;		} // if
+		// ---------------------------- Type du fichier TIF ---------------------------
+		pos = indexOf(champ,"TIFFFileType");
+		if (pos>=0) { 	coltiffiletype = k;		} // if
+		pos = indexOf(champ,"TIFFFileType=2");
+		if (pos>=0) {	tifiletype=16;		} // if
+		pos = indexOf(champ,"TIFFFileType=1");
+		if (pos>=0) {	tifiletype=8;		} // if
+		// ---------------------------- Compression du fichier TIF ---------------------------
+		pos = indexOf(champ,"TIFFCompression");
+		if (pos>=0) { 	deb= indexOf(champ,"=");	compressionTIF= substring(champ,deb+1,deb+2);	coltifcompression = k;		} // if	
+		// ---------------------------- Enregistrement du fichier RAW ---------------------------
+		pos = indexOf(champ,"RawFile=");
+		if (pos>=0) { 	deb= indexOf(champ,"=");	rawfile= substring(champ,deb+1,deb+2);		colrawfile = k;	} // if	
+		// ---------------------------- Nom du fichier RAW ---------------------------
+		pos = indexOf(champ,"RawFileName");
+		if (pos>=0) { 	colrawfile = k;									} // if
+		// ---------------------------- Type du fichier RAW ---------------------------
+		pos = indexOf(champ,"RawFileType");
+		if (pos>=0) { 	colrawfiletype = k;		} // if
+		// ---------------------------- Compression du fichier RAW ---------------------------
+		pos = indexOf(champ,"TawCompression");
+		if (pos>=0) { 	deb= indexOf(champ,"=");	compressionRAW= substring(champ,deb+1,deb+2);	colrwcompression = k;	} // if		
+		// ----------------------------- PREF ----------------------------------------------------------- 
+		// -------------------------------GRAPH TYPE B&W-------------------------------
+		pos = indexOf(champ,"GraphType=");
+		if (pos>=0) {	texte = "GraphType=2";				} // if
+		//-------------------------------Window Position & size----------------
+		pos = indexOf(champ,"WindowXOffset");
+		if (pos>=0) {	 texteA = "WindowXOffset="+vuescanofsetx; 	} // if
+		pos = indexOf(champ,"WindowYOffset");
+		if (pos>=0) { 	texteB = "WindowYOffset="+vuescanofsety; }	 // if
+		pos = indexOf(champ,"WindowXSize");
+		if (pos>=0 && ecranw >=1300) { dim = ecranw*ratio*0.7;		valeur = floor(dim);		texteC = "WindowXSize="+valeur;	 } // if
+		if (pos>=0 && ecranw <=1301) { dim = ecranw*ratio*0.8;		valeur = floor(dim);		texteC = "WindowXSize="+valeur;	 } // if
+		pos = indexOf(champ,"WindowYSize");
+		if (pos>=0) { 	valeur = ecranh-vuescanofsetx-50;			 texteD = "WindowYSize="+valeur; 	} // if
+		matrice[k] = texte;	
+	} // for k
+	//---------------------------- Dialog d'information sur le protocole--------------------------
+	arg= proj+" 1 "+framesize+" "+  bitperpixel   +" "+ tifiletype  +" "+colorbalance+" "+scanfile+" "+framesize+" "+operation+" "+rawfile+" "+tiffile+" "+projfolder+" "+chem+" "+Hardware;
+	ret = runMacro("Zooscan_dialog_scan_procedure4",arg);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l>1)  {  // On continue le processus car on a presse OK .................
+		argret = split(flag," ");
+		colorbalance = 	argret[0];		savebal = 	argret[1];		save16 = 		argret[2];
+		min = 		argret[3];		max = 		argret[4];		gamma = 	argret[5];
+		sens = 		argret[6];		adjust =		argret[7];		odrange = 	argret[8];
+		ratio = 		argret[9];
+		if (colorbalance == "none") { 	matrice[colballigne] = "ColorBalance=0";		matrice[bitperpixelligne] = "BitsPerPixel=2";		} // if
+		if (colorbalance == "neutral") { 	matrice[colballigne] = "ColorBalance=2";		matrice[bitperpixelligne] = "BitsPerPixel=2";		} // if
+		//-----------Impression des donnees jusqu'a [Output] -----------------------------------
+		for (k=0;k<coloutput+1;k++) { texte= matrice[k];	print(texte);		} // for
+		// ------------ Suite des donnees -----------------------------------------------
+		print("JPEGFile=0");
+		if (colorbalance != "manual" && colorbalance != "none") { 
+			print("TIFFFile=1");
+			print("TIFFFileName="+dateheure+"_back_"+framesize+"_1+.tif");
+			print("TIFFFileType=1");
+			print("TIFFCompression=0");
+			print("TIFFProfile=0");
+			print("TIFFSizeReduction=4");			
+		} // if
+		if (colorbalance == "none" ) { 
+			print("TIFFFile=1");
+			print("TIFFFileName="+dateheure+"_back_"+framesize+"_1+.tif");
+			print("TIFFFileType=2");
+			print("TIFFCompression=0");
+			print("TIFFProfile=0");
+			print("TIFFSizeReduction=4");			
+		} // if
+
+		print( "DefaultFolder="+drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_back");
+		if (colorbalance == "manual" && save16 == 0 ) { //---------------- On sauve le RAW dans BACK ------------------------------
+			print("RawFileName="+dateheure+"_back_"+framesize+"_1+.tif");
+			print("RawFileType=2");
+			print("RawCompression=0");
+			print("RawSizeReduction=4");	
+			if (Hardware == "Perfection4490-Flatbed" || Hardware == "Perfection4990-Flatbed") {	print("RawFile=1");			} // if
+			else if (Hardware == "Perfectionv700-Flatbed"){
+				print("[Output-PerfectionV700-Flatbed]");
+				print("JPEGFile=0");
+				print("RawFile=1");
+			} // else
+			else if (Hardware == "Perfectionv800-Flatbed"){
+				print("[Output-PerfectionV800-Flatbed]");
+				print("JPEGFile=0");
+				print("RawFile=1");
+				print("PDFFile=0");
+			} // else
+		} // if
+		if (save16 == 1 ) { // ------------- On sauve le RAW dans _BACK ------------------
+			print("RawFileName="+dateheure+"_back_"+framesize+"_raw_1+.tif");
+			print("RawFileType=2");
+			print("RawCompression=0");	
+			print("RawSizeReduction=4");	
+			if (Hardware == "Perfection4490-Flatbed" || Hardware == "Perfection4990-Flatbed") {	
+				print("RawFile=1");	
+				print("TIFFile=1");	
+//				print("TIFFFile=1");
+				print("TIFFFileType=2");
+//				print("TIFFFileName="+dateheure+"_back_"+framesize+"_raw_1+.tif");
+			} // if
+			else if (Hardware == "Perfectionv700-Flatbed") {	print("[Output-PerfectionV700-Flatbed]");
+				print("JPEGFile=0");
+				print("RawFile=1");
+			} // else	
+			else if (Hardware == "Perfectionv800-Flatbed") {	print("[Output-PerfectionV800-Flatbed]");
+				print("JPEGFile=0");
+				print("RawFile=1");
+				print("PDFFile=0");
+			} // else
+		} // if
+		print("Copyright=Zooscan_CNRS_2016_backgrounds");
+		print("LogFile=0");
+		print("Options=2");
+		if (Hardware== "Perfectionv700-Flatbed") {
+			print("[Prefs-PerfectionV700-Flatbed]");
+			print("CropUnits=0");
+			print("PrintedUnits=0");
+		} // if v700
+
+		print("[Prefs]");
+		print("GraphType=2");	
+		print("ExternalViewer=0");
+		print("ExternalEditor=0");
+		print(texteA);
+		print(texteB);
+		print(texteC);
+		print(texteD);
+		print("GuidedMode=0");
+		print("StartupTip=0");
+
+		if (Hardware== "Perfectionv700-Flatbed" || Hardware== "Perfectionv800-Flatbed") {
+			print(texteXO);
+			print(texteYO);
+			print("Options=1");
+			print("FontSize=7");
+		} // if
+		if (Hardware== "Perfectionv800-Flatbed") print("SplashScreen=0");			
+			
+		selectWindow("Log");
+		sauveini = "save=" + chemvue +"vuescan.ini";
+		run("Text...",sauveini);
+		Dialog.create("PROCEDURE for the "+framesize+ " frame");
+		Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------");
+		Dialog.addMessage("  1)   Switch Zooscan ON (if not done yet)");
+		Dialog.addMessage("  2)   Clean Zooscan Cell");
+		Dialog.addMessage("  3)   Fill the cell with fresh water (0.6 to 1 cm thick)");
+		Dialog.addMessage("  4)   Place transparent "+framesize+" frame in normal position (corner reference)      ");
+		Dialog.addMessage("  5)   Clean transparent frame top side (OD zone) ");
+		Dialog.addMessage("  6)   Launch VUESCAN  ");
+		if (Hardware== "Perfectionv700-Flatbed" || Hardware== "Perfectionv800-Flatbed"){	
+			Dialog.addMessage(" 7)  Select/Check the proper light (usually BOTTOM)	");	
+		} // if
+		else {						
+			Dialog.addMessage(" 7)   Start light tempo (press green button on cover (for BOTTOM light) ");	
+		} // else
+		Dialog.addMessage("  8)   Click on PREVIEW button in VUESCAN ");
+		Dialog.addMessage("  9)   Check your image (No white strip, no dust on the OD ref)         ");
+		if (Hardware== "Perfectionv700-Flatbed" || Hardware== "Perfectionv800-Flatbed"){	
+			Dialog.addMessage("10)   Wait more than 30 seconds         ");
+			Dialog.addMessage("11)   Click "+nbframe+" times on SCAN ("+nbframe+" times for "+nbframe+" scans !)  button in VUESCAN   ");
+		}
+		else {
+			Dialog.addMessage("10)   Click "+nbframe+" times on SCAN ("+nbframe+" times for "+nbframe+" scans !)  button in VUESCAN   ");
+		}
+		Dialog.addMessage("DO NOT CHANGE ANY SETTING (window size) in VUESCAN ! ");
+		Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------");
+		if (Hardware != "Perfectionv700-Flatbed" && Hardware != "Perfectionv800-Flatbed"){
+			Dialog.addMessage("IMPORTANT NOTE :   WAIT more than 30 seconds beetween scans or after PREVIEW !                 ");
+			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------");
+		}
+		Dialog.addMessage("PRESS OK just after pressing SCAN (first time) in VUESCAN ! ");
+		Dialog.show();
+		//--------------------Scan de l'arrivee du dernier FICHIER -----------------------------------
+		showStatus("WAITING FOR  "+nbframe+" BACKGROUND IMAGES FROM ZOOSCAN");
+		read= 0;		r=0;
+		if (save16 == 1 && colorbalance == "manual") {
+			while (read==0) { wait(1000);
+				read = File.exists(chemback+dateheure+"_back_"+framesize+"_raw_"+nbframe+".tif");
+				r++;
+				print(r,"  WAITING for ",dateheure+"_back_"+framesize+"_"+nbframe+".tif");
+				showStatus("Press SCAN button again in Vuescan  ");
+			} // while
+			time = time*1.2;
+		} // if
+		else {
+			while (read==0) { wait(1000);
+				read = File.exists(chemback+dateheure+"_back_"+framesize+"_"+nbframe+".tif");
+				r++;
+				print(r,"  WAITING for ",dateheure+"_back_"+framesize+"_"+nbframe+".tif");
+				showStatus("Press SCAN button again in Vuescan  ");
+			} // while
+		} // else
+		// Lorsqu'il arrive, attendre la fin de l'enregistrement
+		//	time = 3;
+		for (i=0;i<time;i++) { wait(1000);
+			duree = time - i;
+			showStatus("SAVING FROM ZOOSCAN TO DISK  : WAIT "+duree+" seconds");
+			if (i==0) {wait(1000);		} // if
+			maxtime = time-1;
+			progress = i/maxtime;
+			showProgress(progress);
+			print("SAVING FROM ZOOSCAN TO DISK ",i," - ",maxtime);
+		} // for
+		//------------------------------Fermeture de VUESCAN ------------------------------------------------------------
+		showStatus("QUIT Vuescan when scan ends...");
+		runMacro("Zooscan_dialog_close_vuescan");
+
+		//--------------------------------------Moyenne des images scannees--------------------------------------------
+		vecteurmedian = newArray(nbframe);
+		medianavg = 0;
+		MINRECavg = 	0;
+		MAXRECavg = 	0;
+		// -------------- 1ere image -------------------------
+		k = 1;
+		titre = dateheure+"_back_"+framesize+"_"+k+".tif";
+		if (colorbalance == "manual"  ) {
+			filenamein = 	titre;
+			filenameout = 	filenamein;
+			if (save16 == 1) {	filenamein = dateheure+"_back_"+framesize+"_raw_"+k+".tif";			} // if
+			//----------------SI "MANUAL", on calcule l'image en 8 bits en convertissant avec MIN et MAX ---------------------------------------
+			param = 1;
+			savezip = 0;
+			arg= projfolder+" "+"background"+" "+chemback+" "+filenamein+" "+chemback+" "+filenameout+" 0 "+param+" "+savezip+" "+chem;
+			ret = runMacro("Zooscan_convert",arg);
+			flag=toString(ret);
+			l= lengthOf(flag);
+			if ( l == 1) { getBoolean("Error message : Zooscan_convert macro aborted,                               \nPress Cancel to abort                ");	} // if
+			else {	argret = 		split(flag," ");	
+				XSize = 		argret[0];	
+				YSize = 		argret[1];	
+				Resolution = 	argret[2];	
+				median = 		argret[3];		medianavg = medianavg+parseInt(median);	
+				MINREC = 	argret[4];		MINRECavg = MINRECavg+parseInt(MINREC);
+				MAXREC = 	argret[5];		MAXRECavg = MAXRECavg+parseInt(MAXREC);
+				vecteurmedian[k-1] = median;
+			} // else
+		} // if
+		texte = "value="+nbframe;
+		open(chemback+titre);
+		wait(100);
+		run("Divide...",texte);	
+		saveAs("Tif",chemtemp+"fond.tif");
+		close();
+		// --------------- Images suivantes -----------------------------------------------
+		for (k=2;k<nbframe+1;k++) {
+			titre = dateheure+"_back_"+framesize+"_"+k+".tif";
+			if (colorbalance == "manual"  ) {
+				filenamein = 	titre;
+				filenameout = 	filenamein;
+				if (save16 == 1) {	filenamein = dateheure+"_back_"+framesize+"_raw_"+k+".tif";			} // if
+				//----------------SI "MANUAL", on calcule l'image en 8 bits en convertissant avec MIN et MAX --------------------------------------
+				arg= projfolder+" "+colorbalance+" "+chemback+" "+filenamein+" "+chemback+" "+filenameout+" 0 "+param+" "+savezip+" "+chem;
+				ret = runMacro("Zooscan_convert",arg);
+				flag=toString(ret);
+				l= lengthOf(flag);
+				if ( l == 1) { getBoolean("Error message : Zooscan_convert macro aborted,                               \nPress Cancel to abort                ");	} // if
+				else {	argret = 		split(flag," ");	
+					XSize = 		argret[0];	
+					YSize = 		argret[1];	
+					Resolution = 	argret[2];	
+					median = 		argret[3];		medianavg = medianavg+parseInt(median);	
+					MINREC = 	argret[4];		MINRECavg = MINRECavg+parseInt(MINREC);
+					MAXREC = 	argret[5];		MAXRECavg = MAXRECavg+parseInt(MAXREC);
+					medianchoice = 	argret[7];
+					vecteurmedian[k-1] = median;
+				} // else
+			} // if
+			texte = "value="+nbframe;
+			open(chemback+titre);
+			wait(100);
+			rename("fond1");
+			run("Divide...",texte);	
+			open(chemtemp+"fond.tif");
+			rename("fond");
+			run("Image Calculator...", "image1=fond operation=Add image2=fond1");
+			selectImage("fond1");
+			close();
+			selectImage("fond");
+			saveAs("Tif",chemtemp+"fond.tif");
+			close();		
+		} // for
+		// ------------- Ouverture ------------------------------------------
+		open(chemtemp+"fond.tif");
+		rename("fond");
+		titrefinal = 	dateheure+"_background_"+framesize+"_"+colorbalance+".tif";
+		//----------------Conversion 8 BITS----------------------
+	//	selectImage("fond");		
+	//	run("8-bit");
+		// ----------------- Mesure MEDIAN 8 bits------------------------------------
+		largeur = 	getWidth();
+		hauteur = 	getHeight();
+		BX = largeur*0.03;
+		BY = hauteur*0.05;
+		W = largeur *0.94;
+		H = hauteur*0.93;
+		makeRectangle(BX,BY,W,H);
+		run("Set Measurements...", "  mean standard modal median limit redirect=None decimal=1");
+		//	run("Set Measurements...", "  mean modal median redirect=None decimal=2");
+		run("Measure");
+		median8bits = getResult("Median",0);
+		stddev8bits = getResult("StdDev",0);
+		if (isOpen("Results") ) { 	selectWindow("Results");	run('Close'); 		} // if
+		saveAs("Tiff", chemback+"\\" + titrefinal); 		
+		run("Close");
+		//--------------------------- enregistrer un log-------------------------------
+		print("A purger");		selectWindow("Log");		run("Close");
+		print("------------------------------------------------------------------------------------------");
+		print("Vuescan_Config_File = ",scanfile);
+		print("------------------------------------------------------------------------------------------");
+		open(chemvue +"vuescan.ini");	vueinfo = getInfo();		run('Close');
+		ligne = split(vueinfo,"\n");
+		for (k=0;k<ligne.length;k++) {	champ= ligne[k];	texte= champ;	print(texte);	} // for
+		print(" ");
+		print("[LUT]");
+		print("Color_Balance= ",colorbalance);
+		if (colorbalance == "manual") {		
+			MINRECavg = MINRECavg/nbframe;
+			MAXRECavg = MAXRECavg/nbframe;
+			print("Averaged_Min= ",MINRECavg);	print("Averaged_Max= ",MAXRECavg);	print("Gamma= ",gamma);	print("Order= ",sens);	print("Grey_mode_auto= ",adjust);	print("OD_range= ",odrange);	print("Ratio= ",ratio);
+			medianavg = medianavg/nbframe;
+			for (k=0;k<nbframe;k++) {	print("Frame= "+k+"   Median= "+vecteurmedian[k]);		} // for
+			print("16bits_Averaged_MEDIAN= ",medianavg);	
+			print("8bits_Averaged_MEDIAN= ",median8bits);
+			print("8bits_Averaged_StdDev= ",stddev8bits);
+			print("Median_filter= "+medianchoice);
+			print("Background= initialprocess");
+		} // if	
+		selectWindow("Log");
+		sauve = "save=" + chemback+"\\" +dateheure+"_back_"+framesize+"_"+colorbalance+"_log.txt";
+		run("Text...",sauve);
+		run('Close');
+		// -------------------------- Control -------------------------------------------------------
+		message = "Mean median = "+medianavg+"                              \n";
+		for (k=0;k<nbframe;k++) {	message = message + "Background : "+k+"  Median grey level : "+vecteurmedian[k]+"  \n";
+			if (vecteurmedian[k] > 1.05*medianavg) message = message + "You have probably not waited more than 30 seconds for background "+k+" \n";
+		} // for
+		showMessage("Background Control",message);
+	} // if calibration procedure OK
+} // else confrep
+
+ret = titrefinal;
+return ret;

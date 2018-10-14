@@ -1,0 +1,291 @@
+// ------------------ uvp5_edit_configuration -----------------------
+version =	 "7.20";
+date =	 "2015/08/31";
+//	ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true");
+
+// HD / STD
+// SN
+
+args = getArgument();
+arg = split(args," ");
+pathconfig = arg[0];
+path = arg[1];
+config_option = arg[2];
+ports = arg[3];
+install = false;
+if (arg.length > 4) install = arg[4];
+uvp_sn_txt = "999";
+if (arg.length > 5) uvp_sn_txt = arg[5];
+
+uvp_type = "std";
+if (parseInt(uvp_sn_txt) >= 200) uvp_type = "hd";
+
+openconfig = pathconfig+"\\uvp5_configuration_file.txt";
+File.makeDirectory(pathconfig);
+
+if (config_option == "create") {
+	if (File.exists(path+"\\uvp5_configuration_file.txt")) {
+		// --------------- SI existence à la RACINE ---------------------------
+		config_ret = runMacro("uvp5_read_config",path);
+		config_data = split(config_ret," ");
+		PilotBR= config_data[0];
+		comport= config_data[1];
+		databits= config_data[2];
+		stopbits= config_data[3];
+		parity= config_data[4];
+		Pressure_Filter_N= config_data[5];
+		Presure_Filter_Thres= config_data[6];
+		Pressure_Pre_Po= config_data[7];
+		Pmin= config_data[8];
+		DeltaP_Upturn_Flag= config_data[9];
+		Upturn_Flag= config_data[10];
+		Battery_Threshold= config_data[11];
+		Temperature_Threshold= config_data[12];
+		CNA_Ind= config_data[13];
+		CNA_s= config_data[14];
+		CNA= config_data[15];
+		hd_path = config_data[16];
+		fd_path = config_data[17];
+		modfile_path = config_data[18];
+		
+		// --------------------- Impression ----------------------------------
+		print("PilotBR= "+PilotBR);
+		print("comport= "+comport);
+		print("databits= "+databits);
+		print("stopbits= "+stopbits);
+		print("parity= "+parity);
+		print("Pressure_Filter_Nb= "+Pressure_Filter_N);
+		print("Presure_Filter_Thres= "+Presure_Filter_Thres);
+		print("Pressure_Pre_Pos= "+Pressure_Pre_Po);
+		print("Pmin= "+Pmin);
+		print("DeltaP_Upturn_Flag= "+DeltaP_Upturn_Flag);
+		print("Upturn_Flag= "+Upturn_Flag);
+		print("Battery_Threshold= "+Battery_Threshold);
+		print("Temperature_Threshold= "+Temperature_Threshold);
+		print("CNA_Ind= "+CNA_Ind);
+		print("CNA_s= "+CNA_s);
+		print("CNA_o= "+CNA);
+		print("hd_path= "+hd_path);
+		print("fd_path= "+fd_path);
+		print("modfile_path= "+modfile_path);	
+	} // if
+	else {
+		if (uvp_sn_txt == "999") {
+			// --------------- N° de série --------------------------------------------------------------
+			uvp_sn_input = 999 ;
+			uvp_sn = "999";
+			// ------------------- N° SERIE UVP5 -----------------------------------------------------------------
+			while (uvp_sn_input == 999 ) {				
+				uvp_sn = getNumber("Input UVP5 serial number (3 numbers)",uvp_sn);
+				uvp_sn_txt = toString(uvp_sn);
+				if 	(lengthOf(uvp_sn_txt) == 1) 	{	uvp_sn_txt = "00"+uvp_sn_txt;					uvp_sn_input = 1;	}
+				else if (lengthOf(uvp_sn_txt) == 2) 	{	uvp_sn_txt = "0"+uvp_sn_txt;					uvp_sn_input = 1;	}
+				else if (lengthOf(uvp_sn_txt) == 3 && uvp_sn_txt != "999") 	{	uvp_sn_txt = uvp_sn_txt;		uvp_sn_input = 1;	}
+				else { showMessage("Serial number is not correct, enter again !");	}
+			} // while
+		} // if
+		comport = getNumber("ENTER COM port for communication with UVP5 ",1);
+		comport = toString(comport);
+		print("PilotBR= 9600");
+		print("comport= "+comport);
+		print("databits= 8");
+		print("stopbits= 1");
+		print("parity= NO");
+		print("Pressure_Filter_Nb= 200");
+		print("Presure_Filter_Thres= 1");
+		print("Pressure_Pre_Pos= 10");
+		print("Pmin= 0");
+		print("DeltaP_Upturn_Flag= 30");
+		print("Upturn_Flag= 1");
+		print("Battery_Threshold= 23300");
+		print("Temperature_Threshold= 50");
+		print("CNA_Ind= 0");
+		if (uvp_type == "hd" ) {		print("CNA_s= 3");		}
+		else {					print("CNA_s= 9");		}
+		print("CNA_o= 0");
+		print("hd_path= //uvp5sn"+uvp_sn_txt+"/HD");
+		print("fd_path= //uvp5sn"+uvp_sn_txt+"/FD");
+		print("modfile_path= //uvp5sn"+uvp_sn_txt+"/modfile");		
+	} // else
+
+	// ------------------------ Sauvegarde -----------------------
+	selectWindow("Log");
+	text =  "save=" + openconfig;	
+	run("Text...",text);	
+	wait(100);
+	run("Close");
+	if (install == false) {
+		Dialog.create("UVP5 PILOT MODULE   ");
+		Dialog.addMessage("Default configuration file created now ! \n \nCHECK SETTINGS NOW !");
+		Dialog.show();
+	}// install = false
+	config_option = "edit";
+} //
+// ------------------------ EDITION du fichier de CONFIGURATION ---------------------------
+if ( config_option == "edit" || config_option == "create_proj") {
+	// ------- Ouverture du fichier de configuration du module de pilotage ------------
+	if (config_option == "create_proj") {	argum = path;		}//if
+	else {					argum = pathconfig;	}
+	config_ret = runMacro("uvp5_read_config",argum);
+	config_data = split(config_ret," ");
+	PilotBR= config_data[0];
+	comport= config_data[1];
+	databits= config_data[2];
+	stopbits= config_data[3];
+	parity= config_data[4];
+	Pressure_Filter_N= config_data[5];
+	Presure_Filter_Thres= config_data[6];
+	Pressure_Pre_Po= config_data[7];
+	Pmin= config_data[8];
+	DeltaP_Upturn_Flag= config_data[9];
+	Upturn_Flag= config_data[10];
+	Battery_Threshold= config_data[11];
+	Temperature_Threshold= config_data[12];
+	CNA_Ind= config_data[13];
+	CNA_s= config_data[14];
+	CNA= config_data[15];
+	hd_path = config_data[16];
+	fd_path = config_data[17];
+	modfile_path = config_data[18];
+	
+	// ----------------- Saisie du COM --------------------
+//	comport = 1;
+	if (config_option == "create_proj") { comport = getNumber("ENTER COM port for communication with UVP5 ",1);	comport = toString(comport);	} // if		
+		
+	check = "failed";
+	message = "Some settings are wrong. \n \n";
+	while (check == "failed") {
+		Dialog.create("EDIT CONFIGURATION FILE for UVP5   ");
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+	
+		PilotBR_a = newArray("old","300","600","1200","2400","4800","9600","19200");
+		PilotBR_a[0] = PilotBR;
+		Dialog.addChoice("              Select Baud Rate to communicate with UVP5 ",PilotBR_a);
+		
+		if (install == false) {
+			// ------------ Liste des ports du PC ---------------------------
+			com_list = split(ports,";");
+			comport_a = newArray(1+com_list.length);
+			message = "Previous com "+comport+" NOK";
+			for (i=0;i<com_list.length;i++){
+				vale = com_list[i];
+				val = substring(vale,3,lengthOf(vale));
+				comport_a[i+1] = val;
+				if (comport == val) message = comport;
+			}
+			comport_a[0] = message;
+			Dialog.addChoice("              Select Communication port ",comport_a);
+		} // 
+	
+		Pressure_Filter_N_a = newArray("old","50","100","200");
+		Pressure_Filter_N_a[0] = Pressure_Filter_N;
+		Dialog.addChoice("              Select Pressure filter N value ",Pressure_Filter_N_a);
+	
+		Presure_Filter_Thres_a = newArray("old","1","2","3","4","5");
+		Presure_Filter_Thres_a[0] = Presure_Filter_Thres;
+		Dialog.addChoice("              Select Pressure filter Detpth threshold (m)",Presure_Filter_Thres_a);
+	
+		Pressure_Pre_Po_a = newArray(101);
+		for (i=1;i<101;i++) {	Pressure_Pre_Po_a[i] = toString(i);	}
+		Pressure_Pre_Po_a[0] = Pressure_Pre_Po;
+		Dialog.addChoice("              Select Depth range for camera boot (m) ",Pressure_Pre_Po_a);	
+		
+		Upturn_Flag_a = newArray("old","0","1");
+		Upturn_Flag_a[0] = Upturn_Flag;
+		Dialog.addChoice("              Select Upturn stop flag ",Upturn_Flag_a);
+		
+		DeltaP_Upturn_Flag_a = newArray(101);
+		for (i=1;i<101;i++) {	DeltaP_Upturn_Flag_a[i] = toString(i);	}
+		DeltaP_Upturn_Flag_a[0] = DeltaP_Upturn_Flag;
+		Dialog.addChoice("              Select Upturn Depth range (m) ",DeltaP_Upturn_Flag_a);	
+	
+		Battery_Threshold_a = newArray(51);
+		bat = 21900;
+		for (i=1;i<51;i++) {	bat = 100+ bat;		Battery_Threshold_a[i] = toString(bat);		}
+		Battery_Threshold_a[0] = Battery_Threshold;
+		Dialog.addChoice("              Select Battery cutoff voltage (mV) ",Battery_Threshold_a);
+	
+		Temperature_Threshold_a = newArray(31);
+		for (i=1;i<31;i++) {	Temperature_Threshold_a[i] = toString(i+29);	}
+		Temperature_Threshold_a[0] = Temperature_Threshold;
+		Dialog.addChoice("              Select Temperature cutoff (°C) ",Temperature_Threshold_a);	
+	
+		CNA_Ind_a = newArray("old","0","1","2");
+		CNA_Ind_a[0] = CNA_Ind;
+		Dialog.addChoice("              Select Channel to be sent to CTD ",CNA_Ind_a);	
+	
+		Dialog.addNumber("                     Enter Gain for analog output to CTD (read manual)",CNA_s);
+		
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+		Dialog.addMessage("Check that you are allowed to write files into the UVP5 shared drives.");
+		Dialog.addMessage("Check path in the calibration document provided with your UVP5.");
+		Dialog.addMessage("If one of the drives does not exist, use the path of the existing drive in both");
+		Dialog.addString("    Set path for HD in UVP (connected drive only) ",hd_path);
+		Dialog.addString("    Set path for FD in UVP (connected drive only) ",fd_path);	
+		Dialog.addString("    Set path for configuration file in UVP camera (connected drive only) ",modfile_path);
+		Dialog.addMessage("---------------------------------------------------------------------------------------------------------------------------------        ");			
+
+		//=====================================================================================
+		Dialog.show;	
+		//=====================================================================================
+
+		check = "passed";
+	
+		PilotBR= Dialog.getChoice();
+		if (install == false) {		comport= Dialog.getChoice();		}
+		if (startsWith(comport,"Previous")) check = "failed"; message = message +"Select a valid com port \n";
+		Pressure_Filter_N= Dialog.getChoice();
+		Presure_Filter_Thres= Dialog.getChoice();
+		Pressure_Pre_Po= Dialog.getChoice();
+		Upturn_Flag= Dialog.getChoice();
+		DeltaP_Upturn_Flag= Dialog.getChoice();
+		Battery_Threshold= Dialog.getChoice();
+		Temperature_Threshold= Dialog.getChoice();
+		CNA_Ind= Dialog.getChoice();
+		//	CNA_s= Dialog.getChoice();
+		CNA_s = Dialog.getNumber();
+		hd_path = Dialog.getString();
+		fd_path =  Dialog.getString();
+		modfile_path =  Dialog.getString();
+		if (check == "failed") showMessage(message);
+	}
+	
+	// --------------------- Impression ----------------------------------
+	if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+	print("PilotBR= "+PilotBR);
+	print("comport= "+comport);
+	print("databits= "+databits);
+	print("stopbits= "+stopbits);
+	print("parity= "+parity);
+	print("Pressure_Filter_Nb= "+Pressure_Filter_N);
+	print("Presure_Filter_Thres= "+Presure_Filter_Thres);
+	print("Pressure_Pre_Pos= "+Pressure_Pre_Po);
+	print("Pmin= "+Pmin);
+	print("DeltaP_Upturn_Flag= "+DeltaP_Upturn_Flag);
+	print("Upturn_Flag= "+Upturn_Flag);
+	print("Battery_Threshold= "+Battery_Threshold);
+	print("Temperature_Threshold= "+Temperature_Threshold);
+	print("CNA_Ind= "+CNA_Ind);
+	print("CNA_s= "+CNA_s);
+	print("CNA_o= "+CNA);
+	print("hd_path= "+hd_path);
+	print("fd_path= "+fd_path);
+	print("modfile_path= "+modfile_path);
+	
+	// ------------------------ Sauvegarde -----------------------
+	selectWindow("Log");
+	text =  "save=" + openconfig;
+	run("Text...",text);	
+	wait(100);
+	run("Close");
+	config_option = "create";
+	if (install == false) {
+		Dialog.create("UVP5 PILOT MODULE   ");
+		Dialog.addMessage("New configuration recorded in : \n \n"+openconfig+"\n \nRESTART PILOT MODULE if you have changed : \n- BAUD rate \n- COM port");
+		Dialog.show();
+	}// if
+}
+
+
+// ------------------- FIN -------------------------------
+return config_option;

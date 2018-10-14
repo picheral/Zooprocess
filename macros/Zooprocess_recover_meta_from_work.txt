@@ -1,0 +1,32 @@
+// ---------- Recover meta from WORK folder ----------------
+version = "7.06";
+date = "2011/10/03";
+path = "J:\\uvp5_tara2011\\meta\\";
+
+print("A purger");	selectWindow("Log");	run('Close');
+
+
+folderlist = getFileList(path);	
+size = folderlist.length;
+listselect = 		newArray(size);
+j = 0;	h = 0;	flag4 = 0;	
+for (i=0; i<folderlist.length ; i++) {	ctrl = endsWith(folderlist[i],"_meta.txt");
+	if (ctrl == true )	{	rr =folderlist[i]; 	listselect[j] = rr;	j = j + 1;		} // if
+} // for	
+for (i=0; i<j ; i++) {	
+	file = listselect[i];	
+	openfile = path +file;
+	open(openfile);
+	wait(500);
+	config = getInfo();
+	run("Close");
+	pid = split(config,"\n");
+	if (i == 0) print(pid[0]);
+	print(pid[1]);		
+} // for
+metafile = "uvp5_header.txt";
+sauve = "save=" + path+"\\"+metafile;
+selectWindow("Log");
+run("Text...",sauve);
+
+

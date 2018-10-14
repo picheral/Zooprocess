@@ -1,0 +1,2 @@
+ret = getString("Enter new Id. name ","                  ");
+return ret;

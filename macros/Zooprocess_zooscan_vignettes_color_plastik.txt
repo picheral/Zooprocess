@@ -1,0 +1,186 @@
+// ----------------------- Zooprocess_zooscan_vignettes_color_plastik --------------------
+version = "7.24";
+date = "2017/03/15";
+// cas 1_n
+// plastik 
+
+
+arg = 		getArgument(); 
+//arg = "I:\\Zooscan_tara_med_2014_manta_335_v3_sn065";
+array = 	split(arg," ");
+projfolder = array[0];
+projfolder_color = projfolder + "_color";
+path_work_color = projfolder_color + "\\Zooscan_scan\\_work\\";
+path_pid_results= projfolder + "\\PID_process\\Pid_results\\";
+path_raw_color = projfolder_color + "\\Zooscan_scan\\_raw\\";
+
+showMessage("PROCESS microplastik COLOR VIGNETTES","This routines requires two projects.\nYou must start it from the one containing the B&W processed images. \nPID files must be in ''Pid_results'' folder.");
+setBatchMode(true);
+
+chem= "none";
+resolution= 2400;
+longline= 1;
+x1= 10;
+maskout= 0;
+gamma= 1;
+format= "color_jpeg";
+clean= 0;
+flip= 0;
+legend= 1;
+legendzooscan= false;
+upper= 243;	
+vignettetext= 1;
+masksave= 1;
+chemunsorted= "unused";
+outlines = false;
+status = false;
+titre= "image";
+duration = 1000;
+nb = 5;
+link = "http://www.zooscan.obs-vlfr.fr//";
+print("ZOOPROCESS PLASTIK TOOL");
+//------------ Free MEMORY --------------------------------------------
+for (i=0; i<nb; i++) {	showStatus("Free memory, WAIT !");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+
+// --------------- Liste des PID dans projet source ayant iamge dans projet COLOR ------------------
+filelist = getFileList(path_pid_results);
+j = 0;
+list_pid = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	if (endsWith(filelist[i],".pid"))	{rr = filelist[i]; 	list_pid[j] = rr;	j = j + 1;		} // if
+} // for
+// ------------- Boucle sur les PID --------------------------
+for (m =0; m < j ; m++) {
+	
+	pid_file = list_pid[m];
+	long = lengthOf(pid_file);
+	sample_name = substring(pid_file,0,long - 4	);
+	sample_name_short = substring(pid_file,0,long - 11	);
+	sample_name_color_short = sample_name_short + "_color_1";	
+//	ii = getBoolean(sample_name+"   \n"+sample_name_short+"  \n"+sample_name_color_short);
+	// ------------- Test sur l'existance du fichier RAW PLASTIK COLOR --------------
+	if (File.exists(path_raw_color+ sample_name_short +"_raw_1.tif")) {
+		// ----------- Création répertoire dans WORK COLOR -------------------------------
+		File.makeDirectory(path_work_color+sample_name_color_short);
+//		ii = getBoolean(path_work_color+sample_name_color_short);
+	
+		// ----------- Ouverture PID --------------
+		open(path_pid_results+"\\"+pid_file);
+//		ii = getBoolean(path_pid_results+"\\"+pid_file);
+		wait(100);
+		data_read = getInfo();
+		run("Close");
+		data = split(data_read,"\n");
+	
+		// ----------- Enregistrement du PID (renommer LABEL et Noms dans le PID ---------
+		if (isOpen("Log")) {	selectWindow("Log"); run("Close");	}//
+		for (k = 0; k < data.length ; k++) {
+			texte = data[k];
+			if (indexOf(data[k],"k_1_sur_2_1") >1) { 	add = "_1_sur_2_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_2_sur_2_1") >1) { 	add = "_2_sur_2_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_1_sur_3_1") >1) { 	add = "_1_sur_3_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_2_sur_3_1") >1) { 	add = "_2_sur_3_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_3_sur_3_1") >1) { 	add = "_3_sur_3_"; texte = replace(data[k],add,"_");	}
+			
+			else if (indexOf(data[k],"k_1_sur_4_1") >1) { 	add = "_1_sur_4_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_2_sur_4_1") >1) { 	add = "_2_sur_4_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_3_sur_4_1") >1) { 	add = "_3_sur_4_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_4_sur_4_1") >1) { 	add = "_4_sur_4_"; texte = replace(data[k],add,"_");	}
+
+			else if (indexOf(data[k],"k_1_sur_5_1") >1) { 	add = "_1_sur_5_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_2_sur_5_1") >1) { 	add = "_2_sur_5_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_3_sur_5_1") >1) { 	add = "_3_sur_5_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_4_sur_5_1") >1) { 	add = "_4_sur_5_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_5_sur_5_1") >1) { 	add = "_5_sur_5_"; texte = replace(data[k],add,"_");	}			
+			
+			else if (indexOf(data[k],"k_1_sur_19_1") >1) { 	add = "_1_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_2_sur_19_1") >1) { 	add = "_2_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_3_sur_19_1") >1) { 	add = "_3_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_4_sur_19_1") >1) { 	add = "_4_sur_19_"; texte = replace(data[k],add,"_");	}			
+			else if (indexOf(data[k],"k_5_sur_19_1") >1) { 	add = "_5_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_6_sur_19_1") >1) { 	add = "_6_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_7_sur_19_1") >1) { 	add = "_7_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_8_sur_19_1") >1) { 	add = "_8_sur_19_"; texte = replace(data[k],add,"_");	}				
+			else if (indexOf(data[k],"k_9_sur_19_1") >1) { 	add = "_9_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_10_sur_19_1") >1) { 	add = "_10_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_11_sur_19_1") >1) { 	add = "_11_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_12_sur_19_1") >1) { 	add = "_12_sur_19_"; texte = replace(data[k],add,"_");	}				
+			else if (indexOf(data[k],"k_13_sur_19_1") >1) { 	add = "_13_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_14_sur_19_1") >1) { 	add = "_14_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_15_sur_19_1") >1) { 	add = "_15_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_16_sur_19_1") >1) { 	add = "_16_sur_19_"; texte = replace(data[k],add,"_");	}				
+			else if (indexOf(data[k],"k_17_sur_19_1") >1) { 	add = "_17_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_18_sur_19_1") >1) { 	add = "_18_sur_19_"; texte = replace(data[k],add,"_");	}
+			else if (indexOf(data[k],"k_19_sur_19_1") >1) { 	add = "_19_sur_19_"; texte = replace(data[k],add,"_");	}
+			else {						add = "_";	}
+			ligne = replace(texte,"microplastik","microplastik"+add+"color");
+			data[k] = ligne;
+			if (startsWith(ligne,"[Data]")) deb = k;
+			print(ligne);		
+		}//
+		text =  "save=" + path_work_color+sample_name_color_short +"\\"+sample_name_color_short  +"_dat1.pid";
+		chemwork= path_work_color+sample_name_color_short +"\\";
+//		ii = getBoolean(text);
+		selectWindow("Log");
+		run("Text...",text);
+		run("Close");
+//		ii = getBoolean("SAVED");
+
+		// ------------------- Ouverture Image dans RAW COLOR -----------
+//		ii = getBoolean(path_raw_color+ sample_name_short +"_raw_1.tif");
+		open(path_raw_color+ sample_name_short +"_raw_1.tif");
+		run("RGB Color");
+
+		// ------------------- Rotate / miror ---------------------------
+		run("Rotate 90 Degrees Right");
+		rename(titre);
+		run("Flip Vertically");
+	
+		// ----------- N° de colonnes ----------------------------------------------------
+		entete = split(data[deb + 1],";");	
+//		ii = getBoolean(data[deb + 1]);
+		colident =0;	collabel = 0;	colbx = 0;		colby = 0;		
+		colarea = 0;	colwidth = 0;	colheight = 0;	colno = 0;
+		colpred = 0;
+		for (i=0; i<entete.length ; i++) {	
+			v = entete[i];	
+			if (v=="Label") { 	collabel = i;		} //if	Nom de l image source
+			if (v=="BX") { 		colbx = i;			} //if
+			if (v=="BY") { 		colby = i;			} //if
+			if (v=="Width") { 	colwidth = i;		} //if
+			if (v=="Height") { 	colheight = i;		} //if
+			if (v=="!Item") { 	colno = i;			} //if
+		} // for
+	
+		// ------------------- BOUCLE sur les ITEMS ---------------------
+		for (t = deb+2 ; t < data.length ; t++ ) {
+			ligne = data[t];
+			data_split = split(ligne,";");			
+			// ----------- Extraction vignettes couleur --------------------------------------
+			titrered=	data_split[collabel];
+			No=		data_split[colno];
+			Bx= 		data_split[colbx];
+			By=		data_split[colby];
+			Width=		data_split[colwidth];
+			Height=		data_split[colheight];		
+			argum = chem+" "+resolution+" "+longline+" "+x1+" "+x1 +" "+titre+" "+titrered+" "+No+" "+Bx+" "+By+" "+Width+" "+Height+" "+maskout+" "+gamma+" "+vignettetext+" "+masksave+" "+chemwork+" "+chemunsorted+" "+format+" "+clean+" "+flip+" "+legend+" "+legendzooscan+" "+upper;
+			ret = runMacro("Zooscan_vignette_extract",argum);
+			selectImage(titrered+"_"+No);
+			run("Close");
+			
+		} // for
+	
+//		ii = getBoolean("Vignettes OK");
+	
+		// ------------------------- Fermeture image --------------------
+		selectImage(titre);
+		run("Close");
+		// ----------- Creation du TSV dans le répertoire WORK COLOR ---------------------
+		process_opt = "pid";
+		pid_file_color = sample_name_color_short  +"_dat1.pid";
+		ret = runMacro("Zooprocess_pid_to_ecotaxa_zooscan",projfolder_color+" "+chemwork+" "+pid_file_color+" "+process_opt+" "+outlines+" "+status+" new "+link);
+	}// if exists
+} // for i		
+// ----------------------- END ----------------------
+ret = "OK";
+return ret;

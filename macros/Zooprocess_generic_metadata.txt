@@ -1,0 +1,446 @@
+// -------------------------Zooprocess_generic_metadata --------------------
+version = "7.14	";
+date = "2013/01/08";
+
+arg = getArgument(); 
+array = split(arg," ");
+instrum = 	array[0];
+option= 	array[1];
+path= 		array[2]; 	
+
+//	aa = getBoolean(option);
+
+maxgg = 100000;
+paramlist = "project;ship;filename;sampleid;genericreffile;latitude;longitude;samplinggear;zmin;zmax;volconc;magnification;celltype;instrumtype;comment;datetime";
+// ----------------- Metafile pour Generic --------------------------------	
+	filelist  = 	getFileList(path+"\\meta\\");
+
+	//--------------- Selection des fichiers  -------------------
+	j = 0;
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],".txt");
+		ctrl1 = startsWith(filelist[i],"Generic_header_");
+		if (ctrl == 1 && ctrl1 == 1)	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for	
+	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+	if (j==0) { configpres = 0;
+		getBoolean("No metadata file in the selected project. \nPress YES to create a file and add a profile !          ");
+		option = "create";
+	} //
+	else if (j == 1) {
+		metafile = list[0];
+	} // else if
+	else { 	configpres = 1;
+		// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+		listaff = newArray(j);
+		for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+		Dialog.create("METADATA FILE          version : "+version);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		Dialog.addMessage("Project :  "+path);
+		Dialog.addMessage("--------------------------------------------------------------------------------   ");
+		message = "SELECT Metadata FILE to COMPLETE             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		metafile = Dialog.getChoice();
+	} // else
+
+	long = lengthOf(path);
+	a = indexOf(path,"_");
+	Project  = substring(path,a+1,long);	
+
+	print("A purger");	selectWindow("Log");	run('Close');
+	// ------------------ CREATE empty -----------------
+	if (option == "create") {
+		print(paramlist);
+		metafile = "Generic_header_"+Project+".txt";
+		sauve = "save=" + path+"\\meta\\"+metafile;
+		selectWindow("Log");
+		run("Text...",sauve);
+		run('Close');
+	} // 
+
+	// ----------------------------- ADD EDIT ----------------------------------
+	open(path+"\\meta\\"+metafile);
+	wait(100);
+	metadata = getInfo();
+	run('Close');
+	array = split(metadata,"\n");
+	liste = 			newArray(array.length);
+	// ---------------------- metadata -------------------------------------------
+	project = 		newArray(array.length);
+	ship = 			newArray(array.length);
+	filename = 		newArray(array.length);
+	stationname =		newArray(array.length);
+	genericreffile =		newArray(array.length);
+	latitude =		newArray(array.length);
+	longitude =		newArray(array.length);
+	samplinggear =		newArray(array.length);
+	zmin =	newArray(array.length);
+	zmax =	newArray(array.length);
+	volconc = 			newArray(array.length);
+	magnification =		newArray(array.length);
+	lens = 			newArray(array.length);
+	imagesurf =		newArray(array.length);
+	celltype =		newArray(array.length);
+	instrumtype =		newArray(array.length);
+	freqimage =		newArray(array.length);
+	duration =		newArray(array.length);
+	stopcriteria =		newArray(array.length);
+	comment =		newArray(array.length);
+	datetime = 		newArray(array.length);
+	stationdone = 		newArray(maxgg);
+	nbstationdone = 	array.length;
+
+	// ---------------- Valeurs initiales -----------------------------
+	Cruise = 		"PointB";
+	Ship = 			"Sagitta";
+	Ffilename = 		00;
+	Stationname =		"xx";
+	Genericreffile =		"xx";
+	Latitude =		0;
+	Longitude =		0;
+	Samplinggear =	"Niskin";
+	Zmin =			0;
+	Zmax =			0;
+	Volconc = 		1;
+	Magnification = 	1;
+//	Lens = 			"x";
+//	Imagesurf =		100;
+	Celltype =		"xx";
+	Instrumtype =		"xx";
+//	Freqimage =		10;
+//	Duration =		10;
+//	Stopcriteria =		"time";
+	Comment =		"xx";
+	Datetime = 		"20000101-1200";
+	print(array[0]);
+
+	if (option != "create") {
+		for (i=1; i<array.length ; i++) { 
+			// ----------------- Impression des premieres lignes -----------------
+			print(array[i]);
+			ligne = replace(array[i],";"," ");
+			ligne = split(ligne,"\ ");
+			Project = 		ligne[0];
+			Ship = 			ligne[1];
+			Filename = 		ligne[2];
+			Stationname =		ligne[3];
+			Genericreffile =		ligne[4];
+			Latitude =		ligne[5];
+			Longitude =		ligne[6];
+			Samplinggear =	ligne[7];
+			Zmin =			ligne[8];
+			Zmax =			ligne[9];
+			Volconc =		ligne[10];
+			Magnification  =	ligne[11];
+			Celltype =		ligne[12];
+			Instrumtype =		ligne[13];
+			Comment = 		ligne[14];
+
+//			Lens =			ligne[10];
+//			Imagesurf  =		ligne[11];
+//			Freqimage =		ligne[13];
+//			Duration =		ligne[14];
+//			Stopcriteria =		ligne[15];
+			if (ligne.length == 16) 	{	Datetime = 	"20000101_1200";		} // if
+			else {				Datetime = 	ligne[14];			} // else
+
+			project[i]=		Project;
+			ship[i] =		Ship;
+			filename[i]=		Filename;
+			stationname[i]=	Stationname;
+			genericreffile[i]=		Genericreffile;
+			latitude[i]=		Latitude;
+			longitude[i]=		Longitude;
+			samplinggear[i]=	Samplinggear;
+			zmin[i]=			Zmin;
+			zmax[i]=		Zmax;
+			volconc[i]=		Volconc;
+			magnification[i]=	Magnification;
+			celltype[i]=		Celltype;
+			instrumtype[i]=		Instrumtype;
+			comment[i]=		Comment;
+			datetime[i]=		Datetime;
+			stationdone[i] =	Stationname;
+			liste[i-1] = 	Filename+" "+Stationname;	
+
+//			lens[i]=			Lens;
+//			imagesurf[i]=		Imagesurf;
+//			freqimage[i]=		Freqimage;
+//			duration[i]=		Duration;
+//			stopcriteria[i]=		Stopcriteria;
+
+		} // for
+	}// if
+	// -------------------- SELECT -----------------------------------------------------------------
+	if (option == "select") {
+		Dialog.create("Sample selector        version : "+version);
+		Dialog.addMessage("-------------------------------------------------------------");
+		Dialog.addMessage("Project :  "+path);
+		Dialog.addMessage("Metadatafile = "+metafile);
+		Dialog.addMessage("-------------------------------------------------------------");
+		Dialog.addMessage("     Filename   Sample Id   "); 
+		Dialog.addChoice("       ", liste);
+		Dialog.addMessage("-------------------------------------------------------------");
+		Dialog.show();
+		profile = Dialog.getChoice();
+		profile = split(profile,"\ ");
+		Filename = profile[0];
+		Stationname = profile[1];
+	} // select
+
+	else {	
+		profile =  "ADD profile";
+		// --------------- Saisie d'un nouveau profile ------------------------------------------------
+		if (profile == "ADD profile") {
+			// ----------------- raw profile  --------------------------------	
+			filelist  = 	getFileList(path+"\\raw\\");
+			//--------------- Selection des fichiers  -----------------------------------
+			j = 0;
+			
+			list = newArray(filelist.length);
+			for (i=0; i<filelist.length ; i++) {	
+				test = 0;
+				exist = 0;
+				long = lengthOf( filelist[i]);
+				file = substring(filelist[i],0,long-1);
+				ctrl = startsWith(file,"generic");
+				if (ctrl == 1) {
+//					getBoolean(file+"    "+array.length );
+					// ----------------- EXCLURE les profils deja dans la liste -------------------------------
+					
+					for (m=1; m<array.length ; m++) { 
+						Filename = filename[m];
+//						getBoolean(Filename+" " +filename[m]);
+						if (endsWith(file,Filename) == true ) {	
+							exist = 1;	
+//							getBoolean(file+"    "+Filename);
+						} // if
+					} // for
+				} // if FlowCam
+//				getBoolean(file+"    "+exist);
+				if ( exist == 0 && ctrl == 1 )	{		list[j] = file;  j = j + 1;		} // if
+			} // for	
+		
+			//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+			if (j==0) { configpres = 0;
+				getBoolean("No raw sample folder to be added in the selected project. \n \nPlace sample folders named "+instrum+"*.* images in the raw folder of your project \n \nPress YES to abort !          ");
+			} //
+			else { 	configpres = 1;
+				// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+				listaff = newArray(j);
+				for (k=0;k<listaff.length ;k++) {	rr = list[k];	listaff[k] = rr;	 } // for
+
+				genericprofile = 1;
+				while (genericprofile == 1) {
+					nbstationdone++;
+					Dialog.create("METADATA           version : "+version);
+					Dialog.addMessage("--------------------------------------------------------------------------------   ");
+					Dialog.addMessage("Project :  "+path);
+					Dialog.addMessage("--------------------------------------------------------------------------------   ");
+					message = "SELECT Sample to add            " ;
+					Dialog.addMessage(message);
+					Dialog.addChoice("       ", listaff);
+					Dialog.show();
+					dirprofile = Dialog.getChoice();
+					// --------------------------------------------- Suppression deja traites -------------------------------------
+					for (i=0; i<listaff.length ; i++) {	
+						rr = list[i];
+//						showMessage(rr+"  "+dirprofile);
+						if (rr == dirprofile) {	aa = listaff[i];	listaff[i] = aa+" - (done)";	
+							//	showMessage("Removed="+rr+"  "+listaff[i]);
+						} // if
+					} // for	
+					
+					if (endsWith(dirprofile,"(done)") == false) {
+						// ------------------ Suppression HDR -----------------------------
+						long = lengthOf(dirprofile);
+						Filename = substring(dirprofile,8,long);
+						check= 1;
+						// ------------------------------------------- SAISIE des DONNEES -----------------------------------------------------------------------------------
+					while (check ==1) {check= 0;
+						message = "Warning : \n";
+						Dialog.create("METADATA    ");
+						Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+						Dialog.addMessage("Filename =                   "+Filename);					
+						Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+						Dialog.addString("Project ",Project);
+						Dialog.addString("Ship ",Ship);
+						Dialog.addString("Sample Id (must start with alphanumeric characters) ",Filename);
+						Dialog.addString("Station Id ",Genericreffile);
+						Dialog.addString("Sampling date (YYYYMMDD-HHMM) ",Datetime);
+						Dialog.addNumber("Latitude  (-12.06398 for 12°06.398 S)  ",Latitude);
+						Dialog.addNumber("Longitude (-135.05325 for 135°05.325 W)   ",Longitude);
+						aff = newArray(Samplinggear,"Niskin","Bucket","Net","Continuous","Multicorer","ISIIS");
+						aff[0] = Samplinggear;
+						Dialog.addChoice("Sampling gear       ",aff);
+						Dialog.addNumber("Zmin (m) ",Zmin);
+						Dialog.addNumber("Zmax (m) ",Zmax);
+						Dialog.addNumber("Concentrated water volume (ml) ",Volconc);
+						Dialog.addNumber("         Magnification ",Magnification);
+
+//						Dialog.addNumber("Image surface ",Imagesurf);
+
+						Dialog.addString("Cell type       ",Celltype);
+						Dialog.addString("Imaging device ",Instrumtype);
+
+
+//						Dialog.addNumber("Frequence image ",Freqimage);
+//						Dialog.addNumber("Duration (minute) ",Duration);
+//						aff = newArray(Stopcriteria,"Duration","Nb images","Nb particles");
+//						aff[0] = Stopcriteria;
+//						Dialog.addChoice("Stop criteria ",aff);
+						Dialog.addString("Comment ",Comment);
+						Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------");
+						Dialog.show;
+
+						Project = Dialog.getString();
+						a= lengthOf(Project);
+						if (a==0) {message = message+ "Project empty \n";	check = 1;		} // if
+						ind= indexOf(Project," ");
+						if (ind != -1) { Project = replace(Project," ","_"); 				 }
+
+						Ship = Dialog.getString();
+						a= lengthOf(Ship);
+						if (a==0) {message = message+ "Zooscan Operator empty \n";	check = 1;		} // if
+						ind= indexOf(Ship," ");
+						if (ind != -1) { Ship = replace(Ship," ","_"); 						 }
+
+						Stationname = Dialog.getString();
+						// ------------------------------- Verifier si n'existe pas deja -----------------------------------------------------------------------------------
+						for (h = 1;h< nbstationdone;h++) {
+//							print(Stationname+"  "+stationdone[h]);
+							if (Stationname == stationdone[h]) { message = message+ "Sample Id allready used \n";		check = 1;	} // if
+						} // while
+						stationdone[h] = Stationname;
+						a= lengthOf(Stationname);
+						if (a==0) {message = message+ "Sample Id empty \n";		check = 1;		} // if
+						ind= indexOf(Stationname," ");
+						if (ind != -1) { Stationname = replace(Stationname," ","_"); 					 }
+						
+						Genericreffile = Dialog.getString();
+						a= lengthOf(Comment);
+						if (a==0) { Genericreffile = "no";		} // if
+						ind= indexOf(Genericreffile," ");
+						if (ind != -1) { Genericreffile  = replace(Genericreffile," ","_"); 				 }
+						Genericreffile = replace(Genericreffile,";","_");
+
+						Datetime = Dialog.getString();
+						a= lengthOf(Datetime);
+						if (a==0) {message = message+ "Date empty \n";	
+							check = 1;
+						} // if
+						if (a!=13) {message = message+ "Date incorrect \n";	
+							check = 1;
+						} // if
+						ind= indexOf(Datetime," ");
+							if (ind != -1) { Datetime = replace(Datetime," ","-"); 
+						}
+
+						Latitude = Dialog.getNumber();
+//						if (Latitude == 0) { message = message + "Latitude is not a number \n  "; check = 1; } // if
+						if ((Latitude < -90 || Latitude > 90) && Latitude != 99.990) { message = message + "Latitude is out of limits (-90 +90) \n  "; check = 1; } // if
+
+						Longitude = Dialog.getNumber();
+//						if (Longitude == 0) { message = message + "Longitude is not a number \n  "; check = 1; } // if
+						if ((Longitude < -180 || Longitude > 180) && Longitude != -999.990) { message = message + "Longitude is out of limits (-180 +180) \n  "; check = 1; } // if
+
+						Samplinggear =  Dialog.getChoice();
+
+						Zmin = Dialog.getNumber();
+						
+						Zmax = Dialog.getNumber();
+						if (Zmax < Zmin) { message = message + "Zmin > Zmax !   \n  "; check = 1;		} // if
+
+						Volconc = Dialog.getNumber();
+						if (Volconc < 0) { message = message + "Concentrated water volume (ml) < 0 !   \n  "; check = 1;		} // if
+						if (Volconc == 0) { message = message + "''Concentrated water volume (ml)'' is not a number  or set to 0   \n  "; check = 1;		} // if
+
+						Magnification = Dialog.getNumber();
+						if (Magnification < 0) { message = message + "Magnification < 0 !   \n  "; check = 1;		} // if
+						if (Magnification == 0) { message = message + "''Magnification'' is not a number  or set to 0   \n  "; check = 1;		} // if
+
+//						Lens =  Dialog.getChoice();
+
+//						Imagesurf = Dialog.getNumber();
+//						if (Imagesurf == 0) { message = message + "Imagesurf is not a number  or Aa set to 0   \n  "; check = 1;		} // if
+						
+						Celltype =  Dialog.getString();
+						Celltype = replace(Celltype,";","_");
+
+						Instrumtype =  Dialog.getString();
+						Instrumtype = replace(Instrumtype,";","_");
+
+//						Freqimage = Dialog.getNumber();
+//						if (Freqimage == 0) { message = message + "Frequence image is not a number  or Exp set to 0   \n  "; check = 1;		} // if
+
+//						Duration = Dialog.getNumber();
+
+//						Stopcriteria =  Dialog.getChoice();
+
+						Comment = Dialog.getString();
+						a= lengthOf(Comment);
+						if (a==0) { Comment = "no";		} // if
+						ind= indexOf(Comment," ");
+						if (ind != -1) { Comment  = replace(Comment," ","_"); 				 }
+						Comment = replace(Comment,";","_");
+
+						if (check == 1) { message = message + " \nEnter values again              ";		
+							showMessage(message); 	
+						} // if	
+						else {	// ------------------------ Recuperation des donnees existantes ---------------------------------------
+							open(path+"\\meta\\"+metafile);
+							wait(100);
+							metadata = getInfo();
+							run('Close');
+							array = split(metadata,"\n");
+							// ----------------- Impression des premieres lignes -----------------
+							if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+							for (b=0;b<array.length ; b++) { 	print(array[b]);	} // for
+							// ----------------- Ajout de la ligne -------------------------------------
+							Filename= toString(Filename);
+						//	Filename= replace(Filename," ","_");
+							Project = toLowerCase(Project);
+							Ship = toLowerCase(Ship);
+							Stationname = toLowerCase(Stationname);
+						//	Stationname = replace(Stationname," ","_");
+							Comment = toLowerCase(Comment);
+							print(Project+";"+Ship+";"+Filename+";"+Stationname+";"+Genericreffile+";"+Latitude+";"+Longitude+";"+Samplinggear+";"+Zmin+";"+Zmax+";"+Volconc+";"+Magnification+";"+Celltype+";"+Instrumtype+";"+Comment+";"+Datetime);
+							// ---------------- Sauvegarde Generic_header---------------------------------
+							sauve = "save=" + path+"\\meta\\"+metafile;
+							selectWindow("Log");
+							run("Text...",sauve);
+							run('Close');
+
+							// ---------------- Creation repertoire profil -------------------------------------------------
+							pathprofile = path+"\\work\\"+Stationname+"\\";
+							File.makeDirectory(pathprofile);
+
+							// ---------------- Sauvegarde fichier individuel dans repertoire profil ---------------
+							if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+							print(array[0]);
+							print(Project+";"+Ship+";"+Filename+";"+Stationname+";"+Genericreffile+";"+Latitude+";"+Longitude+";"+Samplinggear+";"+Zmin+";"+Zmax+";"+Volconc+";"+Magnification+";"+Celltype+";"+Instrumtype+";"+Comment+";"+Datetime);
+							sauve = "save=" + pathprofile+Stationname+"_meta.txt";
+//							getBoolean(sauve);
+							selectWindow("Log");
+							run("Text...",sauve);
+							run('Close');
+						} // else	
+
+					} // while
+					} // if done
+					else if (endsWith(dirprofile,"(done)") == true) {
+						genericprofile = getBoolean("Profile in database !    \n  \nEnter another profile ?   ");
+					} // else if
+					else {	genericprofile = getBoolean("Enter another profile ?   ");	} // else
+				} // while genericprofile
+			} // if add
+		} // else
+	} // if
+
+
+// ---------------- FIN --------------------------------------------
+ret = "ok";
+return ret;

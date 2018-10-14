@@ -1,0 +1,6 @@
+ret = "0";
+Dialog.create("IDENTIFICATION CONTROL");
+Dialog.addMessage(" Do you want to SAVE image with identifications ? ");
+Dialog.show();
+ret = "1";
+return ret;

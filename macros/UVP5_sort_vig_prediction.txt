@@ -1,0 +1,172 @@
+// ------------------------------ UVP5_sort_vig_prediction.txt ----------------------------
+version = "7.01";
+date = "2010/09/17";
+requires("1.41o");
+run("Colors...", "foreground=black background=white selection=red");
+run("Input/Output...", "jpeg=100 file=.xls");
+run("Profile Plot Options...", "width=450 height=200 minimum=0 maximum=0");
+dircruise = getArgument(); 
+print("A purger");	selectWindow("Log");		run("Close");
+print("-- UVP5_sort_vig_prediction.txt --");
+
+// ------------- Creation repertoire ------------------------------------
+dirsort = dircruise+"\\PID_process\\sorted_vignettes\\";
+if (File.exists(dirsort) == 0) File.makeDirectory(dirsort);
+
+dirdat1ext = dircruise+"\\PID_process\\pid_results\\dat1_extracted\\";
+if (File.exists(dirdat1ext) == 0) File.makeDirectory(dirdat1ext);
+
+// ------------- Choix du repertoire ------------------------------------
+//	dirprediction = getDirectory("Select directory containing ''*dat1.txt'' files");
+dirprediction =  dircruise+"\\PID_process\\pid_results\\";
+
+// -------------- Un ou plusieurs fichiers ? --------------------------------------------
+Dialog.create("SORTING VIGNETTES TOOL          version : "+version);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+Dialog.addMessage("Cruise folder :       "+dircruise);
+Dialog.addMessage("Prediction folder :  "+dirprediction);
+Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+message = "Select option.             " ;
+Dialog.addMessage(message);
+options = newArray("Select ONE file only","Process ALL files in the selected folder");
+Dialog.addChoice("       ", options);
+Dialog.show();
+option = Dialog.getChoice();
+
+// ------------ Ouverture du/des fichiers ------------------------------
+filelist  = 	getFileList(dirprediction);
+j = 0;
+list = newArray(filelist.length);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = endsWith(filelist[i],"dat1.txt");
+	if (ctrl == 1 )	{rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+} // for	
+//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
+if (j==0) { configpres = 0;
+	getBoolean("No prediction file in the prediction folder. \nPress Cancel to abort !       ");
+} //
+else { print(j+" prediction files in the "+dircruise);
+	// ---------------- Creation d'un sous repertoire date ---------------------------------
+	dateheure =	runMacro("Zooscan_get_time_5");
+	configpres = 1;
+	// ---------------------Purger les fichiers vides de la liste ! -------------------------------------
+	listaff = newArray(j);
+	for (i=0; i<listaff.length ; i++) {	rr = list[i];		listaff[i] = rr;	} // for
+	if (option == options[0]) {
+		Dialog.create("SORTING VIGNETTES TOOL          version : "+version);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+		Dialog.addMessage("Cruise folder :       "+dircruise);
+		Dialog.addMessage("Prediction folder :  "+dirprediction);
+		Dialog.addMessage("-------------------------------------------------------------------------------------------------------------------------------   ");
+		message = "SELECT text file to be used for vignette sorting.             " ;
+		Dialog.addMessage(message);
+		Dialog.addChoice("       ", listaff);
+		Dialog.show();
+		predfile = Dialog.getChoice();
+	} // if
+} // else
+	
+// -------------- Boucle ---------------------------
+long = listaff.length;
+if (option == options[0]) { listaff[0] = predfile;	long = 1; 	} // if
+
+for (k=0;k< long ; k++) {	
+	// ------------- Ouverture du fichier dat1.txt ----------------------------------
+	predfile = listaff[k];
+	openfile = dirprediction+"\\"+predfile;
+	open(openfile);
+	wait(100);
+	data = getInfo();
+	wait(100);
+	run("Close");
+	pid = split(data,"\n");
+	sizerow = lengthOf(pid);
+
+	// ---------------- Recherche colonne prediction -----------------------
+	colpred = 0;
+	collabel = 0;
+
+	// --------------- Data section ----------------------------------------------
+	for (i=0; i<pid.length ; i++) {	dat = pid[i];
+		if (startsWith(dat,"[Data]")) {	deb=i+1;			} // if
+	} // for
+
+	// --------------- Separateur ------------------------------------------------
+	sep = "tabs";
+	ctrl1 = indexOf(pid[deb],";");
+	if (ctrl1>=0) { 		sep = "dotcoma";	} // if
+	ctrl1 = indexOf(pid[deb]," ");
+	if (ctrl1>=0) { 		sep = "space";	} // if
+	if (sep == "dotcoma") {	a= replace(pid[deb],";"," ");		entete = split(a,"\ ");		} // if
+	if (sep == "tabs") {	a = pid[deb];			entete = split(a,"\t");		} // if
+	if (sep == "space") {	a = pid[deb];			entete = split(a,"\ ");		} // if
+	for (i=0; i<entete.length ; i++) {	
+		v = entete[i];	
+		if (v=="Label") { 	collabel = i;		} //if	Nom de l image source
+		if (v=="!Item") { 	colno = i;		} //if
+		ctrlpred = startsWith(v,"pred_");
+		if (ctrlpred==1) { 	colpred = i;		} // if
+	} // for
+	
+//	getBoolean(colno);
+
+	// ----------- Creation repertoire -----------------------------------
+	method = 	entete[colpred];
+	newdir = 	dirsort+"\\"+dateheure+"_"+method+"\\";
+	if (File.exists(newdir) == false) { 	File.makeDirectory(newdir);		} // if
+
+	// ---------------- Copie du fichier dat1.txt -------------------------------
+	print("A purger");	selectWindow("Log");		run("Close");
+	if (pid[0] != "PID") 	print("PID");
+	for (i=0; i<pid.length ; i++) {	
+		dat = pid[i];	
+		print(dat);	
+	} // for
+	sauvedat = "save=" + newdir+"\\"+predfile;	
+	selectWindow("Log");
+	run("Text...",sauvedat);
+	sauvedat = "save=" + dirdat1ext+"\\"+predfile;	
+	selectWindow("Log");
+	run("Text...",sauvedat);
+	
+	// --------------- Boucle sur les vignettes ------------------------------------------------
+	setBatchMode(1);
+	for (i=deb+1; i<sizerow ; i++) {
+	//for (i=1; i<1000 ; i++) {
+		if (sep == "dotcoma") {	a= replace(pid[i],";"," ");	ligne = split(a,"\ ");		} // if
+		if (sep == "tabs") {	a = pid[i];			ligne = split(a,"\t");		} // if
+		if (sep == "space") {	a = pid[i];			ligne = split(a,"\ ");		} // if
+		// -------------- Creation du nom de la vignette a lire ---------------------
+		profilefolder = 	ligne[collabel];
+		novig = 	ligne[colno];
+		prediction = 	ligne[colpred];
+		openvig = dircruise+"\\"+profilefolder+"\\"+profilefolder+"_"+novig+".jpg";
+
+		// ---------------- Existence du repertoire de destination ---------------------
+		savefolder = newdir+"\\"+prediction+"\\";
+		if (File.exists(savefolder) == false )	File.makeDirectory(savefolder);
+
+		// ---------------- Traitement vignette ----------------------------------
+		//	print(openvig);
+		if (File.exists(openvig)) {	
+
+			open(openvig);	
+			textsave = savefolder+profilefolder+"_"+novig+".jpg";
+			saveAs("Jpeg",textsave);
+			close();
+		} // if
+	} // for vignette
+
+} // for
+
+setBatchMode(0);
+
+print("A purger");	selectWindow("Log");		run("Close");
+
+// ------------------------- FIN ---------------------------
+showMessage("Normal END\nof\nZOOPROCESS");
+ret = "OK";
+return ret;
+
+
+

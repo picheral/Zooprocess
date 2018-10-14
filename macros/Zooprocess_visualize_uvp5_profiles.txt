@@ -1,0 +1,428 @@
+// --------------------------- Zooprocess_visualize_uvp5_profiles -----------------------------------------------
+version = "7.18";
+date = "2014/10/19";
+
+args = 	getArgument();
+arg = 	split(args," ");
+path = arg[0];
+instrum = arg[1];
+appel = arg[2];
+pathmeta = path+"\\meta\\";
+pathresults = path+"\\results\\";
+dirprocessed = 	pathresults;
+
+nbgraph = 2;
+
+// --------------- Metadata -----------------------------------------
+metafile = "no";
+filelist = getFileList(pathmeta);
+for (i=0; i<filelist.length ; i++) {	
+	ctrl = startsWith(filelist[i],"uvp5_header_");
+	ctrl_end = endsWith(filelist[i],".txt");
+	if (ctrl == 1 && ctrl_end == 1) { metafile = filelist[i];		} // if
+} // for
+if (metafile == "no") {
+	getBoolean("Press ''Cancel'' now and Fill in metadata first. ");
+} // if
+open(path+"\\meta\\"+metafile);
+wait(100);
+metadata = getInfo();
+run('Close');
+array = split(metadata,"\n");
+
+if (appel == "root") {
+	// --------------- Liste des profiles disponibles -------------------
+	j = 0;
+	filelist = getFileList(pathresults);
+	list = newArray(filelist.length);
+	for (i=0; i<filelist.length ; i++) {	
+		ctrl = endsWith(filelist[i],"_datfile.txt");
+		if (ctrl == 1) {rr = filelist[i]; 	list[j] = rr;	j = j + 1;		} // if
+	} // for
+	if (j==0) { 
+		getBoolean("No datfile.txt file to process in "+pathresults+". \nPress CANCEL to abort !          ");
+	} //
+	else { 	
+		listsel = newArray(j);
+		for (k=0;k<listsel.length ;k++) {	rr = list[k];	tt = substring(rr,0,lengthOf(rr)-12);  	listsel[k] = tt;		} // for
+	} // else
+
+	// --------------- Choix profile ------------------------------------
+	Dialog.create("UVP5 profiles            version :  "+version);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("Instrument :  "+instrum);
+	Dialog.addMessage("Project :        "+path);
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.addMessage("SELECT PROFILE to PROCESS");
+	Dialog.addChoice("               ",       listsel           );
+	Dialog.addMessage("--------------------------------------------------------------------------------------------------------------------------------------      ");
+	Dialog.show;
+	datfilename = 		Dialog.getChoice();
+	datfilename = datfilename+"_datfile.txt";
+}// if
+else { datfilename = appel+"_datfile.txt"; }
+
+// --------------- Recherche firstimg et profile (station) pour le profile ---------------
+firstimg = "no";
+for (i=1; i<array.length ; i++) { 
+	ligne = replace(array[i],";"," ");
+	ligne = split(ligne,"\ ");
+	Cruise = 	ligne[0];
+	Ship = 		ligne[1];
+	Filename = 	ligne[2];
+	Profile_id =	ligne[3];
+	Firstimage =	ligne[8];
+	Imagevol =	ligne[9];
+	Aa =		parseFloat(ligne[10]);
+	Expo =		parseFloat(ligne[11]);
+	if (ligne.length == 21 ){	Lastimage =	ligne[18];	Yoyo_opt = ligne[19];		Stationid = ligne[20];		} // if
+	else { 				Lastimage =	99999999999;	Yoyo_opt = "N";			Stationid = Profile_id;	} // else
+	Filename = 	toString(Filename);
+	Profile_id =	toString(Profile_id);
+	if (startsWith(datfilename,Profile_id)) {
+		firstimg = Firstimage;	
+		profile = Profile_id;		
+		volimage = Imagevol;	
+		lastimage = Lastimage;	
+		stationid = Stationid;
+	} // if
+}// for
+if (firstimg == "no") {
+	getBoolean("First image not found in "+Profile_id+" \nPress Cancel to abort !   ");
+} // if
+profile = toString(profile);
+firstimg = parseInt(firstimg);
+volimage = parseFloat(volimage);
+
+//------------- Ouverture du fichier  ----------------
+open(dirprocessed +datfilename);
+wait(500);
+data = getInfo();
+run("Close");
+ligne = split(data,"\n");
+
+// --------------- Graphiques -------------------------
+Depth = 	newArray(ligne.length);
+Time = 		newArray(ligne.length);
+Time_txt = 	newArray(ligne.length);
+Smallnb = 	newArray(ligne.length);
+Smallesd = 	newArray(ligne.length);
+Smallgrey = 	newArray(ligne.length);
+prevdepth = -1;
+index = 0;
+j = 0;
+depthmax = 0;
+while(index < ligne.length) {
+	dataline_read = ligne[index];
+	dataline = 	replace(dataline_read,";"," ");
+	dataline = 	split(dataline,"\ ");
+	imgnb = 	dataline[0];
+	imgnb = 	parseInt(imgnb);
+	// ----------- DATA entre premiere et dernière image ---------------
+	if (imgnb > firstimg && imgnb <= lastimage) {
+		time = dataline[1];
+		hh = substring(time,9,11);
+		mm = substring(time,11,13);
+		ss = substring(time,13,15);
+		ms = substring(time,16,19);
+		hh = 3600* parseFloat(hh);
+		mm = 60 * parseFloat(mm);
+		ss = parseFloat(ss);
+		ms = parseFloat(ms);
+		depth =			dataline[2];
+		depth = 		parseFloat(depth);
+		smallnb = 		dataline[14];
+		smallnb = 		parseInt(smallnb)/volimage;
+		smallsize_pixels = 	dataline[15];
+		smallsize_pixels = 	parseInt(smallsize_pixels);
+		smallgrey = 		dataline[16];
+		smallgrey = 		parseInt(smallgrey);
+		// ---------------- Conversion des tailles ---------------------
+		smallsize = Aa*pow(smallsize_pixels,Expo); 
+		esd = 	1000*2* pow(smallsize/3.1416,0.5);
+		// ---------------- Test FIN descente ------------------------------
+		if (depth > prevdepth && depth > depthmax) {
+			if (Yoyo_opt == "N") depthmax = maxOf(depthmax,depth);
+			Depth[j] = 	-1*depth/10;
+			Smallnb[j] = 	smallnb;
+			Smallesd[j] = 	esd;
+			Smallgrey[j] = 	smallgrey;
+			Time[j] = hh+mm+ss+ms/1000;
+			Time_txt[j] = time;
+			j++;
+		} // if
+		// ------------ Fin automatique en fin de descente ---------
+		if (Yoyo_opt == "N") prevdepth = depth;
+	} // if firstimg
+	index++;
+} // while
+
+// ------------------------- Graph data ----------------------------------
+depthprop = 100 *(1+ floor(depthmax/1000));
+Zstep = 10;
+if (depthprop > 5000) Zstep = 1000;
+else if (depthprop > 1000) Zstep = 500;
+else if (depthprop > 100) Zstep = 100;
+
+time_deb = Time[0];
+time_end = Time[j-1];
+
+time_deb_txt = Time_txt[0];
+time_end_txt = Time_txt[j-1];
+
+nmoy = 20;
+if (appel == "root" && Yoyo_opt != "H" ) {
+	Dialog.create("Graph parameters ");
+	Dialog.addNumber("Enter MAXIMUM depth ",depthprop);
+	Dialog.addNumber("Enter depth intervalles",Zstep);
+	Dialog.addNumber("Enter number of images for smoothing",nmoy);
+	Dialog.show;
+	miniy = Dialog.getNumber();
+	Zstep = Dialog.getNumber();
+	nmoy = Dialog.getNumber();
+}
+else {	miniy = depthprop;	}
+Zstep = abs(Zstep);
+// ------------- Echelles axe Y ---------------------
+miniy = -1*abs(miniy);
+maxiy = 	0;
+
+// ------------- Cas horizontal -----------------------------
+if (Yoyo_opt == "H" ) {
+	timemax = time_end - time_deb;
+	timeprop = 600 *(1+ floor(timemax/600));
+	if (timeprop > 3600) 		Zstep = 1800;
+	else if (timeprop > 1800) 	Zstep = 600;
+	else if (timeprop > 60) 	Zstep = 60;
+	miniy = 0;
+	maxiy = timeprop;
+	nbgraph = 1;
+} // if
+
+// ---------------------- suppression des valeurs nulles (remontee) et LISSAGE -------------------------------
+print("A purger");	selectWindow("Log");		run("Close");
+Depthj = 	newArray(j-nmoy);
+Timej =		newArray(j-nmoy);
+Smallnbj = 	newArray(j-nmoy);
+Smallesdj = 	newArray(j-nmoy);
+Smallgreyj = 	newArray(j-nmoy);
+
+maxsmallnb = 0;
+maxsmallgrey = 0;
+maxesd = 0;
+
+for (i = 0 ; i<j-nmoy ; i++) {
+	if (i/500 == floor(i/500) && i !=0 ) {	showStatus("Averaging data  : "+i+" /"+j);	} // if
+	depth = 	Depth[i];
+	depth = 	parseFloat(depth);
+	for (k = i+1;k<i+nmoy;k++) {	prof = Depth[k];		prof = parseFloat(prof);	depth = 	depth+prof;		} // for
+	depth = 	depth/nmoy;
+	Depthj[i] = 	depth;
+	
+	timef = 		Time[i];
+	time = 		parseFloat(timef) - parseFloat(time_deb);
+	for (k = i+1;k<i+nmoy;k++) {	tp = Time[k] - parseFloat(time_deb);			tp = parseFloat(tp);		time = 	time+tp;		} // for
+	time = 		time/nmoy;
+	Timej[i] = 	floor(time);
+
+	smallnb = 	Smallnb[i];
+	for (k = i+1;k<i+nmoy;k++) {	nb = Smallnb[k];		nb = parseFloat(nb);		smallnb = smallnb+nb;	} // for
+	smallnb = 	smallnb/nmoy;
+	maxsmallnb = 	maxOf(maxsmallnb,smallnb);
+	Smallnbj[i] = 	smallnb;	
+
+	esd = 	Smallesd[i];	
+	for (k = i+1;k<i+nmoy;k++) {	size = Smallesd[k];		size = parseFloat(size);	esd = esd+size;		} // for
+	esd = 		esd/nmoy;
+	maxesd = 	maxOf(maxesd,esd);
+	Smallesdj[i] = 	esd;
+
+	smallgrey = 	Smallgrey[i];
+	for (k = i+1;k<i+nmoy;k++) {	grey = Smallgrey[k];	grey = parseFloat(grey);	smallgrey = smallgrey+grey;	} // for
+	smallgrey = 	smallgrey/nmoy;
+	maxsmallgrey = 	maxOf(maxsmallgrey,smallgrey);
+	Smallgreyj[i] = 	smallgrey;
+} // for
+
+// ----------------- GRAPH --------------------------------------------------------------------------------------------
+ecranw= screenWidth();
+ecranh= screenHeight();
+
+//	final_hauteur = ecranh - 100;
+final_hauteur = 1000;
+final_largeur = floor(final_hauteur*2/3);
+dimlegende = 210;
+talon_gauche = 60;
+talon_droite = 16;
+talon_haut = 16;	// par Imagej
+vertical_dif = 53;
+hauteur_plot = final_hauteur - dimlegende;
+largeur_plot = final_largeur - talon_gauche - talon_droite;
+hauteur_remove_bas = 38;
+//---------- Dimensions pour les données et le cadre -----------------------------
+//run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 vertical interpolate");
+run("Profile Plot Options...", "width="+largeur_plot+" height="+hauteur_plot+" minimum=0 maximum=0 fixed vertical");
+maxsmallnb = 100 *(1+ floor(maxsmallnb/100));
+maxixab =	maxOf(200,maxsmallnb);
+maxsmallgrey = 10 *(1+ floor(maxsmallgrey/10));
+maxixgrey =	maxOf(10,maxsmallgrey);
+maxesd = 100 *(1+ floor(maxesd/100));
+maxixsize =	maxOf(100,maxesd);
+
+// ------------ Mise au format de la date -------------------------
+yymmdd = substring(time_deb_txt,0,9);
+hh = substring(time_deb_txt,9,11);
+mm = substring(time_deb_txt,11,13);
+ss = substring(time_deb_txt,13,15);
+//	ms = substring(time_deb_txt,16,19);
+time_deb_txt = 	yymmdd+" "+hh+":"+mm+":"+ss;
+yymmdd = substring(time_end_txt,0,9);
+hh = substring(time_end_txt,9,11);
+mm = substring(time_end_txt,11,13);
+ss = substring(time_end_txt,13,15);
+//	ms = substring(time_end_txt,16,19);
+time_end_txt = 	yymmdd+" "+hh+":"+mm+":"+ss;
+
+// -------------------- Boucle sur les 2 graphes -------------------------
+for (graph=0;graph < nbgraph;graph++) {
+	if (graph == 1) {	miniy = -200;
+				Zstep = 20;
+	}
+	// ------------ Les 3 courbes sont calées sur 0 ---------
+	minix = 	0;
+	nbtics =  floor(abs(miniy)/Zstep);
+	if (miniy == 0) nbtics =  floor(abs(maxiy)/Zstep);
+	
+	// ---------------- Abondance -------------------------
+	if (Yoyo_opt != "H" ) {	Plot.create(profile+" abundance",profile,"Z (m)");	}
+	else {			Plot.create(profile+" abundance",profile,"Time (sec)");	}
+	Plot.setLimits(minix, maxixab, miniy, maxiy);
+	Plot.setColor("red");
+	if (Yoyo_opt != "H" ) {	Plot.add("line", Smallnbj,Depthj);	}
+	else {			Plot.add("line", Smallnbj,Timej);	}
+	Plot.show();
+	setLineWidth(1);
+	run("Colors...", "foreground=black background=white selection=red");
+
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_abundance_a.jpg"); 
+	
+	// --------- Dimensions finales (avec legende) -------------------------
+	rename("All");
+	
+	// ---------------- grey -------------------------
+	if (Yoyo_opt != "H" ) {	Plot.create(profile+" grey",profile,"Z (m)");	}
+	else {			Plot.create(profile+" grey",profile,"Time (sec)");	}
+	Plot.setLimits(minix, maxixgrey, miniy, maxiy);
+	Plot.setColor("blue");
+	if (Yoyo_opt != "H" ) {	Plot.add("line", Smallgreyj,Depthj);	}
+	else {			Plot.add("line", Smallgreyj,Timej);	}
+	Plot.show();
+	selectImage(profile+" grey");
+	//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_grey.jpg"); 
+	rename("UVP5_"+profile+"_grey.jpg"); 
+	imageCalculator("AND", "All","UVP5_"+profile+"_grey.jpg");
+	
+	// ---------------- size (0-200µm)-------------------------
+	if (Yoyo_opt != "H" ) {	Plot.create(profile+" size",profile,"Z (m)");	}
+	else {			Plot.create(profile+" size",profile,"Time (sec)");	}
+	Plot.setLimits(minix, maxixsize, miniy, maxiy);
+	Plot.setColor("green");
+	if (Yoyo_opt != "H" ) {	Plot.add("line", Smallesdj,Depthj);	}
+	else {			Plot.add("line", Smallesdj,Timej);	}	
+	Plot.show();
+	selectImage(profile+" size");
+	rename("UVP5_"+profile+"_size.jpg"); 
+	imageCalculator("AND", "All","UVP5_"+profile+"_size.jpg");
+	
+	// ------------- Traits horizontaux --------------------
+	hauteur_courante  = getHeight();
+	hauteur_plot_cor = hauteur_courante - vertical_dif;
+	setColor(0, 0, 0);
+	if (miniy == 0) {	ZZ = talon_haut + Zstep*hauteur_plot_cor/abs(maxiy);
+		for (i=1;i<nbtics;i++) {	drawLine(talon_gauche,ZZ,largeur_plot+talon_gauche,ZZ);	ZZ = ZZ+ Zstep*hauteur_plot_cor/abs(maxiy);	} // for
+	}
+	else {	ZZ = talon_haut + Zstep*hauteur_plot_cor/abs(miniy);
+		for (i=1;i<nbtics;i++) {	drawLine(talon_gauche,ZZ,largeur_plot+talon_gauche,ZZ);	ZZ = ZZ+ Zstep*hauteur_plot_cor/abs(miniy);	} // for
+	} // else
+
+	// ----------------- Ajout des echelles sur graphe supperpose ----------
+	selectImage("All");
+	makeRectangle(0, hauteur_courante - hauteur_remove_bas, final_largeur, hauteur_remove_bas);
+//	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_temp.jpg"); 	rename("All");
+	run("Clear");
+	run("Select None");
+	hauteur_canvas = hauteur_courante + dimlegende;
+	text = 	 "width="+final_largeur+" height="+hauteur_canvas+" position=Top-Left";
+	run("Canvas Size...",text);
+
+	// ------------------ Legende CRUISE STATION CAST TIME -----------
+	setFont("SansSerif" , 16);
+	setLineWidth(1);
+	setColor(0,0,0);
+	drawString("Project : "+Cruise+"  /  Stn Id : "+stationid, talon_gauche, hauteur_courante+130);	
+	drawString("Profile Id (cast) :  "+profile, talon_gauche, hauteur_courante+160);
+	setFont("SansSerif" , 12);
+	setFont("SansSerif" , 14);		
+	drawString("Start (UTC)  :  "+time_deb_txt,talon_gauche, hauteur_courante+180);	
+	drawString("End   (UTC)  :  "+time_end_txt,talon_gauche, hauteur_courante+200);	
+	setFont("SansSerif" , 12);
+	
+	// --------------- Abundance (rouge) -----------------------
+	setColor(255, 0, 0);
+	drawLine(talon_gauche,hauteur_courante+44,largeur_plot+talon_gauche,hauteur_courante+44);
+	xstep = 100;
+	x_step = talon_gauche;
+	nbtics =  floor(abs(maxixab)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante+44,x_step,hauteur_courante+44-5);	x_step = x_step + xstep*largeur_plot/maxixab;	} // for
+	drawString("LPM ABUNDANCE (# / L)", 100, hauteur_courante+44-3);
+	drawString("0", talon_gauche, hauteur_courante+44-3);
+	drawString(maxixab, largeur_plot-20+talon_gauche, hauteur_courante+44-3);
+	
+	// --------------- Grey -------------------------------
+	setColor(0, 0, 255);
+	drawLine(talon_gauche,hauteur_courante+67,largeur_plot+talon_gauche,hauteur_courante+67);
+	xstep = 10;
+	x_step = talon_gauche;
+	nbtics =  floor(abs(maxixgrey)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante+67,x_step,hauteur_courante+67-5);	x_step = x_step + xstep*largeur_plot/maxixgrey;	} // for
+	drawString("LPM Mean Grey Level (8bits)", 100, hauteur_courante+67-3);
+	drawString("0", talon_gauche, hauteur_courante+67-3);
+	maxixgrey = toString(maxixgrey);
+	drawString(" "+maxixgrey, largeur_plot-20+talon_gauche, hauteur_courante+67-3);
+	
+	// --------------- Size --------------------------------
+	setColor(0, 255, 0);
+	drawLine(talon_gauche,hauteur_courante+93,largeur_plot+talon_gauche,hauteur_courante+93);
+	xstep = 50;
+	x_step = talon_gauche;
+	nbtics =  floor(abs(maxixsize)/xstep)+1;
+	for (i=0;i<nbtics+1;i++) {	drawLine(x_step,hauteur_courante+93,x_step,hauteur_courante+93-5);	x_step = x_step + xstep*largeur_plot/maxixsize;	} // for
+	drawString("LPM Mean ESD ( µm )", 100, hauteur_courante+93-3);
+	drawString("0", talon_gauche, hauteur_courante+93-3);
+	maxixsize = toString(maxixsize);
+	drawString("  "+maxixsize, largeur_plot-20+talon_gauche, hauteur_courante+93-3);
+	selectImage("All"); 
+	
+	
+	// ----------- Image finale -------------------------------------------------------
+	if (Yoyo_opt == "H" ) {	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_time.jpg"); 	}
+	if (graph == 1) {	saveAs("jpg", dirprocessed+"UVP5_"+profile+"_200m.jpg"); 	}
+	else {			saveAs("jpg", dirprocessed+"UVP5_"+profile+".jpg"); 		}// else
+	
+	// ------------------ Fermeture des graphs -----------
+	selectImage("UVP5_"+profile+"_grey.jpg");
+	close();
+	selectImage("UVP5_"+profile+"_size.jpg");
+	close();
+		
+	if (graph == 1) {	selectImage("UVP5_"+profile+"_200m.jpg"); 	}
+	else {			selectImage("UVP5_"+profile+".jpg");		}// else
+	
+		
+	if (appel != "root") 	{	wait(1000); close(); }
+} // for
+
+// ----------------------------- FIN ----------------------------------------------
+setTool(11);
+ret = "OK";
+return ret;

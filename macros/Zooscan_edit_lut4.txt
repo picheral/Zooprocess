@@ -1,0 +1,203 @@
+//-------------------Zooscan_edit_lut4---------------------------------
+version = "6.10";
+date = "2009/04/08";
+
+arg = getArgument(); 
+array = split(arg," ");
+chem= 		array[0]; 
+projfolder = 	array[1];
+drive = 		substring(projfolder,0,2);
+chemtemp = 	drive+"\\"+"\\"+"Zooscan"+"\\"+"\\"+"Zooscan_temp"+"\\";
+lon = 		lengthOf(projfolder);
+zoosc = 		indexOf(projfolder,"Zooscan_");
+proj = 		substring(projfolder,zoosc+8,lon);
+chemconfig = 	projfolder + "\\Zooscan_config\\";
+chemtemp = 	chem+"\\"+"Zooscan_temp\\";
+ret = "1";
+sizelimit = 	300;	overlap = 0.07;
+min = 		0;
+max = 		65536;
+ratio =		"1.15";
+gamma = 	1;
+odrange = 	"1.8";
+sens =		"before";
+adjust = 		"yes";
+medianchoice = 	"no";
+medianvalue = 	1;
+resolutionreduct = 	"2400";
+
+confrep = 		File.exists(chemconfig);
+if (confrep==0) { 	showMessage("WARNING : ",chemconfig," folder doesn't exist, process aborted  ");  	} // if
+else { 	print("//-------------- Choix du fichier LUT dans _config");
+	conflut = File.exists(chemconfig+"lut.txt");
+	if (conflut == 0) { showMessage("Warning message : lut.txt file doesn't exist.       \n \nlut.txt  default file created now in the project.    ");  	
+		//-------------------Impression dans le LUT---------------------------
+		if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+		print(min);
+		print(max);
+		print(gamma);
+		print(sens);
+		print(adjust);
+		print(odrange);
+		print(ratio);
+		print(sizelimit);
+		print(overlap);
+		text =  "save=" + chemconfig + "lut.txt";
+		run("Text...",text);	
+		run("Close");
+	} // if
+	//---------------------Lecture fichier LUT ---------------------------------
+		open(chemconfig+"lut.txt");
+		lutdata = getInfo();
+		run('Close');
+		ligne = split(lutdata,"\n");
+		if (ligne.length< 4) { sens = "before";	} // if
+		else {
+			min = 	ligne[0];	
+			min = 	parseInt(min);	
+			max = 	ligne[1];	
+			max = 	parseInt(max);	
+			gamma = ligne[2];
+			gamma = parseInt(gamma);
+			sens = 	ligne[3];
+			if (ligne.length == 6) {	adjust = ligne[4];	odrange = ligne[5];	ratio = 1.15;	
+				showMessage("Zooprocess requires a new LUT file.                 \nYour LUT file will be updated for Zooprocess 3.05 and above versions.                ");
+			} // if
+			else if (ligne.length == 7) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];	} // if
+			else if (ligne.length == 9) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];	sizelimit = ligne[7];		overlap = ligne[8];		} // if
+			else if (ligne.length == 11) {	adjust = ligne[4];	odrange = ligne[5];	ratio =ligne[6];	sizelimit = ligne[7];		overlap = ligne[8];		medianchoice = ligne[9];	medianvalue = ligne[10];	} // if
+			else if (ligne.length == 12) {	adjust = ligne[4];		odrange = ligne[5];		ratio =ligne[6];	
+				sizelimit = ligne[7];		overlap = ligne[8];	
+				odrange = ligne[5];		odrange = parseFloat(odrange);	
+				medianchoice = ligne[9];	medianvalue = ligne[10];	
+				resolutionreduct = ligne[11];		resolutionreduct = parseInt(resolutionreduct);			
+			} // if
+			else {		adjust = "no";	odrange = 1.8;	ratio = 1.15;	} // if	
+			odrange = parseFloat(odrange);
+			if (odrange >= 3) { odgrange = 1.15;	} // if
+			//-------------------Impression dans le LUT---------------------------
+			print("Clear");	selectWindow("Log");	run("Close");	
+			for (g=0;g<ligne.length;g++) { text = ligne[g];	print(text);		} // for
+			text =  "save="+chemtemp + "lut.txt";
+			selectWindow("Log");
+			run("Text...",text);	
+			test = 1;
+			while (test ==1) {
+				check= 0;
+				message = "WARNING :                                                                                                                                                                                                                          \n \n";
+				Dialog.create("LUT FILE    version = "+version+"         date = "+date);
+				Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------------------------------------------------        ");
+				Dialog.addMessage("Project is            :     "+proj);
+				Dialog.addMessage("LUT folder is      :     "+chemconfig);
+				Dialog.addMessage("----------------------GAMMA----------------------------------------------------------------------------------------------------------------------------------------        ");
+				Dialog.addMessage("- If set to BEFORE, you may experience memory problem with 2400 dpi images when IJ memory set below 1640 Mo              ");
+				Dialog.addMessage("- If gamma > 1=> contrast enhanced              ");
+				Dialog.addMessage("- If gamma < 1=> image smoothed              ");
+				Dialog.addMessage("- If gamma = 1=> No correction              ");
+				aff = newArray(" ","BEFORE applying LUT","AFTER applying LUT");
+				if (sens == "before") { 	val = aff[1];	aff[0] = val;	} // if
+				if (sens == "after") { 		val = aff[2];	aff[0] = val;	} // if	
+				Dialog.addChoice("Select gamma option ",aff);
+
+				Dialog.addNumber("              Gamma (0.5 - 5.0) ",gamma);
+
+				Dialog.addMessage("------------------------LUT conversion----------------------------------------------------------------------------------------------------------------------------        ");
+				Dialog.addMessage("Automatic Zooscan Grey Level Adjustment        ");
+				Dialog.addMessage("- If set to NO, the min and max values will be utilized.              ");
+				affB = newArray(" ","YES","NO");
+				if (adjust == "no") { 		val = affB[2];	affB[0] = val;	} // if
+				if (adjust == "yes") { 		val = affB[1];	affB[0] = val;	} // if
+				Dialog.addChoice("                     Automatic median grey adjustment  ",affB);
+
+				affratio = 		newArray(" ","1","1.05","1.10","1.15","1.2","1.25","1.30","1.35","1.4");
+				affratio[0] = 	ratio;
+				Dialog.addChoice("                     Select ratio  ",affratio);
+
+				affod = 		newArray(" ","0.9","1.2","1.5","1.8","2.1","2.4");
+				affod[0] = 		odrange;
+				Dialog.addChoice("                     Select OD range  ",affod);
+	
+				Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------------------------------------------------        ");
+				Dialog.addMessage("Absolute Zooscan Grey Level Adjustment (not used if set to YES above)       ");					
+				Dialog.addNumber("              Minimum (16 bit scale) ",min);
+				Dialog.addNumber("              Maximum (16 bit scale) ",max);
+				
+				Dialog.addMessage("------------------------Splitting parametres ----------------------------------------------------------------------------------------------------------------------        ");
+				Dialog.addNumber("              8 bits images spliting limit (Mo)",sizelimit);
+				Dialog.addNumber("              overlaping (0.07 typical) ",overlap);
+				affresored = 		newArray(" ","2400","1200");
+				affresored[0] = 		resolutionreduct;
+				Dialog.addChoice("         Process resolution for LARGE images scanned at 2400dpi  ",affresored);
+			
+				Dialog.addMessage("---------------------------------Filtre median ----------------------------------------------------------------------------------------------------------------------        ");
+				medianbox = false;
+				if (medianchoice == "yes") medianbox = true;
+				Dialog.addCheckbox("Filter 1200dpi and 2400dpi RAW  images using Median ? (V2 models) ", medianbox) ;
+				Dialog.addNumber("              Median filter value (1) ",medianvalue);
+				Dialog.addMessage("------------------------------------------------------------------------------------------------------------------------------------------------------------------------        ");
+
+				Dialog.show;	
+
+				sens = 		Dialog.getChoice();	
+				gamma = 	Dialog.getNumber();
+				adjust = 		Dialog.getChoice();	
+				ratio = 		Dialog.getChoice();	
+				odrange = 	Dialog.getChoice();	
+				min = 		Dialog.getNumber();
+				max = 		Dialog.getNumber();
+				sizelimit = 	Dialog.getNumber();
+				overlap = 	Dialog.getNumber();
+
+				resolutionreduct = 	Dialog.getChoice();
+				medianbox = 	Dialog.getCheckbox();
+				medianvalue = 	Dialog.getNumber();
+
+				if (medianbox == true) medianchoice  = "yes";
+				if (medianbox == false) medianchoice  = "no";
+
+				if (sens == aff[1] ) { sens = "before";	} // if
+				if (sens == aff[2] ) { sens = "after";	} // if	
+
+				if (gamma < 0.5 || gamma > 5 ) { message = message + "''Gamma'' is not a number or ''Gamma''  > 5 or ''gamma'' < 0.5  \n"; 	check = 1; 	} // if
+	
+				if (adjust == affB[1] ) { adjust = "yes";	} // if
+				if (adjust == affB[2] ) { adjust = "no";	} // if
+
+				if (min < 0 || min > max) { message = message + "''Minimum'' is not a number or ''Minimum''  < 0 or ''Minimum'' > ''Maximum''   \n"; 		check = 1; 	} // if
+				if (max < 0 || min > max) { message = message + "''Maximum'' is not a number or ''Maximum''  > 65536 or ''Minimum'' > ''Maximum''   \n"; 	check = 1; 	} // if
+
+				if (sizelimit <= 0) { message = message + "''spliting limit'' is not a number or negative. \n"; 	check = 1; 			sizelimit = 300;	} // if
+				if (overlap < 0 || overlap > 0.2) { message = message + "''overlap'' is not a number or ''overlap''  > 2    \n"; 	check = 1; 	overlap = 0.07;	} // if
+
+				if (medianvalue > 10 || medianvalue < 1) { message = message + "''Median filter value'' is negative or too high. \n"; 	check = 1; 	medianvalue = 1;	} // if
+
+				if (check == 1) { message = message + " \n \nENTER SETTINGS AGAIN              ";	
+					showMessage(message); 
+					test = 1;
+				} // if
+				else { 	test = 0;			} 	// else
+			} // while
+			//-------------------Impression dans le LUT---------------------------
+			if (isOpen("Log")) {	selectWindow("Log");	run("Close");	} // if
+			print(min);
+			print(max);
+			print(gamma);
+			print(sens);
+			print(adjust);
+			print(odrange);
+			print(ratio);
+			print(sizelimit);
+			print(overlap);
+			print(medianchoice);
+			print(medianvalue);
+			print(resolutionreduct);
+			text =  "save=" + chemconfig + "lut.txt";
+			selectWindow("Log");
+			run("Text...",text);	
+			run("Close");
+			showMessage("lut.txt replaced now in  "+chemconfig+"       \n     \nPrevious value saved in "+chemtemp+" folder.        ");
+			ret = "1111";
+		} // if
+} // else
+
+return ret;

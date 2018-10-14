@@ -1,0 +1,9 @@
+//-------------------Zooscan_dialog_close_graph
+
+ret = "1";
+info = getBoolean("Do you really want to close all histograms and graphs ?              ");
+if (info == true) {// Close all 
+	ret = "11111";
+}
+
+return ret;

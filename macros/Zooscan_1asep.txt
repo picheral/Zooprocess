@@ -1,0 +1,824 @@
+//----------------------Zooscan_1asep--------------------------------------------------
+//----------------------Traitement d'image----------------------------------------------
+version = "7.21";
+date = "2016/01/16";
+
+// v800
+// Detection AUTO de la resolution du Blanc
+
+//--------------Constantes------------------
+overlap = 	0.07;			// VOIR dans Zooscan_scan. Les valeurs doivent etre identiques !
+blancres = 	300;
+Oldback =	" ";
+border = 		1;
+batch = 		"1";
+nb = 		4;
+duration =	1000;
+run("Colors...", "foreground=black background=white selection=red");
+
+run("free memory");
+//arg = chemconfig +" "+ chem +" "+ configfile +" "+ param +" "  + titre +" "+ sep +" "+   tag +" "+ meta +" "+ par +" "+ maskop +" "+ masktag +" "+ maskpar +" "+ chemscan +" "+ chemwork1 +" "+ savevig +" "+ savezip +" "+ maskod +" "+ ident +" "+ maskident +" "+ vis +" "+ maskvis +" "+ scan +" "+ resolution +" "+ savetag+" "+savedoub+" "+backimg;
+arg = getArgument(); 
+array = split(arg," ");
+chemconfig = array[0]; 	chem= array[1]; 		configfile= array[2]; 	param= array[3]; 	titre= array[4]; 
+sep= array[5]; 		tag= array[6]; 		meta= array[7];  	par= array[8]; 	maskop= array[9]; 	masktag= array[10];  maskpar= array[11]; 
+chemscan= array[12]; 	chemwork1= array[13];	savevig= array[14];	savezip= array[15];	maskod= array[16];	ident= array[17];	maskident= array[18];
+vis=array[19];		maskvis= array[20];	xxx= array[21];	resolution=array[22];savetag= array[23];	savedoub=array[24];	backimg=array[25];
+projfolder = array[26];
+if (param == "2") batch = "1";
+// ------------------------ Suppression des info de type de fichier ----------------------
+long = lengthOf(titre);
+titrered = substring(titre, 0, long-4);
+replace(titrered,".","_");
+
+// ------------------- Repertoires --------------------------------------------
+chemwork = 	chemwork1+titrered+"\\";
+chemtemp = 	chem + "Zooscan_temp\\";
+chemback =	projfolder + "\\Zooscan_back\\";
+chemzip = 	chemscan + "\\_zip\\";
+drive =		substring(projfolder,0,2);
+lon = 		lengthOf(projfolder);
+zoosc = 		indexOf(projfolder,"Zooscan_");
+proj = 		substring(projfolder,zoosc+8,lon);
+
+// ----------------------------- Ouverture et chargement des configurations ----------------
+// Le fichier config est defini (choisi) dans la macro Zooscan_trt_1.txt
+openconfig = chemconfig +configfile;
+open(openconfig);
+wait(50);
+config = getInfo();
+selectWindow(configfile);
+run("Close");
+array = split(config,"\n");
+for (i=0; i<array.length; i++)	{	texte = array[i];		ssarray = split(texte," ");	array[i] = ssarray[1];		} // 
+Background_process = array[0];	calibration = array[2]; 	jpeg = array[3];
+zip = array[4];			greycor = array[5];			
+greytaux = array[7];		yminref = array[8];		doyofset = array[9];	doxpos = array[10];	xdimref = array[11];
+ydimref =array[12];		dostd = array[13];		doecart = array[14];		subimgx = array[15];	method = array[16];	upper = array[17];	greyref = array[18];	voxelwidth = array[19];
+voxelheigth = array[20];	voxeldepth = array[21];	voxelunit = array[22];		backval = array[23];	minsize = array[24];	maxsize = array[25];	longline = array[26];	doxabspos = array[27];	
+doyabspos = array[28];	bleft= array[29];		broll= array[30];		bright= array[31];	contrast= array[32];
+doubloonxy_inch= array[33];	doubloonarea_pourcent= array[34];			greylimit= array[35];
+
+if (Background_process != "select" && Background_process != "last" && Background_process != "recover" && Background_process != "roll" ) { print("background_method= g");
+	if (param == "1") { 	getBoolean("Background subtract method is uncorrect. \n \nPress Cancel to abort              ");	} // if
+} // if
+if ((Background_process=="select" || Background_process=="last" || Background_process=="recover" ) && method == "0") method = "log-gamma2";
+if (Background_process=="roll" && method == "0") method = "neutral";
+if (greytaux =="0" ) { 		greytaux = 0.9;			}  // if
+if (greytaux =="0.01" ) { 		greytaux = 0.9;	border = 0;	}  // if
+text= 		"jpeg="+jpeg+" file=.xls";
+run("Input/Output...",text);
+
+//--------------------Impression des donnees du CONFIG--------------------------------
+data = "ConfigDataImg= ";
+for (t=0;t<array.length;t++) { data = data+"+"+array[t];		} // if
+print(data);
+
+//-------------------------Sauvegarde temporaire du LOG-----------------------------
+if (isOpen("Log")) {	selectWindow("Log");	sauve = "save=" + chemtemp + "temp_log.txt";	run("Text...",sauve);	run("Close");		} // if
+
+// -------------------------------- Sauvegarde du SUIVI----------------------------
+if (param == "2") { 
+	if (isOpen("Log")) {		selectWindow("Log");	run("Close");	} // if	
+	opensuivi = chemtemp +"Suivi_log.txt";
+	open(opensuivi);
+	suivi = getInfo();
+	run("Close");
+	array = split(suivi,"\n");
+	for (i=0; i<array.length; i++) {	print(array[i]);		} // for
+	if (method == "neutral") { 	print("Image_Process= natural");	} // if
+	else {			print("Image_Process= "+method);	} // else
+	selectWindow("Log");	sauve = "save=" + chemtemp +"Suivi_log.txt";	run("Text...",sauve);	run("Close");
+} // if
+
+// --------------------------- Recuperation log temporaire -------------------
+opensuivi = chemtemp + "temp_log.txt";
+open(opensuivi);
+suivi = getInfo();
+run("Close");
+array = split(suivi,"\n");
+for (i=0; i<array.length; i++) {	print(array[i]);		} // for
+print("Image_process= Zooscan_1asep");
+print("Version= "+version+"_Picheral_CNRS");
+
+//------------------------Frame NB------------------------------------------------
+long = lengthOf(titre);
+frame = substring(titre, long-6, long-4);
+if (frame !="_1" && frame !="_2") { frame ="_1"; } // if
+
+// ------------------------Ouverture du fichier IMAGE a traiter -------------
+if (batch == "1") 			setBatchMode(true);
+openimage = chemscan + titre;
+open(openimage);
+
+//--------------------------Impression des informations ---------------------
+print("Image_path= ",projfolder);
+print("Image= ",titre);
+print("Frame= ",frame);
+print("Raw_image_depth= ",bitDepth(),"bits");
+size = File.length(openimage);
+print("Raw_image_size= ",size);
+
+// --------------------------Sauvegarde compresse ZIP -----------------------
+if (savezip==1 && zip == "1" )	{
+	print("Raw_Image_BackUp_as_ZIP= YES");
+	confzip = File.exists(chemzip);
+	if (confzip==0) { 	showMessage("Warning : "+chemzip+" folder doesn't exist, it is created now !        ");  	File.makeDirectory(chemzip);		} // if
+	saveAs("zip",chemzip+titre);
+	run("free memory");
+	wait(3000);
+} // if
+else {	print("Raw_Image_BackUp_as_ZIP= NO");	} // else
+
+run("8-bit");
+print("Final_Image= 8bits");
+
+ //-----------Cas "BCZ" Crop Image------------------
+if (proj == "bcz" && calibration == "Calibrage_CNRS" ) {
+	// Lecture de la taille de l'image
+	largeurcor = 	getWidth()/8;
+	hauteurcor = 	getHeight()/8;
+	cropx = 		8*floor(largeurcor);
+	cropy = 		8*floor(hauteurcor);
+	cropx = 		minOf(7130,cropx);
+	cropy = 		minOf(17620,cropy);
+	makeRectangle(0, 0, cropx,cropy);
+	run("Crop");
+	print("Corrected_width= ",cropx);
+	print("Corrected_heigth= ",cropy);
+} // if
+else if (Background_process=="select" || Background_process=="last") {
+	largeurcor = 	getWidth()/8;
+	hauteurcor = 	getHeight()/8;
+	cropx = 		8*floor(largeurcor);
+	cropy = 		8*floor(hauteurcor);
+	makeRectangle(0, 0, cropx,cropy);
+	run("Crop");
+	print("Corrected_width= ",cropx);
+	print("Corrected_heigth= ",cropy);
+} // else if
+else {	cropx = getWidth();
+	cropy = getHeight();
+	print("Image_width= ",cropx);
+	print("Image_heigth= ",cropy);
+} // else
+
+//------------------------- Lecture LOG ---------------------------------------------------------------------
+Hardware= "none";
+Unit= 0;
+reduction=1;
+YOffset= 0;
+PreviewYOffset=1;
+PreviewXOffset=1;
+logfile = File.exists(chemwork+titrered+"_log.txt");
+if (logfile==1) { 	open(chemwork+titrered+"_log.txt");
+			data = getInfo();
+			ligne = split(data,"\n");
+			reduction= 1;
+			run("Close");	
+			for (p=0;p<ligne.length;p++) { 
+				champ = ligne[p];
+				//-------------------------------Type Hardware----------------
+				// Conversion des mesures faites pour 4800 dpi par VUESCAN !
+				pos = indexOf(champ,"[Input-");
+				if (pos>=0) {fin = lastIndexOf(champ,"]");	Hardware= substring(champ,pos+7,fin);		} // if
+				posr = indexOf(champ,"TIFFSizeReduction");
+				if (posr>=0 ) { deb= indexOf(champ,"=");	reduction= substring(champ,deb+1,deb+2);	reduction = parseInt(reduction);	} // if
+				// ------------------------------ Background -------------------
+				pos = indexOf(champ,"Background_correct_using");
+				if (pos>=0) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	Oldback = parseInt(val);	} // if
+				//-------------------------------Unite----------------
+				pos = indexOf(champ,"CropUnits");
+				if (pos>=0) {deb= indexOf(champ,"=");		long= lengthOf(champ);	val = substring(champ,deb+1,long);	Unit = parseInt(val);	} // if
+				if (Unit==0 && (Hardware == "Perfection4990-Flatbed" || Hardware == "Perfection4490-Flatbed")) { unit= "pixel"; } //
+				//-------------------------------Unite----------------
+				pos = indexOf(champ,"AutoOffset");
+				if (pos>=0) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	AutoOffset = parseInt(val);	} // if
+				//----------------- PreviewXOffset
+				pos1 = indexOf(champ,"PreviewXOffset");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	PreviewXOffset=parseInt(val);	} // if	
+				//----------------- X Offset
+				pos1 = indexOf(champ,"XOffset");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	
+					if (deb < 8)  { long= lengthOf(champ);	val = substring(champ,deb+1,long);	XOffset=parseInt(val);	} // if
+				} // if	
+				//----------------- X Size
+				pos1 = indexOf(champ,"XSize");
+				if (pos1>=0 ) {deb= indexOf(champ,"=");
+					if (deb < 8) {long= lengthOf(champ);	val = substring(champ,deb+1,long);	XSize=parseInt(val);	} // if
+				} // if
+				//----------------- XSpacing
+				pos1 = indexOf(champ,"XSpacing");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	XSpacing=parseInt(val);		} // if		
+				//----------------- PreviewYOffset
+				pos1 = indexOf(champ,"PreviewYOffset");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	PreviewYOffset=parseInt(val);	} // if	
+				//----------------- Y Offset
+				pos1 = indexOf(champ,"YOffset");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");
+					if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YOffset=parseInt(val);	} // if
+				} // if
+				//----------------- Y Size
+				pos1 = indexOf(champ,"YSize");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");
+					if (deb < 10) { long= lengthOf(champ);		val = substring(champ,deb+1,long);	YSize=parseInt(val);	} // if
+				} // if	
+				//----------------- PreviewXSize --------------------------
+				pos1 = indexOf(champ,"PreviewXSize");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	PreviewXSize=parseInt(val);	} // if	
+				//----------------- PreviewYSize --------------------------
+				pos1 = indexOf(champ,"PreviewYSize");
+				if (pos1>=0 ) { deb= indexOf(champ,"=");	long= lengthOf(champ);	val = substring(champ,deb+1,long);	PreviewYSize=parseInt(val);	} // if	
+			} // for
+
+			resolution = toString(resolution);
+			// --------------------------- Biotom - Hydroptic v1 ----------------------------------------------
+			if (Hardware== "Perfection4990-Flatbed" && resolution=="2400" ) { reduction = 2; };
+			if (Hardware== "Perfection4990-Flatbed" && resolution=="1200" ) { reduction = 4; };
+			if (Hardware== "Perfection4990-Flatbed" && resolution=="600" ) { reduction = 8; };
+			if (Hardware== "Perfection4990-Flatbed" && resolution=="300" ) { reduction = 16; };
+
+			// -------------------------- Hydroptic v2 -----------------------------------------------------------
+			if (Hardware== "Perfection4490-Flatbed" && resolution=="2400" ) { reduction = 2; };
+			if (Hardware== "Perfection4490-Flatbed" && resolution=="1200" ) { reduction = 4; };
+			if (Hardware== "Perfection4490-Flatbed" && resolution=="600" ) { reduction = 8; };
+			if (Hardware== "Perfection4490-Flatbed" && resolution=="300" ) { reduction = 16; };
+
+			// -------------------------- Hydroptic v3 -----------------------------------------------------------
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="2400" ) { reduction = 2; };
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="1200" ) { reduction = 4; };
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="800" ) { reduction = 6; };
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="600" ) { reduction = 8; };
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="400" ) { reduction = 12; };
+			if (Hardware== "Perfectionv700-Flatbed" && resolution=="300" ) { reduction = 16; };
+			// -------------------------- Hydroptic v4 -----------------------------------------------------------
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="4800" ) { reduction = 1; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="2400" ) { reduction = 2; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="1200" ) { reduction = 4; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="800" ) { reduction = 6; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="600" ) { reduction = 8; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="400" ) { reduction = 12; };
+			if (Hardware== "Perfectionv800-Flatbed" && resolution=="300" ) { reduction = 16; };
+
+			// --------------------Correction du RATIO car ERREUR VUESCAN ------------------------------
+			PreviewXOffset= PreviewXOffset/reduction;
+			PreviewYOffset= PreviewYOffset/reduction;
+			XOffset = XOffset/reduction;
+			XSize = XSize/reduction;
+			XSpacing = XSpacing/reduction;
+			YOffset = YOffset/reduction;
+			YSize = YSize/reduction;
+			PreviewXSize = 	PreviewXSize/reduction;
+			PreviewYSize = 	PreviewYSize/reduction;
+
+			// ------------------------------On prend les valeurs REELLES de l'image ! -----------------------
+			YSize = getWidth();
+			XSize = getHeight();		
+			resolution = parseInt(resolution);
+			max = resolution*8.5; 		// 8.5 inches sur la verticale
+} // if
+else if (logfile != 1 && param != "2") { showMessage ("Error message :  "+titrered+"_log.txt file does'nt exists, process aborted     "); 	} // else
+else { print("Image_process= ABORTED");		} // else
+
+//----------------------Traitement du GREY LEVEL--------------------------------------------------
+if (maskod==1&& greycor>0) { print("Grey_Level_Adjustement= YES");	
+	// ---------------------Grey OD ref au milieu et a 150pixels du bord inférieur ---------------
+	if (greycor==1) { 
+		print("ODmethod= CNRS2003");
+		print("Doxabspos= ",doxabspos);
+		print("Doyabspos= ",doyabspos);
+		//---------------Rotationn de la zone de mesure du gris-------------------
+		temporaire =xdimref;
+		xdimref = parseFloat(ydimref);
+		ydimref = parseFloat(temporaire);	
+		xdimref = xdimref * resolution;
+		ydimref = ydimref * resolution;
+		xminref = (doxabspos) - xdimref/2;
+		yminref = cropy-ydimref-doyofset;
+		xminref = parseInt(xminref);
+		yminref = parseInt(yminref);
+		if (proj == "bcz" && calibration == "Calibrage_CNRS" ) {
+			xminref = 3400;
+			yminref = 17410;
+			xdimref = 600;
+			ydimref = 160;
+		} // if
+		print("ODxminref= ",xminref);
+		print("ODyminref= ",yminref);
+		print("ODxdimref= ",xdimref);
+		print("ODydimref= ",ydimref);
+	} // if greycor==1
+	// ----------------------Deux frames, position d'apres le LOG....-------------------------------
+	if (greycor>1) { //----------------Vertical position-------------------------------------------------
+			ydimref = 		parseFloat(ydimref);	
+			ydimref = 		ydimref * resolution;
+			positionx = parseFloat(doyabspos);
+			posx = resolution*positionx;	
+			// print("calcul de la position en utilisant le decalage");
+			Ax = max - posx;
+			C = Ax - XOffset - PreviewXOffset;
+			yminref = XSize - C- ydimref/2;
+			posx = max - posx;
+			yminref = XSize + XOffset + PreviewXOffset  - posx  - ydimref/2    ;
+			//-------------------Horizontal position--------------------------------------------
+			xdimref = 		parseFloat(xdimref);
+			xdimref = 		xdimref * resolution;
+			positiony = 	parseFloat(doxabspos);
+			posy = 		resolution*positiony;
+			posy = 		posy - PreviewYOffset - YOffset;			// reference a droite de l'image
+			xminref = 		YSize - posy - xdimref/2;
+			xminref = parseInt(xminref);
+			yminref = parseInt(yminref);
+			print("Resolution= ",resolution);
+			print("ODxminref= ",xminref);
+			print("ODyminref= ",yminref);
+			print("ODxdimref= ",xdimref);
+			print("ODydimref= ",ydimref);	
+	} // greycor>1
+	makeRectangle(xminref, yminref, xdimref, ydimref);
+	wait(5000);
+	// -----------------------  Verification de l'homogeneite du niveau de gris dans la reference
+	getStatistics(area, mean, min, max, std);
+	ecart = max-min;
+	if (proj != "bcz" && greycor != "1") {	mean = parseInt(mean);	} // if
+	print("OD_measured= ",mean);
+	print("Max-min_grey_difference_in_OD= ",ecart);
+	print("STD= ",std);
+	greyref = parseInt(greyref);
+	rename("imagesource");
+	// -------------------- Selection de toute la zone de travail pour correction du gris ----------------------------------
+ 	if (greycor !=4 ) {		
+		makeRectangle(0, 0, cropx,cropy);
+		print("OD_Settings= ",greyref);
+		cori = round(greyref-mean);
+		if (abs(cori) > greylimit  && param==1 ) { 
+			Dialog.create("GREY CORRECTION WARNING");
+			Dialog.addMessage("Grey level correction above "+greylimit+" grey levels (8 bits), press CANCEL to abort.        "); 
+			Dialog.show();
+		} // if
+		if (cori>0) {
+			newImage("gris", "8-bit Black",cropx,cropy, 1);
+			setColor(cori);
+			fill();
+			run("Image Calculator...", "image1=imagesource operation=Add image2=gris");	
+			selectWindow("gris");			close();
+			selectWindow("imagesource");
+			rename("Result of imagesource"); 
+		}	
+		else if (cori<0) {
+			newImage("gris", "8-bit Black",cropx,cropy, 1);
+			setColor(-cori);
+			fill();
+			run("Image Calculator...", "image1=imagesource operation=Subtract image2=gris"); 
+			selectWindow("gris");			close();
+			selectWindow("imagesource");
+			rename("Result of imagesource"); 
+		}
+		else {rename("Result of imagesource");   } // else
+		selectWindow("Result of imagesource");
+		//---------------Test de la valeur apres correction ! ----------------------
+		makeRectangle(xminref, yminref, xdimref, ydimref);
+		getStatistics(area, mean, min, max, std);
+		print("OD_corrected= ",mean);
+		run("free memory");	
+	} // if
+	else { 	print("OD_correction= NO");	 } //else
+} //
+
+//-----------------------------------Nettoyage du cadre (mesure des limites) -------------------------------------------------------------------------------
+droite = 0;
+if (border ==1 && ( proj != "bcz" || calibration != "Calibrage_CNRS" )) { 
+	resolution = parseInt(resolution);
+	setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+	run("Set Measurements...", "  mean redirect=None decimal=0");
+	largeur = getWidth();
+	hauteur= getHeight();
+	limitgauche = 	0;	limithaut = 	0;
+	limitdroite = 	largeur;
+	limitbas = 	hauteur;
+	step =		parseInt(resolution/240);
+	//------------------------Droite----------------------------------
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	limit = 	largeur;
+	k = 	maxOf(largeur*0.75,largeur - resolution/2);
+	a = 	0;
+	makeRectangle(k,hauteur/4, 10 * step,hauteur*0.25);
+	run("Measure");
+	mean = 		getResult("Mean",a);
+	greyvald = 	parseInt(mean * greytaux);
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	while (k<= largeur) { 
+		makeRectangle(k,hauteur/4, step,hauteur*0.25);
+		run("Measure");
+		mean = 		getResult("Mean",a);
+		if (mean <greyvald) { // On arrete
+			limit = k;
+			limit = limit - step;
+			limitdroite=parseInt(limit);
+			k=largeur;
+			droite = 1;
+		} // if
+		a++;
+		k= k+step;
+	} // while
+	//------------------------Gauche----------------------------------
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	limit = 	largeur;
+	k =	largeur*0.05;
+	a = 	0;
+	makeRectangle(k,hauteur/2 - hauteur*0.125, 10 * step,hauteur*0.25);
+	run("Measure");
+	mean = 		getResult("Mean",a);
+	greyvalg = 	parseInt(mean * greytaux);
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	while (k>= 0) { 
+		makeRectangle(k,hauteur/2 - hauteur*0.125, step,hauteur*0.25);
+		run("Measure");
+		mean = getResult("Mean",a);
+		if (mean <greyvalg) { // On arrete
+			limit = k;
+			limit = limit+step;
+			limitgauche=parseInt(limit);
+			k=0;
+		} // if
+		a++;
+		k = k-step;
+	} // while
+	//------------------------BAS----------------------------------
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	limit = 	hauteur;
+	k = 	hauteur * 0.95;
+	a = 	0;
+	makeRectangle(largeur/6 ,k, largeur *0.15,10 * step);
+	run("Measure");
+	mean = 		getResult("Mean",a);
+	greyvalb= 	parseInt(mean * greytaux);
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	while (k<= hauteur) { 
+		makeRectangle(largeur/6 ,k, largeur *0.15,step);
+		run("Measure");
+		mean = getResult("Mean",a);
+		if (mean <greyvalb) { // On arrete
+			limit = k;
+			limit = limit - step;
+			limitbas=parseInt(limit);
+			k=hauteur;
+		} // if
+		a++;
+		k= k+step;
+	} // while
+	//------------------------HAUT----------------------------------
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	limit = 	hauteur;
+	k = 	hauteur * 0.05;
+	a = 	0;
+	makeRectangle(largeur/2-largeur*0.25 ,k, largeur *0.2,10 * step);
+	run("Measure");
+	mean = 		getResult("Mean",a);
+	greyvalh = 	parseInt(mean * greytaux);
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	while (k>0) { 
+		makeRectangle(largeur/2-largeur*0.25 ,k, largeur *0.2,step);
+		run("Measure");
+		mean = getResult("Mean",a);
+		if (mean <greyvalh) { // On arrete
+			limit = k;
+			limit = limit+step;
+			limithaut=parseInt(limit);
+			k=0;
+		} // if
+		a++;
+		k= k-step;
+	} // while
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+} // if
+
+// -----------------------------------------Selection de toute la zone de travail pour segmentation--------------------------
+makeRectangle(0, 0, cropx,cropy);
+
+// ---------------SUPPRESSION de la partie droite de l'image pour economiser de la memoire (mesure des limites)--------------------------
+largeur = getWidth();
+hauteur= getHeight();
+limitod = largeur;
+if(greycor>2 && droite == 0) { 
+	step =		parseInt(resolution/240);
+	//------------------------Droite----------------------------------
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	limit = 	largeur;
+	k = 	maxOf(largeur*0.7,largeur-1200);
+	a = 	0;
+	makeRectangle(k,hauteur/4, 10 * step,hauteur*0.25);
+	run("Measure");
+	mean = 		getResult("Mean",a);
+	greyval = 		parseInt(mean * greytaux);
+	if (isOpen("Results")) { selectWindow("Results");	run('Close'); 	} // if
+	while (k<= largeur) { 
+		makeRectangle(k,hauteur/4, step,hauteur*0.25);
+		run("Measure");
+		mean = getResult("Mean",a);
+		if (mean <greyval || mean == 255 ) { // On arrete
+			limit = k;
+			limit = limit+ (largeur-limit)/10;
+			limitod=parseInt(limit);
+			k=largeur;
+		} // if
+		a++;
+		k= k+step;
+	} // while
+} // if greycor >2
+
+// ------------------------------selection manuelle et soustraction d'un blanc PHYSIQUE avant de reduire la taille de l'image -------------------------
+if (Background_process=="select" || Background_process=="last" || Background_process=="recover" ) { 	print("Background_correct_using= ",backimg);
+	//----------------------- Fermeture de l'image en cours, sauvegarde temporaire et fermeture --------------------
+	saveAs("Tiff", chemtemp+"temp_vis1.tif"); 
+	close();
+	run("free memory");	
+	//--------------Ouverture de l'image du fond----------------------------------
+	texte = drive+"\\"+"\\"+"Zooscan_"+proj+"\\"+"\\"+"Zooscan_back\\"+backimg;
+	open(texte);
+	rename('fond');
+	// -------------- Resolution du blanc ----------------
+	run("Show Info...");
+	wait(200);
+	imagedata = getInfo();
+	wait(200);
+	selectWindow("Info for fond");
+	run("Close");
+	ligne = split(imagedata,"\n");
+	for (k = 0;k<ligne.length;k++) {
+		champ = ligne[k];
+		pos1 = indexOf(champ,"Resolution:");
+		if (pos1==0 ) { 		
+			deb= indexOf(champ,": ");		
+			end= indexOf(champ,"pixel");
+			val = substring(champ,deb+1,end);	
+			blancres = parseInt(val);		
+		} // if
+	} // for
+	backratio = resolution/blancres;
+	largback = 	indexOf(backimg,"large");
+	narrback = 	indexOf(backimg,"narrow");
+	frametypeback = 	"unknown";
+	if (largback >= 0) 	frametypeback = 	"large";
+	if (narrback >= 0) 	frametypeback = 	"narrow";
+//	print("Resolution= "+resolution+"dpi");
+
+	setVoxelSize(voxelwidth,voxelheigth,voxeldepth,voxelunit);
+	L = getWidth()*backratio;
+	H = getHeight()*backratio;
+	lf = getWidth();
+	hf = getHeight();
+	Lm = L * 0.95;
+	LM = L * 1.05;
+	Hm = H * 0.95;
+	HM = H * 1.05;
+
+	// -------------------- Verification des dimensions, si fond = large imageratio=+/- 1.6, si narrow : 2.3 -----------------------
+	// On ne teste pas la hauteur car l'image a peut etre ete divisee
+	imageratio = 	PreviewYSize/PreviewXSize;
+	frametypeimg = 	"unknown";
+	if (imageratio >= 1.3 && imageratio <= 1.9) 	frametypeimg = "large";
+	if (imageratio >= 2    && imageratio <= 2.6) 	frametypeimg = "narrow";
+//	getBoolean("LM="+LM+" Lm= "+Lm+" cropx= "+cropx+" cropy= "+cropy+" Lfond= "+L+" Hfond= "+H+" frametypeimg= "+frametypeimg+" frametypeback= "+frametypeback+" imageratio= "+imageratio+" PreviewYSize= "+PreviewYSize+" PreviewXSize= "+PreviewXSize);
+	// -------------------------------- Les dimensions sont probablement equivalentes ------------------------------
+//	if ( cropx <= LM && cropx >= Lm && frametypeback == frametypeimg && frametypeback != "unknown" ) { 
+	if ( cropx <= LM && cropx >= Lm ) { // Modifié le 23/11/2010 pour autoriser "narrow4800dpi";
+		//----------------------Ajustement des dimensions du fond-----------------------------------------------
+		if (frame=="_1") { // L'image n'est pas forcement divisée !
+			larg=	cropx/backratio;
+			haut = 	cropy/backratio;
+			fondx0=	lf-larg;
+			fondy0=	hf-haut;
+			makeRectangle(fondx0,fondy0,larg,haut);
+			run("Crop");
+		} // if frame==1
+ 		if (frame=="_2") { // Il s'agit obligatoirement d'une image divisée
+			ofsetfond = (XOffset+ PreviewXOffset)/backratio;
+			larg=	cropx/backratio;
+			haut = 	cropy/backratio;
+			fondx0=	lf-larg;
+			makeRectangle(fondx0,0,larg,haut);
+			run("Crop");
+		} // if frame==2
+		// ---------------------------Lissage du fond ----------------------------
+		run("Mean...", "radius=3");
+		// ----------------------------Redimensionnement de l'image du fond a la meme resolution que l'image a corriger------------------------
+		texte="width="+L+" height="+H+" constrain interpolate";
+		run("Size...",texte );
+		// ---------------------------------Correction du niveau de gris du fond----------------------------------------------
+		if (maskod==1&& greycor>0 && greycor !=4 ) {
+			makeRectangle(xminref, yminref, xdimref, ydimref);
+			getStatistics(area, mean, min, max, std);
+			ecart = max-min;
+			mean = parseInt(mean);
+			//------------------------Fond BLANC, NO correction, outils pour Zooscan 2003 traite MATROX et importe---------------------------
+			if (mean == 255 || mean == 0 ) { close();	print("Background= not_corrected");		open(chemtemp+"temp_vis1.tif"); 		} // if
+			//----------------------------------Ajustement du gris du fond-----------------------------------------------
+			else { 	cori = round(greyref-mean);
+				ecart = max-min;
+				print("Background_OD_measured= ",mean);
+				print("Background_Max-min_grey_difference_in_OD= ",ecart);
+				print("Background_STD= ",std);
+				if (abs(cori) > greylimit  && param==1 ) { 
+					Dialog.create("GREY CORRECTION WARNING");
+					Dialog.addMessage("Grey level correction above "+greylimit+" grey levels (8 bits), press CANCEL to abort.        "); 
+					Dialog.show();
+				} // if
+				rename("imagesource");
+				// ---------------------- Selection de toute la zone de travail pour correction du gris -------------
+				makeRectangle(0, 0, cropx,cropy);
+				if (cori>0) {newImage("gris", "8-bit Black",cropx,cropy, 1);
+					setColor(cori);
+					fill();
+					run("Image Calculator...", "image1=imagesource operation=Add image2=gris");	
+					selectWindow("gris");	close();
+					selectWindow("imagesource");
+					rename("Result of imagesource"); 
+				} // if cori
+				else if (cori<0) {newImage("gris", "8-bit Black",cropx,cropy, 1);
+					setColor(-cori);
+					fill();
+					run("Image Calculator...", "image1=imagesource operation=Subtract image2=gris"); 
+					selectWindow("gris");	close();
+					selectWindow("imagesource");
+					rename("Result of imagesource"); 
+				} // else if
+			} // else
+			//------------ test final du niveau de gris dans la cellule OD qui devrait etre a 0 maintenant ------------
+			if (maskod==1&& greycor>0) {makeRectangle(xminref, yminref, xdimref, ydimref);
+				getStatistics(area, mean, min, max, std);
+				mean = parseInt(mean);
+				print("Corrected_Image_mean_grey= "+mean);
+				print("Corrected_Image_min_grey= "+max);
+				print("Corrected_Image_max_grey= "+min);
+			} // if
+		} // maskod
+		rename("Result of imagesource");  
+		// ----------------- Soustraction du fond (ancienne methode pour background image)---------------------------
+		if (method == "log-gamma2") {run("Log");
+			run("Invert");
+			rename("Fond");
+			open(chemtemp+"temp_vis1.tif"); 
+			run("Log");
+			rename("Image");
+			run("Image Calculator...", "image1=Fond operation=Add image2=Image");
+			selectWindow("Image");	close();
+			rename("Result of imagesource");
+			run("Gamma...", "value=2");
+		} // if
+		// ----------------- Soustraction du fond (log-gamma3)---------------------------
+		if (method == "log-gamma3") {run("Log");
+			run("Invert");
+			rename("Fond");
+			open(chemtemp+"temp_vis1.tif"); 
+			run("Log");
+			rename("Image");
+			run("Image Calculator...", "image1=Fond operation=Add image2=Image");
+			selectWindow("Image");	close();
+			rename("Result of imagesource");
+			run("Gamma...", "value=3");
+		} // if
+		// ------------------- New Method 2007/10/22 (equivalent de l'ancienne methode utilisee en rolling ball ---------------------------------------
+		if (method == "neutral" ) {rename("Fond");
+			open(chemtemp+"temp_vis1.tif"); 
+			rename("Image");
+			imageCalculator("Difference","Fond","Image");
+			selectWindow("Image");	close();
+			selectImage("Fond");
+			rename("Result of imagesource");
+			run("Invert");
+		} // if
+	} // if
+	//--------------------------------  Les dimensions sont incorrectes ----------------------------------
+	else {	selectImage("fond");	close();
+		print("Background_image_dimensions= WRONG");
+		print("Background_subtract= ABORTED");
+		if ( frametypeback != frametypeimg) {		
+			getBoolean("ERROR Message : \n \nBackground dimensions are not adapted to the sample image size.    \n       \n"+titrered+" image has been acquired with "+frametypeimg+" frame.   \n"+backimg+"background image has been acquired with "+frametypeback+" frame. \n \nPress Cancel to abort !           ");		
+		} // if
+		if (frametypeback == "unknown" && frametypeimg == "unknown") {
+			getBoolean("Background dimensions of "+backimg+" are not adapted to the sample image size.      \n \nYour image has probably not been acquired using standard parametres       \n \nPress Cancel to abort !           ");		
+		} // if
+		open(chemtemp+"temp_vis1.tif"); 
+		rename("Result of imagesource");
+	} // else	
+} // if ---------------------------FIN de la soustraction du fond PHYSIQUE----------------------------------------------
+rename("Result of imagesource");
+// ------------------- Impression methode de correction image -------------------------
+if (method == "neutral") { 	print("Image_treatment= natural");	} // if
+else {			print("Image_treatment= "+method);	} // if
+
+// ---------------SUPPRESSION de la partie droite de l'image pour economiser de la memoire--------------------------
+if(greycor>2) { 
+	if (droite == 1) { limitod = limitdroite+(largeur-limitdroite)/10;		} // if
+	print("Right_side= Automatic_supress");
+	print("Right_side_Limit= ",limitod);
+	selectImage("Result of imagesource");
+	makeRectangle(0,0, limitod,hauteur);
+	run("Crop");
+} // if greycor >2
+rename("imagesource");
+
+// ------------------------------ Soustraction du fond Rolling (normalise par rapport a 2400 dpi) ------------------------------------------------------
+resolution = 	parseInt(resolution);
+backval = 	parseInt(backval);
+backval = 	floor(backval * resolution/2400);
+backval = 	toString(backval);
+if (Background_process == "roll" && resolution == 2400) {	
+	print("Rolling_ball_background_subtract_value= "+backval);
+	// --------------------- Par partie --------------------------------------------------------------------
+	ret = runMacro("Zooscan_rollingball.txt",chemtemp+" "+backval+" "+method);
+	flag=toString(ret);
+	l= lengthOf(flag);
+	if (l==1)  { 	
+		getBoolean("Error message : Zooscan_rollingball.txt macro aborted               \n \nPress Cancel to abort !                 "); 	
+	} // if
+	print("Rolling_ball_background_subtract_method= by_parts");
+} //if
+if (Background_process == "roll" && resolution != 2400 ) {
+	print("Rolling_ball_background_subtract_value= "+backval);		
+	nb = 20;
+	duration = 1000;
+	selectImage("imagesource");
+	saveAs("Tiff",chemtemp+"raw.tif");
+	close();
+	suppress = 	"rolling="+ backval + " white";
+	for (i=0; i<nb; i++) {	showStatus("Free memory");	run("free memory");	progress = (i+1)/nb;	showProgress(progress);	wait(duration);	} // for
+	open(chemtemp+"raw.tif");
+	rename("imagesource");
+	run("Subtract Background...",suppress);
+	if (method == "log-gamma2") {run("Log");	run("Gamma...", "value=2");		} // if
+	if (method == "log-gamma3") {run("Log");	run("Gamma...", "value=3");		} // if
+} // else
+
+//-----------------------------------Nettoyage du cadre (TRACE des limites) -------------------------------------------------------------------------------
+if (border ==1 && ( proj != "bcz" || calibration != "Calibrage_CNRS" )) { 
+	selectImage("imagesource");
+	print("Transparent_frame= CLEAR");
+	print("Greytaux= "+greytaux);
+	print("Greylimitright= "+greyvald);
+	print("Right_limit= "+limitdroite);
+	print("Greylimitrleft= "+greyvalg);
+	print("Left_limit= "+limitgauche);
+	print("Greylimittop= "+greyvalh);
+	print("Upper_limit= "+limithaut);
+	print("Greylimitbottom= "+greyvalb);
+	print("Bottom_limit= "+limitbas);
+	run("Colors...", "foreground=black background=white selection=green");
+	if (resolution == 2400) {	run("Line Width...", "line=1");	} // if
+	else	{		run("Line Width...", "line=2");	} // if
+	if (limitod < largeur) { 	largeur = limitod;		} // if
+	Larg = minOf(limitdroite-limitgauche,limitod);
+	selectImage("imagesource");
+	makeRectangle(limitgauche,limithaut,Larg,limitbas-limithaut);
+	run("Clear Outside");
+	if (limitdroite != largeur  &&  limitdroite < limitod) { 	
+		drawLine(	limitdroite,0,limitdroite,hauteur/4);
+		drawLine(	limitdroite,hauteur/4+4,limitdroite,hauteur);
+	} // if
+	//------------------------Gauche----------------------------------
+	if (limitgauche != 0) {		
+		drawLine(	limitgauche,0,limitgauche,hauteur/4);
+		drawLine(	limitgauche,hauteur/4+4,limitgauche,hauteur);
+	} // if
+	//------------------------BAS----------------------------------
+	if (limitbas != hauteur) {	
+		drawLine(	0,limitbas,largeur/4,limitbas);
+		drawLine(largeur/4+4,limitbas,largeur,limitbas);
+	} // if
+	//------------------------HAUT----------------------------------
+	if (limithaut != 0) {	
+		drawLine(	0,limithaut,largeur/4,limithaut);
+		drawLine(largeur/4+4,limithaut,largeur,limithaut);
+	} //if
+} // if
+else {		print("Transparent_frame= KEEP");	} // else
+
+if (batch == "1") 			setBatchMode("exit and display");
+
+//--------------------- Sauvegarde de l'image source 8bits sans fond ----------------------
+saveAs("zip",chemwork+titrered+"_vis1");
+saveAs("Tiff", chemtemp+"temp_vis1.tif"); 
+print("Vis_image_save= YES");
+
+// --------------------- Sauvegarde du LOG ------------------------------------------------------
+selectWindow("Log");
+sauve = "save=" + chemwork+titrered+"_log.txt";
+run("Text...",sauve);
+
+selectImage("temp_vis1.tif"); 
+
+// ------------------------- FIN -----------------------------------------------------------------
+// ------------------------ On considere que Xspacing est superieur a 10 si on travaille avec 2 frames ! -----------------
+if (frame=="_1") {ret="0 1 1 0 0 0 0 0 0 0 1"; 				} // if
+if (frame=="_2") { XOffset = XOffset * reduction;
+	PreviewXOffset = PreviewXOffset * reduction;
+	PreviewXOffset=toString(PreviewXOffset);
+	XOffset = toString(XOffset);
+	XSize = XSize * reduction;
+	XSize = toString(XSize);
+	reduction = toString(reduction);
+	ret= XOffset+" "+XSize+" "+reduction+" "+PreviewXOffset;
+} // if
+
+return ret;
