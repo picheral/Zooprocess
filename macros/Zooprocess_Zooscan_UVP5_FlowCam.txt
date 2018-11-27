@@ -3,7 +3,7 @@ run("Misc...", "divide=Infinity antialiased_tool");
 run("free memory");
 setBatchMode(false);
 version =	 "7.28";
-date =	 "2018/10/14";
+date =	 "2018/11/27";
 
 // Gestion presence advanced et user
 // uvp5 SN
@@ -531,7 +531,8 @@ if (instrum == "flowcam" || instrum == "uvp5" || instrum == "Generic") {
 			ret = runMacro("Zooprocess_main_process_dat_bru_pid_vig",path+" "+instrum+" "+chem);
 			flag=toString(ret);
 			l= lengthOf(flag);
-			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} // if
+			if (l==1)  { 	showMessage("Error message"+op+" process aborted.                       "); 	} 
+			else {		showMessage(op+" OK !");						}
 		} // else if
 
 		// ------------------ "PLOT data profiles (from processed DAT files)"-----------------------------------------------

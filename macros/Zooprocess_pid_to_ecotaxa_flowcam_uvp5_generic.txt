@@ -1,6 +1,6 @@
 //------------- Zooprocess_pid_to_ecotaxa_flowcam_uvp5_generic ---------------
-version = "7.26";
-date = "2017/12/19";
+version = "7.28";
+date = "2018/11/22";
 
 // Utilisé pour flowcam et UVP5
 // Acqu_instrument = uvp5, pixel, Exposure, Thrsh
@@ -13,6 +13,7 @@ date = "2017/12/19";
 // Correction calcul ESD
 // Correction autres variables dérivées
 // Lecture pixel size from uvp5_configuration_data.txt file
+// Correction calcul ESD pour Flowcam et Generic
 
 
 arg = 		getArgument(); 
@@ -796,7 +797,9 @@ for (j = data_deb+1;j < data.length;j++) {
 	}// if
 	// ------------ Variables dérivées -----------------------------	
 	if (indexOf(toLowerCase(data[data_deb]),"kurt")>1) {
-		area = 		parseInt(entete[3]);	major = 	parseInt(entete[18]);	minor = 	parseInt(entete[19]);
+		area = 		parseInt(entete[2]);	
+		if (instrum == "uvp5") {	area = 		parseInt(entete[3]);	}
+		major = 	parseInt(entete[18]);	minor = 	parseInt(entete[19]);
 		mean = 		parseFloat(entete[4]);	min = 		parseInt(entete[7]);	max = 		parseInt(entete[8]);
 		stddev = 	parseInt(entete[5]);	perim = 	parseInt(entete[13]);	area_exc = 	parseInt(entete[30]);
 		feret = 	parseInt(entete[22]);	xm = 		parseInt(entete[11]);	ym = 		parseInt(entete[12]);

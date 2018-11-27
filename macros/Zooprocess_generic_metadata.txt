@@ -1,6 +1,8 @@
 // -------------------------Zooprocess_generic_metadata --------------------
-version = "7.14	";
-date = "2013/01/08";
+version = "7.28	";
+date = "2018/11/27";
+
+// Option Octopus
 
 arg = getArgument(); 
 array = split(arg," ");
@@ -273,7 +275,7 @@ paramlist = "project;ship;filename;sampleid;genericreffile;latitude;longitude;sa
 						Dialog.addString("Sampling date (YYYYMMDD-HHMM) ",Datetime);
 						Dialog.addNumber("Latitude  (-12.06398 for 12°06.398 S)  ",Latitude);
 						Dialog.addNumber("Longitude (-135.05325 for 135°05.325 W)   ",Longitude);
-						aff = newArray(Samplinggear,"Niskin","Bucket","Net","Continuous","Multicorer","ISIIS");
+						aff = newArray(Samplinggear,"Niskin","Bucket","Net","Continuous","Multicorer","ISIIS","Octopus");
 						aff[0] = Samplinggear;
 						Dialog.addChoice("Sampling gear       ",aff);
 						Dialog.addNumber("Zmin (m) ",Zmin);

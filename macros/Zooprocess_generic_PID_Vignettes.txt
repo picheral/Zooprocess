@@ -1,8 +1,9 @@
 // -------------------------- Zooprocess_generic_PID_Vignettes --------------------------
-version = "7.27";
-date = "2018/05/17";
+version = "7.28";
+date = "2018/11/27";
 
 // Detection absence image
+// Non détection des images Full (Octopus)
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -133,7 +134,7 @@ j = 0;
 images = newArray(filelist.length);
 for (k = 0;k<filelist.length;k++ ) {	
 	image = filelist[k];
-	if (endsWith(image,".JPG") == true || endsWith(image,".jpg") == true || endsWith(image,".tif") == true  || endsWith(image,".bmp") == true || endsWith(image,".png") == true ) {	images[j] = image;		
+	if (indexOf(image,"full") > 1 &&  (endsWith(image,".JPG") == true || endsWith(image,".jpg") == true || endsWith(image,".tif") == true  || endsWith(image,".bmp") == true || endsWith(image,".png") == true )) {	images[j] = image;		
 		j++;	
 	} // if
 } // for
@@ -143,16 +144,7 @@ for (k=0;k<j;k++) {	rr = images[k];		listimages[k] = rr;	} // for
 // ------------------ Critere de fin -------------------------------------------------------------------
 imagenb = minOf(j,stopafter_n_images);
 //	imagenb = stopafter_n_images;
-aa = 	getBoolean(imagenb+"   j= "+j);
-
-
-
-
-
-
-
-
-
+//aa = 	getBoolean(imagenb+"   j= "+j);
 imageinfolder= j;
 
 // ------------------ Chargement image fond du profil ------------------------------------------
