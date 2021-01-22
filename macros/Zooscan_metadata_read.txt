@@ -1,9 +1,10 @@
 // ------------------------- Zooscan_metadata_read ----------------------------
-version= "7.27";
-date = "2018/08/26";
+version= "7.28";
+date = "2019/03/10";
 
 
 // Correction pour ajout "nouveaux" metadata
+// LAT/LON end
 
 arg = getArgument(); 
 array = split(arg," ");
@@ -59,7 +60,7 @@ if (array.length > 29 ) {
 }//
 else {	sample_comment = "no";
 	vol_qc = "0";			depth_qc = "0";			sample_qc = "0000";	 	barcode = "NaN";
-	latitude_end = "NaN";		longitude_end = "NaN";		net_duration = 9999;		ship_speed_knots = 9999;
+	latitude_end = "0.0";		longitude_end = "0.0";		net_duration = 9999;		ship_speed_knots = 9999;
 	cable_length = 9999;		cable_angle = 9999;		cable_speed = 9999;		nb_jar = 9999;
 	czz = array[24];
 }

@@ -276,19 +276,31 @@ if (indexOf(path,"flowcam_composite") < 0) {
 		if( testback == true &&  File.exists(pathmeta) == true        &&   File.exists(pathraw+instrum+"_"+Stationname)== true    )  source = "ok";
 		// ------------------------------ Existence du PID -----------------------------------------------------
 		pathpid = path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid";
-		//	getBoolean(j+"  "+path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
+//		aa = getBoolean("testback = "+testback);
+//		aa = getBoolean("meta = "+File.exists(pathmeta));
+//		aa = getBoolean("stnname = "+File.exists(pathraw+instrum+"_"+Stationname));
+//		aa = getBoolean(pathraw+instrum+"_"+Stationname);
+//		getBoolean(j+"  "+path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
 		if(File.exists(pathpid) == false && source == "ok"    ) {
 			list[j] = 	Stationname;		
 			j++;	
 		} // if
 		else if (skip == false && source == "ok"  ) {
-			//	getBoolean(path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
+
+//			getBoolean(path+"\\work\\"+Stationname+"\\"+Stationname+"_dat1.pid"+"    skip= "+skip);
 			list[j] = 	Stationname;	
 			j++;	
 		} // if	
 		//		else { j++;		} // if
 	} // for
+
+//	aa = getBoolean(j);
 }//
+
+
+
+
+
 else {	// ----------------------- FlowCam composite -------------------------
 	for (i=1; i<array.length ; i++) { 
 		ligne = replace(array[i],";"," ");

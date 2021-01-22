@@ -1,7 +1,11 @@
 // ------------------------- Zooscan_edit_metadata_main -----------------------------
-version = "7.20";
-date = "2015/08/03";
+version = "7.28";
+date = "2019/043/10";
 requires("1.41o");
+
+
+// LAT/LON end
+
 
 arg = 		getArgument(); 
 array = 	split(arg," ");
@@ -81,7 +85,7 @@ for (i=0; i< j-1 ; i++) {
 		cable_length[i] = array[27];	cable_angle[i] = array[28];		cable_speed[i] = array[29];		nb_jar[i] = array[30];
 	}//
 	else {	vol_qc[i] = "0";		depth_qc[i] = "0";		sample_qc[i] = "0000";	 barcode[i] = "NaN";	
-		latitude_end[i] = "NaN";	longitude_end[i] = "NaN";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
+		latitude_end[i] = "0.0";	longitude_end[i] = "0.0";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
 		cable_length[i] = 9999;		cable_angle[i] = 9999;		cable_speed[i] = 9999;		nb_jar[i] = 9999;
 		flag = true;
 	}

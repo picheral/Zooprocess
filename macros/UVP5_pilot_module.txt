@@ -1,6 +1,6 @@
 // ------------ UVP5_pilot_module ---------------------
-version =	 "7.26";
-date =	 "2018/01/21";
+version =	 "7.40";
+date =	 "2020/010/17";
 
 // Create XML file
 // UVP5sn
@@ -12,6 +12,8 @@ date =	 "2018/01/21";
 // Get INI file from UVP en mode USER
 // Modification_programmation sequence plus explicite
 // Correction start_val et stop_val par défaut
+// Allongement starting time
+// Capacite drives cas HD/STD
 
 
 args = getArgument();
@@ -22,7 +24,7 @@ chem = arg[2];
 run("serial ext");
 
 // ---------------- UVP5 sn ------------------------------
-starting_time = 55;
+starting_time = 75;
 stop_time = 25;
 aa = indexOf(path,"uvp5_sn");
 uvp_sn_txt = substring(path,aa+7,aa+10);
@@ -33,6 +35,7 @@ if (uvp_sn_txt == "000" ) stop_time = 40;
 // ---------------- Capacité des disques par défaut et type UVP5 -------
 mem_fd_full = 13000;
 mem_hd_full = 64000;
+
 uvp_type = "std";
 if (parseInt(uvp_sn_txt) >= 200) {
 	uvp_type = "hd";
@@ -354,8 +357,11 @@ if (work_option == "UVP5 connected, complete tool list") {
 								if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
 								else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
 								print("-----------------------------------------------------------------------------------------------------------------");
-								print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
-								print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								if (uvp_type == "std") {
+									print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+									print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								}
+								else {	print("UVP5hd free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");	}		
 								print("-----------------------------------------------------------------------------------------------------------------");
 							} // if
 						} // for
@@ -704,8 +710,11 @@ while (check == 0) {
 								if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
 								else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
 								print("-----------------------------------------------------------------------------------------------------------------");
-								print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
-								print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								if (uvp_type == "std") {
+									print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+									print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+								}
+								else {	print("UVP5hd free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");	}		
 								print("-----------------------------------------------------------------------------------------------------------------");
 							} // if
 						} // for
@@ -774,9 +783,13 @@ while (check == 0) {
 									mem_fd_r = round(100*mem_fd/mem_fd_full);
 									if (mem_hd_full == 0 ) {	mem_hd_r = NaN;	}
 									else {				mem_hd_r = round(100*mem_hd/mem_hd_full);	}
+																	
 									print("-----------------------------------------------------------------------------------------------------------------");
-									print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
-									print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+									if (uvp_type == "std") {
+										print("FD free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");
+										print("HD free space = "+mem_hd+" Mo (" +mem_hd_r+ " %)");
+									}
+									else {	print("UVP5hd free space = "+mem_fd+" Mo (" +mem_fd_r+ " %)");	}		
 									print("-----------------------------------------------------------------------------------------------------------------");
 								} // if
 							} // for
@@ -1197,7 +1210,8 @@ while (check == 0) {
 								copie = runMacro("uvp5_copy_files.txt",arg_copie);
 								// ------------- Relecture du fichier LOG ----------------------
 								open(log_file);		wait(100);		data = getInfo();		run("Close");		print(data);
-								print("END of COPY");
+								print(copie);
+								print("END of Download");
 							}// if
 						} //if copie
 						stop_cam = 1;

@@ -1,11 +1,12 @@
 // -------------------------- Zooprocess_UVP5_PID_Vignettes --------------------------
-version = "7.24";
-date = "2017/05/17";
+version = "7.30";
+date = "2019/09/07";
 
 // Gestion du cas MIXT et CHOICE > 1
 // Gestion HD
 // TSV en standard
 // Exposure HD
+// Correction first & last_img
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -306,8 +307,9 @@ dataline = 	replace(dataline,";"," ");
 dataline = 	split(dataline," ");
 vigname = 	dataline[1];			// Nom image source
 
-image0 = substring(vigname,0,14);	
+image0 = substring(vigname,0,15);
 image0text = image0;
+//	aa = getBoolean(lengthOf(image0text)+"  "+image0text);
 for (i=0; i<ligne.length ; i++) {
 	dataline = 	ligne[i];
 	dataline = 	replace(dataline,";"," ");
@@ -318,9 +320,12 @@ for (i=0; i<ligne.length ; i++) {
 	vignb = 	parseInt(vignb);
 	noimg = 	dataline[0];
 	// --------------- Nom de la premiere image a conserver ------------------
-	if (noimg == firstimg) { image0 = substring(vigname,0,14);	image0text = image0;	} // if
+	if (noimg == firstimg) { image0 = substring(vigname,0,15);	
+		image0text = image0;	
+//		aa = getBoolean(lengthOf(image0text)+"  "+image0text);
+	} // if
 	// --------------- Nom de la dernière image a conserver ------------------
-	if (noimg == endimg) { image_end = substring(vigname,0,14);	image_end_text = image_end;	} // if
+	if (noimg == endimg) { image_end = substring(vigname,0,15);	image_end_text = image_end;	} // if
 	if (vignb != 0) {
 		for (m = 0;m<vignb;m++) {
 			Vigname[vignumber] = 	vigname;			// Nom image source
@@ -333,7 +338,7 @@ for (i=0; i<ligne.length ; i++) {
 		} // for
 	} // if
 } // for
-if (image_end_text == "not_defined") { image_end = substring(vigname,0,14);	image_end_text = image_end;	} // if
+if (image_end_text == "not_defined") { image_end = substring(vigname,0,15);	image_end_text = image_end;	} // if
 nbimgsource = vignumber;
 //	if (vignumber == 0) aa = getBoolean("BRU file not processed ! \n \nPRESSS CANCEL to ABORT !");
 
@@ -1493,6 +1498,7 @@ if (test == "1") 	print("End of Fractal. CONTINUE ?");
 		} // for
 	} //if	
 	print("[Process]");
+	print("zooprocess_version= "+version);
 	print("pressure_gain= "+pressure_gain);
 	print("calibration= "+calibration);
 	print("pixel= "+pixel);

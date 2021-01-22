@@ -1,7 +1,9 @@
 // ------------------------- Zooscan_metadata_fill_window_fraction ----------------------------------------------
-version = "7.12";
-date = "2012/08/04";
+version = "7.40";
+date = "2020/12/067";
 requires("1.41o");
+
+// warning fracnb, test Motoda
 
 arg = 		getArgument(); 
 array = 	split(arg," ");
@@ -23,9 +25,9 @@ else {
 } // else
 Fracmin = parseInt(Fracmin);	Fracsup = parseInt(Fracsup);	Fracnb = parseInt(Fracnb);
 
-check= 1;
-while (check == 1) {
-	check= 0;
+check= true;
+while (check == true) {
+	check= false;
 	message = "Warning : \n";
 	Dialog.create(" METADATA         version : "+version);
 	Dialog.addMessage("----------------------- Please ENTER or CHECK the informations ------------------------------------------------");
@@ -53,18 +55,13 @@ while (check == 1) {
 	Dialog.show;
 
 	Fracmin = Dialog.getNumber();
-	if (Fracmin == 0) { message = message + "Fraction min mesh is not a number  or Fraction min mesh set to 0   \n  "; check = 1;} // if
 
 	Fracsup = Dialog.getNumber();
-	if (Fracsup == 0) { message = message + "Fraction max mesh is not a number  or Fraction max mesh set to 0   \n  "; check = 1;} // if
-	if (Fracsup != 0 && Fracmin != 0 && Fracmin > Fracsup) { message = message + "Fraction min mesh (µm) should be less than Fraction max mesh (µm) \n  "; check = 1;} // if
 
 	Fracnb = Dialog.getNumber();
-	if (Fracnb == 0) { message = message + "Fracnb is not a number  or Fracnb set to 0   \n  "; check = 1;} // if
 
 	Observation = Dialog.getString();
-	a= lengthOf(Observation);
-	if (a==0) {message = message+ "Observation empty \n";		check = 1;		} // if
+	Observation = toLowerCase(Observation);
 	Observation  = replace(Observation," ","_"); 				
 	Observation  = replace(Observation,"?","_"); 
 	Observation  = replace(Observation,",","_"); 
@@ -79,15 +76,11 @@ while (check == 1) {
 	Observation  = replace(Observation,"<","_"); 
 	Observation  = replace(Observation,";","_"); 
 
-	Code = "1";
 	SubMethod= Dialog.getString();
-	a= lengthOf(SubMethod);
-	if (a==0) {message = message+ "SubMethod empty \n";		check = 1;		} // if
-	ind= indexOf(SubMethod," ");
-	if (ind != -1) { SubMethod  = replace(SubMethod," ","_"); 				 }
-	
+	SubMethod = toLowerCase(SubMethod);
+
 	Scanop = Dialog.getString();
-	if (Scanop == "to_fill" || Scanop == "") {message = message+ "Scanning operator field must be filled \n";		check = 1;		} // if
+	Scanop = toLowerCase(Scanop);
 	Scanop  = replace(Scanop," ","_"); 				
 	Scanop  = replace(Scanop,"?","_"); 
 	Scanop  = replace(Scanop,",","_"); 
@@ -100,12 +93,44 @@ while (check == 1) {
 	Scanop  = replace(Scanop,"%","_"); 
 	Scanop  = replace(Scanop,">","_"); 
 	Scanop  = replace(Scanop,"<","_"); 
-	Scanop  = replace(Scanop,";","_"); 	
+	Scanop  = replace(Scanop,";","_"); 
+	
+	// -------- Controles -----------------
+	
+	if (Fracmin == 0 || indexOf(Fracmin, 9999) > 0) { message = message + "Fraction min mesh is not correct. You MUST document it NOW !   \n  "; 			check = true;} // if
+	if (Fracsup == 0 ) { message = message + "Fraction max mesh is not a number or Fraction max mesh set to 0   \n  "; 						check = true;} // if
+	if (Fracsup != 0 && Fracmin != 0 && Fracmin > Fracsup) { message = message + "Fraction min mesh (µm) should be smaller than Fraction max mesh (µm) \n  "; 	check = true;} // if
+	
+	// ------- test cas motoda -----------
+	test_motoda = true;
+	if ( SubMethod == "motoda") {	
+		test_motoda = false;	
+		for (kk=1; kk < 500 ; kk++) {
+			if ( Fracnb == pow(2,kk) || Fracnb == 1) {	test_motoda = true;	}
+		}		
+	}	
+	if (Fracnb == 0) 			{ message = message + "Fraction spliting ratio set to 0 \n  "; 				check = true;				} // if
+	else if (test_motoda == false) 		{ message = message + "Motoda Fraction spliting ratio must be 1 or power of 2 \n  "; 	check = true;} // if
+	else if (indexOf(Fracnb, "999") > -1) 	{ message = message + "Fraction spliting ratio must not be "+Fracnb+" \n  "; 		check = true;} // if
+	
+	a= lengthOf(Observation);
+	if (a==0) {message = message+ "Observation empty \n";		check = true;		} // if
+	
+	a= lengthOf(SubMethod);
+	if (a==0) {message = message+ "SubMethod empty \n";		check = true;		} // if
+	ind= indexOf(SubMethod," ");
+	if (ind != -1) { SubMethod  = replace(SubMethod," ","_"); 				 }
+	
+	if (Scanop == "to_fill" || Scanop == "") {message = message+ "Scanning operator field must be filled \n";		check = true;		} // if
 	
 	CellPart = "1";
 	Replicates = "1";
 	Vollni ="1";
 	VolPrec = "1";
+	Code = "1";
+	
+	if (check == true) { message = message + " \nFill in values again   !           ";		showMessage(message); 	} // if
+	
 }// while
 Fracmin = toString(Fracmin);
 Fracsup = toString(Fracsup);

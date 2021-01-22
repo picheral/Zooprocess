@@ -94,7 +94,6 @@ for(t = 0; t < fin ; t++) {
 		else { 				Lastimage =	99999999999;	Yoyo_opt = "N";			Stationid = Profile_id;	} // else
 		Filename = 	toString(Filename);
 		Profile_id =	toString(Profile_id);	
-//		aa = getBoolean(appel+"    "+Profile_id);
 //		if (startsWith(appel,Profile_id)) {
 		if (appel == Profile_id) {
 			firstimg = Firstimage;	

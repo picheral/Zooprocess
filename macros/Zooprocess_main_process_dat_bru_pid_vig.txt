@@ -1,11 +1,12 @@
 // --------------------- Zooprocess_main_process_dat_bru_pid_vig.txt ------------------------------
-version = "7.22";
-date = "2016/06/20";
+version = "7.40";
+date = "2020/11/20";
 
 // HD/STD for process DAT
 // Correction du "skip" pour PID & Vignettes
 // Gestion des BRU1 (sans image name)
 // Copie TSV des HD
+// Recovered folder message & plot in loop
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -120,8 +121,8 @@ skip = 			Dialog.getCheckbox();
 
 // ------------------------------------- RECOVER metadata if any work subfolder deleted ---------------------------
 recover = false;
+message = "Some profiles directories were missing. \nTheir metadata have been recovered before the process : ";
 for (i=1; i<array.length ; i++) { 
-	message = "Some profiles directories were missing. \nTheir metadata have been recovered before the process : ";
 	// ----------------- Nom de fichier ---------------------------------------
 	ligne = replace(array[i],";"," ");
 	ligne = split(ligne,"\ ");
@@ -302,6 +303,7 @@ if ( processbrudat == true ) {
 		if (l==1)  { 	showMessage("Error message BRU process aborted.                       "); 	} // if
 	} // if
 	else {
+		// -------------- Traitement automatique des fichiers sélectionnés ---------------------
 		for (k=0;k<listsel.length ;k++) {
 			showProgress(k+1/listsel.length);
 			if (File.exists(text_run)) {
@@ -427,7 +429,7 @@ if (processpid == true) {
 	} // for
 	//---------------------Test de la presence de fichiers dans le repertoire-----------------------------------------------------------------------	
 	if (j==0 ) { configpres = 0;
-		aa = getBoolean("All profiles processed in the selected project. \nPress CANCEL to abort !          ");
+		aa = getBoolean("All profiles processed in the selected project \n (or DAT files not yet processed). \nPress CANCEL to abort !          ");
 	} //
 	else { 	
 		listproc = newArray(j);

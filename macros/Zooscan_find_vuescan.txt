@@ -1,6 +1,6 @@
 // -------------------------- Zooscan_find_vuescan ----------------------
-version = "7.26";
-date = "2018/01/10";
+version = "7.32";
+date = "2019/10/15";
 
 // V800
 
@@ -30,7 +30,7 @@ wait(500);
 if (flag == "1" && File.exists(chemvue+"\\vuescan.htm")) {
 	//	open(chemvue+"\\vuescan.htm");
 	run("Text File... ", "open="+chemvue+"\\vuescan.htm");
-//	getBoolean("Continue ?");
+	//	getBoolean("Continue ?");
 	wait(100);
 	data = getInfo();
 	selectWindow("vuescan.htm");
@@ -39,13 +39,11 @@ if (flag == "1" && File.exists(chemvue+"\\vuescan.htm")) {
 	pos = indexOf(data,"8.3.23");
 	if (pos > 1) 	vuescan = "8.3.23";				
 	pos = indexOf(data,"8.4.57");
-	if (pos > 1) 	vuescan = "8.4.57";		
-	pos = indexOf(data,"8.4.57");
-	if (pos > 1) 	vuescan = "8.4.57";				
+	if (pos > 1) 	vuescan = "8.4.57";						
 } // if
-if (flag == "1" && File.exists(chemvue+"\\vuescan.log")) {
+else if (flag == "1" && File.exists(chemvue+"\\vuescan.log")) {
 	run("Text File... ", "open="+chemvue+"\\vuescan.log");
-//	aa = getBoolean("Continue");
+	//	aa = getBoolean("Continue");
 	wait(300);
 	wait(300);
 	data = getInfo();

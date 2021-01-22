@@ -1,10 +1,11 @@
 // ------------------ uvp5_edit_configuration -----------------------
-version =	 "7.20";
-date =	 "2015/08/31";
+version =	 "7.28";
+date =	 "2019/01/28";
 //	ret = runMacro("uvp5_edit_configuration",chem+" "+chem+" create 1 true");
 
 // HD / STD
 // SN
+// path pour modfile
 
 args = getArgument();
 arg = split(args," ");
@@ -103,9 +104,9 @@ if (config_option == "create") {
 		if (uvp_type == "hd" ) {		print("CNA_s= 3");		}
 		else {					print("CNA_s= 9");		}
 		print("CNA_o= 0");
-		print("hd_path= //uvp5sn"+uvp_sn_txt+"/HD");
-		print("fd_path= //uvp5sn"+uvp_sn_txt+"/FD");
-		print("modfile_path= //uvp5sn"+uvp_sn_txt+"/modfile");		
+		print("hd_path= \\uvp5sn"+uvp_sn_txt+"\HD");
+		print("fd_path= \\uvp5sn"+uvp_sn_txt+"\FD");
+		print("modfile_path= \\uvp5sn"+uvp_sn_txt+"\modfile");		
 	} // else
 
 	// ------------------------ Sauvegarde -----------------------

@@ -1,8 +1,9 @@
 // -------------------------- Zooprocess_flowcam_PID_Vignettes_composite --------------------------
-version = "7.27";
-date = "2018/04/11";
+version = "7.32";
+date = "2019/10/15";
 
 // Traitement des images composites du FlowCam
+// Solution du probleme image name dans lst
 
 args = 	getArgument();
 
@@ -122,6 +123,7 @@ imagenb = stop_after_n_images;
 // --------------------------- Lecture du fichier "lst" -------------------------------------------------
 // LE FICHIER DOIT ETRE OUVERT PAR Notepad+ et enregistré en TXT en AINSI
 //open(pathraw+profileraw+"\\"+profileprocessed+".txt");
+
 //aa = getBoolean(pathraw+profileraw+"\\"+profileprocessed+".lst");
 lst = File.openAsString(pathraw+profileraw+"\\"+profileprocessed+".lst");
 wait(1000);
@@ -169,7 +171,11 @@ for (i = end_meta ; i < data.length ;i++) {
 //	print(data_vect[i - end_meta]);	
 	// -------------- Ouverture image composite si pas ouverte et fermeture précédente -----------------
 	image_name = val[val.length - 1];
-//	aa = getBoolean(pathraw+profileraw+"\\"+image_name);
+	// -------------- Cas champ supplémentaire après image name ----------------------------------------
+	if (indexOf(image_name,".tif") < 0 )  ; image_name = val[val.length - 2];
+
+//	aa = getBoolean("IMAGE= "+pathraw+profileraw+"\\"+image_name);
+
 	if (isOpen(pathraw+profileraw+"\\"+image_name) == false )	{	
 		if (isOpen(image_prev))	{ 	selectImage(image_prev); 	close();	}
 		open(pathraw+profileraw+"\\"+image_name); 

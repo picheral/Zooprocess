@@ -1,8 +1,9 @@
 // ----------------------Zooscan_create_project_5----------------------------------
-version = "7.21";
-date = "2015/09/07";
+version = "7.33";
+date = "2019/11/16";
 
 // v800
+// vuescan absent
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -10,7 +11,7 @@ version = 	arg[0];
 chem = 	arg[1];
 check = 	arg[2];
 	
-scanner = 	"Biotom";
+scanner = 	"Not connected";
 vuescan = 	"8.4.57";
 sizelimit = 	800;	
 overlap = 	0.07;
@@ -51,28 +52,28 @@ syst = ligne[0];
 // ---------- Si 2e ligne, lecture du champ source ------------------------------------------------------
 if (ligne.length == 3) source = ligne[2]; source = toString(source);
 
-
 // --------------------- Test de l'existence du logiciel vuescan------------------------------------------
 ret = runMacro("Zooscan_find_vuescan");
 flag=toString(ret);
 l= lengthOf(flag);
 if (l==1)  { getBoolean("Zooscan_find_vuescan macro aborted? \n \nPress Cancel to abort !    ");	} // if
 else {	argret = split(flag," ");	vuescan = argret[0];	flag = 	argret[1];		chemvue = argret[2];	vuescanexist = argret[3];	} // else
-
 // ---------------------- MODELS and VERSIONS --------------------------------------------------------
 if	 (vuescan == "8.3.23"  )		{  affscanner = newArray("Biotom","Hydroptic v1");				}
 else if 	(vuescan == "8.4.57")		{  affscanner = newArray("Biotom","Hydroptic v1","Hydroptic v2");		}
 else if 	(vuescan == "9.0.51")		{ affscanner = newArray("Hydroptic v3 Window7");				}
 else if 	(vuescan == "9.5.24")		{ affscanner = newArray("Hydroptic v4 Window7/8");				}
-else						{ getBoolean("No compatible Vuescan version \ Press Cancel to Abort !");}
-
+else	{ 
+	if (flag == "1") {getBoolean("No compatible Vuescan version \ Press Cancel to Abort !");}
+}
 
 if ((syst == "Biotom" || syst == "Hydroptic v1") && (vuescan == "8.3.23" || vuescan == "8.4.57") ) 			scanner = "4990";	
 else if (syst == "Hydroptic v2" && vuescan == "8.4.57") 								scanner = "4490";
 else if (syst =="Hydroptic v3 Window7" && vuescan == "9.0.51")								scanner = "v700";
 else if (syst =="Hydroptic v4 Window7/8" && vuescan == "9.5.24")							scanner = "v800";
-else {getBoolean("No compatible Vuescan version for the installed Zooscan. \nPress Cancel to Abort !");}//
-
+else {
+	if (flag == "1") {	getBoolean("No compatible Vuescan version for the installed Zooscan. \nPress Cancel to Abort !");	}
+}//
 
 //---------------------------------Liste les projets existants enregistres dans le fichier zooprocess.txt---------------------------
 // le premier enregistrement est reserve au dernier projet ouvert
@@ -114,13 +115,19 @@ while (check != 1) {
 	for (r=0;r<ind;r++) { aff[r] = affdrive[r];	} // if
 	toto = 1;
 	while (toto == 1) {
+		// --------------- WARINING -------------
+		if (vuescanexist == "0" ) {
+			showMessage("WARNING","Vuescan is NOT (correctly) installed : \n \n you MUST NOT create a NEW project but SELECT an EXISTING project which contains already scanned data ! \nCopy/move first a project if necessary and press OK then ! ");
+		}
+		// --------------- SAISIE ----------------
 		Dialog.create("PROJECT MANAGER                version "+version);
 		Dialog.addMessage("------------------------------ NEW project --------------------------------               ");
 		Dialog.addMessage("ZOOSCAN model :  "+syst);	
 		if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN version : "+vuescan);
 		else {	Dialog.addMessage("VUESCAN is not installed. ");	} // else	
 		Dialog.addMessage("------------------------------------------------------------------------------- ");
-		Dialog.addMessage("To IMPORT EXISTING PROJECT: \nselect its drive and enter its name  (without ''Zooscan_'') !             ");
+		if (flag == "1") {		Dialog.addMessage("To IMPORT EXISTING PROJECT: \nselect its drive and enter its name  (without ''Zooscan_'') !             ");	}
+		else {	Dialog.addMessage("Vuescan is NOT installed : you MUST type in the name of an EXISTING project ! ")		}
 		Dialog.addMessage("Select drive (Do not select CD drive) !               ");
 		Dialog.addChoice("           ",aff);
 		Dialog.addMessage("Enter project name               ");
@@ -134,6 +141,8 @@ while (check != 1) {
 		proj = replace(proj,"/","_");
 		proj = replace(proj,";","_");
 		proj = replace(proj,"!","_");
+		// ------------ test start by zooscan_ et correction ----------------
+		if (indexOf(proj,"zooscan_") == 0) { proj = substring(proj,8,lengthOf(proj));	}
 		if (proj != "enter_project_name") toto = 0;
 	} // while
 	path = drive+"Zooscan_"+proj;
@@ -197,7 +206,7 @@ while (check != 1) {
 			Dialog.create("PROJECT MANAGER        version "+version);
 			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
 			Dialog.addMessage("Project :  "+proj);
-			Dialog.addMessage("ZOOSCAN model :  "+syst);		
+			if (vuescanexist == "1" ) {	Dialog.addMessage("ZOOSCAN model :  "+syst);		}	
 			Dialog.addMessage("-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------");
 			if (vuescanexist == "1" ) 	Dialog.addMessage("VUESCAN version : "+vuescan);
 			else {	Dialog.addMessage("VUESCAN is not installed, SCANNING FILES CANNOT BE CREATED !         ");	} // else		

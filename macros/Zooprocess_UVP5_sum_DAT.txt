@@ -1,12 +1,15 @@
 // --------------------- Zooprocess_UVP5_sum_DAT ------------------------------
-version = "7.26";
-date = "2017/10/10";
+version = "7.40";
+date = "2020/11/12";
 
-// 7.20
 // Retrait des lignes dans lesquelles il n'y a pas d'objet (pb de flash)
 // Nb maxi images / cast passé de 100000 à 500000
 // IMPORTANT : pour récupérer données FIGEES, modifier AUSSI les data capteurs !!
 // Gestion améliorée si toutes images sans particule
+// La détection de first image est imposée AVANT last image !
+// Utilisation pour plot des profils après saisie
+// Changement du nom de l'image du profil => ajout N° images
+// removed filter for data : //	if (indexOf(data_print,"!;	0;	0;	0;	0;	0;") < 0 || process_type == "save_only") 		print(data_print);
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -17,11 +20,20 @@ option  = 		arg[3];
 uvp5type = 		arg[4];
 process_type = 		arg[5];
 
-pathraw = path+"\\raw\\"
+// ----------------- first et last image si plot only -------------
+if (startsWith(option,"plotonly")) {
+	aa= replace(option, "_"," ");
+	aa = split(aa," ");
+	option = aa[0];
+	Firstimage = aa[1];
+	Lastimage = aa[2];
+}
+
+pathraw = path+"\\raw\\";
 pathrawprofile = pathraw+profileraw+"\\";
-pathwork = path+"\\work\\"
+pathwork = path+"\\work\\";
 pathprocessedprofile = pathwork+profileprocessed+"\\";
-pathresults = path+"\\results\\"
+pathresults = path+"\\results\\";
 
 // ------------------------------- LISTE DAT  ------------------------------------
 filelist = getFileList(pathrawprofile);
@@ -98,8 +110,14 @@ for (i=0; i<listaff.length ; i++) {
 //			if (index_t > 1 && final_depth[index_t] != final_depth[index_t - 1]) depth_var = true;
 			index_t++;
 		} //
+		else if (i == 0) {	
+			// ----------- nombre de lignes sans metadata en haut du premier dat ------------
+			decalage = k;		
+		}
 	} // 
 } //	for
+
+//aa = getBoolean(decalage);
 
 //aa = getBoolean(final_time[index_t-1]+" "+final_depth_cor[index_t-1]);
 
@@ -160,7 +178,7 @@ while (k < index_t) {
 //run("Text...",sauve);
 //print("A purger");	selectWindow("Log");		run("Close");
 
-if (option == "metadata") {
+if (option == "metadata" || option == "plotonly") {
 	// --------------- Detection MIN et MAX -------------------------
 	plot_depth = 	newArray(index_t-1);
 	plot_img = 	newArray(index_t-1);
@@ -170,21 +188,34 @@ if (option == "metadata") {
 	z_min = parseFloat(final_depth_cor[1]);
 	z_max = parseFloat(final_depth_cor[1]);
 	stop = false;
+	
+	// ------------- Recherche initiale de index_max ----------
 	for (k = 1; k < index_t ; k++) {
 		depth = parseFloat(final_depth_cor[k]);
 		plot_depth[k-1] = -1*depth;
 		plot_img[k-1] = final_img[k];
-		if (depth >= 0) {	
-			if (depth <= z_min) {
-				z_min = depth;
-				index_min = parseFloat(final_img[k]);
-			}// if
-			if (depth >= z_max) {	
-				z_max = depth;
-				index_max = parseFloat(final_img[k]);
-			}			
+		if (depth >= 0 && depth >= z_max && option == "metadata") {
+			z_max = depth;
+			index_max = parseFloat(final_img[k]);
 		}// if		
 	}// for
+	
+	// ------------- Recherche de index_min avant index_max ----
+	for (k = 1; k < index_t ; k++) {
+		depth = parseFloat(final_depth_cor[k]);
+		if (depth <= z_min && index_min < index_max && option == "metadata") {
+			z_min = depth;
+			index_min = parseFloat(final_img[k]);
+		}// if
+	}
+	// ---------------- Pour plot final après saisie metadata -------
+	if (option == "plotonly") {
+		index_min = parseFloat(Firstimage);// + parseFloat(decalage);
+		index_max = minOf(index_t - decalage,Lastimage);// + parseFloat(decalage);
+		z_min = -1* round(plot_depth[index_min]);
+		z_max = -1*round(plot_depth[index_max]);
+	}
+	
 	// ---------------- Graph QUE si dP > 10m -----------------------
 	if (abs(z_max - z_min) > 10) {
 		ret = toString(index_min)+" "+toString(index_max);
@@ -212,28 +243,42 @@ if (option == "metadata") {
 		Plot.add("line", plot_img,plot_depth);
 		Plot.show();
 		setLineWidth(1);
-		// ---------- First Image -------------------
-		pos_x = talon_gauche + index_min * largeur_plot/index_t;
+
+		// ---------- Raw profile --------------------
+		//	pos_x = talon_gauche + index_min * largeur_plot/index_t;
+		pos_x = 100;
+		//	pos_y = talon_haut+hauteur_plot_cor - 20;
+		pos_y = final_hauteur;
 		setColor(0,0,0);	
 		setFont("SansSerif" , 18);		
-		drawString(profileraw,pos_x,talon_haut+hauteur_plot_cor - 20 );		
+		drawString(profileraw,pos_x,pos_y );	
+		
+		// ---------- First Image -------------------
+		pos_x = talon_gauche + index_min * largeur_plot/index_t;
 		setColor(0,0,255);
-		drawLine(pos_x,talon_haut+hauteur_plot_cor - 60,pos_x,talon_haut);
+		drawLine(pos_x,final_hauteur - 60,pos_x,talon_haut);  
+		//drawLine(pos_x,talon_haut+hauteur_plot_cor - 60,pos_x,talon_haut);
 		leg_x = pos_x;	
 		if (index_min > index_t / 2 ) leg_x = pos_x - 220 ;
-		drawString("  First image     : "+index_min,leg_x,talon_haut+hauteur_plot_cor - 100 );		
-		drawString("  Immersion (m) : "+z_min,leg_x,talon_haut+hauteur_plot_cor - 80 );	
-	                                          
+		//drawString("  First image     : "+index_min,leg_x,talon_haut+hauteur_plot_cor - 100 );		
+		//drawString("  Immersion (m) : "+z_min,leg_x,talon_haut+hauteur_plot_cor - 80 );	
+		drawString("  First image     : "+index_min,leg_x,final_hauteur - 100 );		
+		drawString("  Immersion (m) : "+z_min,leg_x,final_hauteur - 80 );	
+                                
 		// ---------- Last Image -------------------	
 		pos_x = talon_gauche + index_max * largeur_plot/index_t;
 		setColor(0,255,0);
-		drawLine(pos_x,talon_haut+hauteur_plot_cor,pos_x,talon_haut);
+		drawLine(pos_x,final_hauteur - 60,pos_x,talon_haut);
+		//	drawLine(pos_x,talon_haut+hauteur_plot_cor,pos_x,talon_haut);
 		leg_x = pos_x;	
 		if (index_max > index_t / 2 ) leg_x = pos_x - 220 ;
-		drawString("  Deepest image : "+index_max,leg_x ,talon_haut+hauteur_plot_cor - 60 );		
-		drawString("  Immersion (m)  : "+z_max,leg_x,talon_haut+hauteur_plot_cor - 40 );	
+		//drawString("  Deepest image : "+index_max,leg_x ,talon_haut+hauteur_plot_cor - 60 );		
+		//drawString("  Immersion (m)  : "+z_max,leg_x,talon_haut+hauteur_plot_cor - 40 );
+		drawString("  Deepest image : "+index_max,leg_x ,talon_haut + 200 - 60 );		
+		drawString("  Immersion (m)  : "+z_max,leg_x,talon_haut+200 - 40 );
+
 		// ----------- Sauvegarde --------------------
-		saveAs("jpg", pathresults+"UVP5_"+profileraw+".jpg"); 
+		saveAs("jpg", pathresults+"UVP5_"+profileprocessed+"_"+index_min+"_"+index_max+".jpg"); 
 	}//
 }
 else {	// -------------- Impression ------------------------------------
@@ -249,7 +294,8 @@ else {	// -------------- Impression ------------------------------------
 		else if (lengthOf(depth) == 4) depth = "0"+depth;
 		data_print = final_img[k]+";\t"+final_imgcomp[k]+";\t"+depth+";"+final_other[k];
 		// ---------------- Ecriture QUE Si image contient au moins un objet (cas des images noires UVP5 après MAJ soft par Altidev --------------------
-		if (indexOf(data_print,"!;	0;	0;	0;	0;	0;") < 0 || process_type == "save_only") 		print(data_print);
+		//	if (indexOf(data_print,"!;	0;	0;	0;	0;	0;") < 0 || process_type == "save_only") 		print(data_print);
+		print(data_print);
 	} // for
 	// --------------------------- Enregistrement ----------------------------------
 	if (isOpen("Log")==true) { 

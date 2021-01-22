@@ -207,7 +207,7 @@
       run("Color Picker..."); 
   }
 
-    macro "Zooprocess v. 7.28 for ECOTAXA Action Tool - C090T3e16Z" {
+    macro "Zooprocess v. 7.40 for ECOTAXA Action Tool - C090T3e16Z" {
        runMacro("Zooprocess_Zooscan_UVP5_FlowCam.txt");
     }
     macro "Stop Batch mode Action Tool - C090T3e16S" {

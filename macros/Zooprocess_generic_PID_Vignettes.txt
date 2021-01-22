@@ -1,9 +1,10 @@
 // -------------------------- Zooprocess_generic_PID_Vignettes --------------------------
-version = "7.28";
-date = "2018/11/27";
+version = "7.40";
+date = "2020/12/14";
 
 // Detection absence image
 // Non détection des images Full (Octopus)
+// Selection d'un seul objet pour UVP6
 
 args = 	getArgument();
 arg = 	split(args," ");
@@ -26,7 +27,7 @@ dateheurestart =	runMacro("Zooscan_get_time_5");
 
 // --------------------------------------------------------- Mode TEST ----------------------------------------------------------------
 batch =		true;
-test = 		"0";
+test = 		"2";
 printlog = 	0;
 upper_image = 0;
 devt = 1;
@@ -84,7 +85,8 @@ processvignettes = 	1;
 processpid = 		1;
 echelle_micro = parseInt(echelle_micro);
 textech = toString(echelle_micro);
-echelletext = 	textech+ " µm";
+echelletext = 	textech;
+//echelletext = 	textech+ " µm";
 voxelwidth= 	1;
 voxelheigth= 	1;
 voxeldepth= 	1;
@@ -134,13 +136,19 @@ j = 0;
 images = newArray(filelist.length);
 for (k = 0;k<filelist.length;k++ ) {	
 	image = filelist[k];
-	if (indexOf(image,"full") > 1 &&  (endsWith(image,".JPG") == true || endsWith(image,".jpg") == true || endsWith(image,".tif") == true  || endsWith(image,".bmp") == true || endsWith(image,".png") == true )) {	images[j] = image;		
+		
+	if ((endsWith(image,".JPG") == true || endsWith(image,".jpg") == true || endsWith(image,".tif") == true || endsWith(image,".tiff") == true || endsWith(image,".bmp") == true || endsWith(image,".png") == true )) {	images[j] = image;		
+
+//	if (indexOf(image,"full") > 1 &&  (endsWith(image,".JPG") == true || endsWith(image,".jpg") == true || endsWith(image,".tif") == true  || endsWith(image,".bmp") == true || endsWith(image,".png") == true )) {	images[j] = image;		
 		j++;	
 	} // if
 } // for
 listimages = newArray(j);
 for (k=0;k<j;k++) {	rr = images[k];		listimages[k] = rr;	} // for
 
+// ------------------ Test présence images ----------------------------------------------------------
+if (j==0) { aa = getBoolean("No image read, press Cancel to abort and check the dataset !");	}
+	
 // ------------------ Critere de fin -------------------------------------------------------------------
 imagenb = minOf(j,stopafter_n_images);
 //	imagenb = stopafter_n_images;
@@ -253,7 +261,7 @@ while(nbimage < imagenb) {
 	open(path+"\\raw\\"+profileraw+"\\"+image);
 	rename("Imageraw");
 	long = lengthOf(image);
-	indexrawimg = substring(image,long-10,long-4);
+//	indexrawimg = substring(image,long-10,long-4);
 //	getBoolean(nbimage+"  "+image+"    "+indexrawimg);
 
 	// ------------------ Image COLOR pour vignettes --------------------------------
@@ -345,9 +353,7 @@ while(nbimage < imagenb) {
 	if (background_method == "automatic_threshold" ) { 	upper_imagea = mean_image_grey - uppera;			} //if
 	upper_image = parseInt(upper_imagea);
 	if (printlog == 1)	print("Image= "+image+"    upper= "+upper+"   upper_image= "+upper_image);
-	
-	
-	
+
 //	aa = getBoolean("Image= "+image+"    upper= "+upper+"   upper_image= "+upper_image);
 	
 	selectImage("msk");
@@ -374,10 +380,27 @@ while(nbimage < imagenb) {
 	blobtruenb = 0;
 	if (nbblobs != 0) {
 		//	showMessage(nbblobs);
-			
-		//------------Stockage des donnees pour la 2e analyse------------------------------
 		blobtruenb = 0;
-		for (i=0; i<nbblobs; i++) {
+		firstobj = 0;
+		// aa = getBoolean(profileprocessed);
+		if (indexOf(profileprocessed,"uvp6") >= 0) {
+			// aa = getBoolean(profileprocessed+" selected");
+			// ---------- Selection d'un unique objet, le plus gros ---------
+			// cas de traitement des vignettes d'UVP6
+			ligne = 0;		g = 0;
+			areainit = getResult("Area", ligne);
+			while (g<nbblobs) {	area = getResult("Area",g);
+				if (area > areainit) ligne =g;
+				areainit = maxOf(area,areainit);
+				g++;
+			} // while
+			blobtruenb = 0;
+			firstobj = ligne;
+			nbblobs = ligne + 1;
+		} // if 
+
+		//------------Stockage des donnees pour la 2e analyse------------------------------
+		for (i=firstobj; i<nbblobs; i++) {
 			bx = 			getResult("BX", i);
 			by = 			getResult("BY", i);
 			l = 			getResult("Width", i);
@@ -522,13 +545,14 @@ while(nbimage < imagenb) {
 
 			//-------------------Ajoute de coins de delimitation de l'objet-----------
 			selectImage(profileprocessed);
-			if (pixel10x != 0) {
-				setLineWidth(1);
-				drawLine(larg/5,haut/5,larg/5+long_corner,haut/5);
-				drawLine(larg/5,haut/5,larg/5,haut/5+long_corner);
-				drawLine(larg+larg /5,haut+haut/5,larg+larg/5-long_corner,haut+haut/5);
-				drawLine(larg+larg/5,haut+haut/5,larg+larg/5,haut+haut/5-long_corner);
-			}
+//			if (pixel10x != 0) {
+//				setLineWidth(1);
+//				drawLine(larg/5,haut/5,larg/5+long_corner,haut/5);
+//				drawLine(larg/5,haut/5,larg/5,haut/5+long_corner);
+//				drawLine(larg+larg /5,haut+haut/5,larg+larg/5-long_corner,haut+haut/5);
+//				drawLine(larg+larg/5,haut+haut/5,larg+larg/5,haut+haut/5-long_corner);
+//			}
+			
 			//---------------------Trace de l'echelle dans la vignette
 			setLineWidth(1);
 			drawLine(x1,y1,x2,y1);

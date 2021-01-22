@@ -65,7 +65,7 @@ if (j>0) {
 			cable_length[i] = array[39];		cable_angle[i] = array[40];		cable_speed[i] = array[41];		nb_jar[i] = array[42];
 		}//
 		else {	vol_qc[i] = "0";		depth_qc[i] = "0";		sample_qc[i] = "0000";	 barcode[i] = "NaN";	
-			latitude_end[i] = "NaN";	longitude_end[i] = "NaN";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
+			latitude_end[i] = "0.0";	longitude_end[i] = "0.0";	net_duration[i] = 9999;		ship_speed_knots[i] = 9999;
 			cable_length[i] = 9999;		cable_angle[i] = 9999;		cable_speed[i] = 9999;		nb_jar[i] = 9999;
 		}
 		run("Close");	

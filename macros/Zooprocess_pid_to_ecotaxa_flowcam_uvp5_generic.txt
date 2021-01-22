@@ -1,6 +1,6 @@
 //------------- Zooprocess_pid_to_ecotaxa_flowcam_uvp5_generic ---------------
-version = "7.28";
-date = "2018/11/22";
+version = "7.37";
+date = "2020/03/31";
 
 // Utilisé pour flowcam et UVP5
 // Acqu_instrument = uvp5, pixel, Exposure, Thrsh
@@ -14,6 +14,8 @@ date = "2018/11/22";
 // Correction autres variables dérivées
 // Lecture pixel size from uvp5_configuration_data.txt file
 // Correction calcul ESD pour Flowcam et Generic
+// instrum uvp != uvp5
+// objet_rawvig activé pour UVP5
 
 
 arg = 		getArgument(); 
@@ -37,7 +39,7 @@ if (array.length > 7) link = 			array[7];
 ecotaxa_folder = pid_folder;
 settings_folder = projfolder+"\\config\\uvp5_settings\\";
 path_work = projfolder+"\\work\\";
-if (indexOf(projfolder,"uvp") > 0) 		{	instrum = "uvp5";	}
+if (indexOf(projfolder,"uvp5") > 0) 		{	instrum = "uvp5";	}
 else if (indexOf(projfolder,"flowcam") > 0) 	{	instrum = "flowcam";	}
 else if (indexOf(projfolder,"generic") > 0)	{	instrum = "generic";	}
 
@@ -598,7 +600,7 @@ else if (instrum == "generic") {
 	sample_list_A[2] = "sample_ship";		
 	sample_list_A[3] = "sample_filename";		
 	sample_list_A[4] = "sample_samplinggear";	
-	sample_list_A[5] = "sample_volconc";		sample_list_C[6] = "[f]";//	
+	sample_list_A[5] = "sample_volconc";		sample_list_C[5] = "[f]";//	
 	sample_list_A[6] = "sample_comment";	
 
 	// ------------------- Ligne à formater selon ALTIDEV ----------------	
@@ -734,12 +736,15 @@ if (pid == false) {
 }
 // ---------------- Nombre de colonnes a supprimer -------------------------------------------
 start_field = 2;
+// -------- index de la colonne contenant la ref Rawimg pour UVP5 --------------
 rawimg_index = 0;
 if (instrum == "uvp5" || instrum == "generic") start_field = 3;
 for (k = start_field; k<long ;k++) {	
-	// ------------- On n'intègre pas le rawimg de l'UVP5 --------------------------------
-	if (instrum == "uvp5" && entete[k] != "Rawvig" )  {	ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);	}
-	else if (instrum != "uvp5") 			{	ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);	}
+	// ------------- On intègre maintenant le rawimg de l'UVP5 (2020/03/31) --------------------------------
+//	if (instrum == "uvp5" && entete[k] != "Rawvig" )  {	ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);	}
+//	else if (instrum != "uvp5") 			{	ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);	}
+	ligne = ligne +"\t"+"object_"+toLowerCase(entete[k]);
+	// ------------- Detection de la colonne pour ensuite mettre type à [t] ---------
 	if  (entete[k] == "Rawvig" )	{	rawimg_index = k;	}
 } // for
 
@@ -764,8 +769,13 @@ if (pid == false) {
 	if (annotation_list_C[5] == "validated") 	long = entete.length - field_sup_nb;
 }
 nb_to_print = long;
-if (rawimg_index > 0) nb_to_print = long-1;
-for (k = start_field; k<nb_to_print ;k++) {		ligne = ligne +"\t"+"[f]";			} // for
+// ---------- Si colonne Rawimg existe dans le PID -------------
+//	if (rawimg_index > 0) nb_to_print = long-1;
+for (k = start_field; k<nb_to_print ;k++) {
+	// ----------- le champ object_rawvig est [t] ------------
+	if (k == rawimg_index) {	ligne = ligne +"\t"+"[t]";	}
+	else {				ligne = ligne +"\t"+"[f]";	}		
+} // for
 for(i=0;i<objet_derived_B.length;i++) {			ligne = ligne +"\t"+toLowerCase(objet_derived_B[i]);	} // if	
 if (pid == false) {
 	for(i=0;i<annotation_list_B.length;i++) {	ligne = ligne +"\t"+toLowerCase(annotation_list_B[i]);	} // if
@@ -876,9 +886,10 @@ for (j = data_deb+1;j < data.length;j++) {
 		if (status == true && process_opt == "text") annotation_list_C[5] = "predicted";
 	}
 	for (k = start_field; k<long ;k++) {	
-		// ------------- On n'intègre pas le Rawvig de l'UVP5 --------------------------------
-		if (instrum == "uvp5" && k != rawimg_index )  {		ligne = ligne +"\t"+toLowerCase(entete[k]);		}
-		else if (instrum != "uvp5") {				ligne = ligne +"\t"+toLowerCase(entete[k]);		}
+		// ------------- On intègre maintenant le Rawvig de l'UVP5 (2020/03/31) --------------------------------
+//		if (instrum == "uvp5" && k != rawimg_index )  {		ligne = ligne +"\t"+toLowerCase(entete[k]);		}
+//		else if (instrum != "uvp5") {				ligne = ligne +"\t"+toLowerCase(entete[k]);		}
+		ligne = ligne +"\t"+toLowerCase(entete[k]);
 	} // for
 	
 	

@@ -1,6 +1,6 @@
 //-------------------Zooprocess_edit_configuration---------------------------------
-version = "7.27";
-date = "2018/05/17";
+version = "7.33";
+date = "2019/11/08";
 
 // UVP5 HD / Std
 // CREATE / EDIT
@@ -8,6 +8,7 @@ date = "2018/05/17";
 // UVP5 : les fichiers de paramlétrage et d'acquisition ne sont plus créés mais téléchargés par le PILOT module
 // FLOWCAM color threshold
 // GENERIC, invert_only for Octopus raw images
+// Valeurs ESD min et Nb par défaut
 
 arg = getArgument(); 
 array = split(arg," ");
@@ -149,12 +150,12 @@ if (j==0 || option == "create") {
 		print("gamma= 2");
 		print("echelle_µm= 100");
 		print("process_option= advanced");
-		print("esdmin= 40");
+		print("esdmin= 20");
 		print("esdmax= 100000");
 		print("LUT_ofset= 0");
 		print("LUT_slope= 1");
-		print("Stop_after_n_images= 10000");
-		print("Stop_after_m_objects= 10000");
+		print("Stop_after_n_images= 90000");
+		print("Stop_after_m_objects= 50000");
 		print("scale= 2");
 		print("remove_objects_on_sides= yes");
 		print("remove_duplicates= yes");
